@@ -1,19 +1,11 @@
 ---
 name: code-quality-review
-description: Review a completed, non-trivial code change for organizational readability, naming, unsafe-shortcut, and commenting standards. Invoke automatically after adding or materially changing behavior, introducing a non-trivial function, changing control flow or state handling, touching several related code fragments, or changing roughly 20 or more executable lines; treat 10 lines as an early signal when complexity is present. Skip generated code, formatting-only changes, data-only edits, mechanical renames, and trivial accessors or wrappers.
+description: Review completed code changes for organizational readability, naming, unsafe-shortcut, and commenting standards. Invoke after meaningful logic or behavior changes, using roughly 20 executable lines as a flexible size signal.
 ---
 
 # Code Quality Review
 
 Review the relevant completed change, normally the current diff rather than the entire repository. This is a report-first gate: do not make review-driven improvements until the user approves them.
-
-Continue to write clean code during the original implementation. Do not knowingly introduce an obvious violation merely to defer it to this review.
-
-## Decide Whether to Review
-
-Review when a change is non-trivial because it adds or materially changes behavior, introduces meaningful logic, changes control flow, error handling, conversions, or state transitions, spans several related code fragments, or changes roughly 20 or more executable lines.
-
-Treat a new function or 10 changed executable lines as a signal, not a hard threshold. Review a smaller complex change; skip a larger mechanical or declarative change. Exclude generated code, formatting-only changes, data-only edits, mechanical renames, and trivial accessors or wrappers unless the surrounding hand-written change creates a genuine concern.
 
 ## Review Workflow
 

@@ -101,8 +101,4 @@ If earlier content has been compacted or is unavailable, capture everything stil
 - Never read or alter an earlier snapshot as part of logging. Repeated invocations intentionally create complete, overlapping snapshots.
 - Logging is ancillary: if it fails, do not misrepresent success. Return the requested response and briefly disclose the logging failure.
 
-## Invocation boundary
-
-Run this workflow only when the user clearly asks to log or save the current conversation, or explicitly invokes `$log-agent-conversation`. A discussion about logging, skills, summaries, or token usage is not by itself a logging request. Do not log ordinary exchanges automatically.
-
 After creating a snapshot, remind the user that this skill is intentionally stateless and works best when invoked once near the end of a conversation, before starting a new one.
