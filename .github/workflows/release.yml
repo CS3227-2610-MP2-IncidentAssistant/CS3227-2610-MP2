@@ -1,0 +1,83 @@
+name: Package local application
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify project configuration
+        shell: bash
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "gradlew was not found. Add the Gradle Wrapper before creating a release."
+            exit 1
+          fi
+
+      - name: Make Gradle Wrapper executable
+        shell: bash
+        run: |
+          chmod +x gradlew
+
+      - name: Build and test
+        shell: bash
+        run: ./gradlew build
+
+      - name: Package application
+        shell: bash
+        run: ./gradlew build -x test
+
+      - name: Upload packaged application
+        uses: actions/upload-artifact@v4
+        with:
+          name: incident-app-${{ matrix.os }}
+          path: |
+            build/libs/*
+            build/distributions/*
+            build/jpackage/*
+          if-no-files-found: error
+
+  create-release:
+    name: Create GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download packaged applications
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: incident-app-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**/*
+          generate_release_notes: true
