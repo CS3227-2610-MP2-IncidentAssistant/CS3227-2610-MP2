@@ -1,3 +1,4 @@
 logs/conversations/
 .gradle/
 build/
+.idea/
