@@ -2,6 +2,7 @@ logs/conversations/
 .idea/
 .gradle/
 build/
+bin/
 out/
 *.iml
 
