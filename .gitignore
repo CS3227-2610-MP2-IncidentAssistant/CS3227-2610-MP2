@@ -1,4 +1,10 @@
 logs/conversations/
+.idea/
 .gradle/
 build/
-.idea/
+out/
+*.iml
+
+# Incident Desk runtime data must remain outside the source tree.
+.incident-desk-data/
+data/
