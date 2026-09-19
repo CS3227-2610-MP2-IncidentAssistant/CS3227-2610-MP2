@@ -33,6 +33,9 @@
 
 ### Incident lifecycle
 
+- Required submitted-incident title, description, and category validation,
+  including incomplete draft text, title stripping, and preservation of
+  description and resolution whitespace.
 - Every transition and invalid transition in
   `.agents/incident-lifecycle.md`.
 - Editing/withdrawal before and after assignment.

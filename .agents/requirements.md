@@ -31,6 +31,11 @@ accounts may exist, but only one user can operate the application at a time.
 A reporter can:
 
 - Submit an incident report, optionally marked anonymous.
+- Submitted incident reports require a non-blank title, description, and
+  category; incomplete drafts may omit title or description. Titles are
+  stripped of leading and trailing whitespace before storage. Descriptions and
+  resolution remarks retain entered whitespace after non-blank validation. No
+  arbitrary text-length limits are imposed.
 - Save an incomplete report as a draft and submit it later.
 - Upload supported images and videos and view them in the application.
 - View, search, and filter their own incidents and their statuses.
@@ -88,7 +93,7 @@ counts/rates, and configured SLO performance.
 
 The following are deliberately not invented by this document:
 
-- Exact incident form fields and mandatory-field validation.
+- Additional incident form fields beyond title, description, and category.
 - Supported attachment formats and maximum sizes.
 - Whether registration is open or requires admin activation.
 - Business-hours, weekend, holiday, and pause rules for SLOs.
