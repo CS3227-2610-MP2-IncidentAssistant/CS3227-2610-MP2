@@ -3,6 +3,8 @@
 ## General approach
 
 - Keep domain and authorization logic testable without launching the UI.
+- Return stable application error codes and field validation results so UI code
+  never parses exception messages.
 - Use deterministic clocks and identifier generators in tests.
 - Use a fresh temporary application-data directory for every persistence test.
 - Never access a developer's or user's real application-data directory.
@@ -24,6 +26,8 @@
 
 ### Authorization
 
+- Map access denial and missing resources to identical presentation-safe
+  resource-unavailable errors.
 - Each row of `.agents/authorization-matrix.md` has allowed and denied tests.
 - Reporters cannot enumerate or access another reporter's incidents.
 - Responders cannot access categories not assigned to them.
