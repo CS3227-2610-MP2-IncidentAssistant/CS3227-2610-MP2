@@ -14,6 +14,8 @@
 ### Authentication and accounts
 
 - Registration validation and duplicate identities.
+- Case-sensitive login lookup, including distinct accounts whose names differ
+  only by letter case.
 - Login success/failure, logout, and session replacement.
 - Password hashes are salted and plaintext is absent from stored files/logs.
 - Promotion approval/rejection and category-access changes.

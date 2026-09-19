@@ -13,6 +13,8 @@ accounts may exist, but only one user can operate the application at a time.
 ## Shared capabilities
 
 - Login, logout, and a single active application session.
+- Login names are case-sensitive. Names that differ only by letter case identify
+  distinct accounts.
 - User registration.
 - Role- and category-based access control.
 - Reusable table/list views with searching, filtering, and sorting where
