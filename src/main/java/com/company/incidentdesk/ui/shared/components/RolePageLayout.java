@@ -21,7 +21,7 @@ public class RolePageLayout extends BorderPane {
      */
     protected RolePageLayout(String title, String description, Runnable onBack) {
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        titleLabel.getStyleClass().add("page-title");
 
         Label descriptionLabel = new Label(description);
         descriptionLabel.setWrapText(true);

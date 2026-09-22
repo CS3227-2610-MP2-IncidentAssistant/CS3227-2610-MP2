@@ -9,7 +9,9 @@ import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.ui.admin.AdminPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.responder.ResponderPage;
+import com.company.incidentdesk.ui.shared.components.ComponentShowcasePage;
 import com.company.incidentdesk.ui.shared.components.RoleSelectionPage;
+import com.company.incidentdesk.ui.shared.theme.ApplicationTheme;
 
 /** JavaFX application for Incident Desk. */
 public final class IncidentDeskApplication extends Application {
@@ -21,13 +23,14 @@ public final class IncidentDeskApplication extends Application {
     @Override
     public void start(Stage primaryStage) {
         scene = new Scene(createRoleSelectionPage(), INITIAL_WIDTH, INITIAL_HEIGHT);
+        ApplicationTheme.applyTo(scene);
         primaryStage.setTitle("Incident Desk");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
     private Parent createRoleSelectionPage() {
-        return new RoleSelectionPage(this::showRolePage);
+        return new RoleSelectionPage(this::showRolePage, this::showComponentShowcase);
     }
 
     private void showRolePage(Role role) {
@@ -41,5 +44,9 @@ public final class IncidentDeskApplication extends Application {
 
     private void showRoleSelectionPage() {
         scene.setRoot(createRoleSelectionPage());
+    }
+
+    private void showComponentShowcase() {
+        scene.setRoot(new ComponentShowcasePage(this::showRoleSelectionPage));
     }
 }

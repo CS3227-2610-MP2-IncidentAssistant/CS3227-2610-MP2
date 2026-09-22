@@ -21,11 +21,11 @@ public final class RoleSelectionPage extends VBox {
      *
      * @param onRoleSelected handler called with the selected role
      */
-    public RoleSelectionPage(Consumer<Role> onRoleSelected) {
+    public RoleSelectionPage(Consumer<Role> onRoleSelected, Runnable onShowcaseSelected) {
         super(CONTENT_SPACING);
 
         Label title = new Label("Incident Desk");
-        title.setStyle("-fx-font-size: 28px; -fx-font-weight: bold;");
+        title.getStyleClass().add("page-title");
         Label prompt = new Label("Choose a role workspace");
 
         getChildren().addAll(
@@ -33,7 +33,8 @@ public final class RoleSelectionPage extends VBox {
                 prompt,
                 createRoleButton("Reporter", Role.REPORTER, onRoleSelected),
                 createRoleButton("Responder", Role.RESPONDER, onRoleSelected),
-                createRoleButton("Administrator", Role.ADMINISTRATOR, onRoleSelected));
+                createRoleButton("Administrator", Role.ADMINISTRATOR, onRoleSelected),
+                createShowcaseButton(onShowcaseSelected));
         setAlignment(Pos.CENTER);
         setPadding(new Insets(PAGE_PADDING));
     }
@@ -41,7 +42,17 @@ public final class RoleSelectionPage extends VBox {
     private Button createRoleButton(String label, Role role, Consumer<Role> onRoleSelected) {
         Button button = new Button(label);
         button.setPrefWidth(BUTTON_WIDTH);
+        button.getStyleClass().add("role-button");
         button.setOnAction(event -> onRoleSelected.accept(role));
+        return button;
+    }
+
+    private Button createShowcaseButton(Runnable onShowcaseSelected) {
+        Button button = new Button("UI component showcase");
+        button.setAccessibleText("Open the UI component showcase");
+        button.setPrefWidth(BUTTON_WIDTH);
+        button.getStyleClass().addAll("role-button", "primary");
+        button.setOnAction(event -> onShowcaseSelected.run());
         return button;
     }
 }

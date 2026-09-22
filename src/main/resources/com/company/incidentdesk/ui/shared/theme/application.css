@@ -1,0 +1,206 @@
+/* Incident Desk — Calm Blue Operations theme.
+ * Layout spacing and responsive behavior belong in JavaFX layout code.
+ */
+.root {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 14px;
+    -fx-text-fill: #18243A;
+    -fx-background-color: #F5F7FB;
+    -fx-accent: #4169D8;
+    -fx-focus-color: #4169D8;
+    -fx-faint-focus-color: rgba(65, 105, 216, 0.18);
+}
+
+.label { -fx-text-fill: #18243A; }
+.muted, .subtitle, .metric-label { -fx-text-fill: #6E788A; }
+.page-title { -fx-font-size: 28px; -fx-font-weight: 700; }
+.section-title { -fx-font-size: 17px; -fx-font-weight: 700; }
+.metric-value { -fx-font-size: 29px; -fx-font-weight: 700; }
+.metric-label { -fx-font-size: 12px; -fx-font-weight: 700; }
+.content-pane, .scroll-pane, .scroll-pane > .viewport { -fx-background-color: #F5F7FB; }
+
+.scroll-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 2px;
+}
+.scroll-bar:vertical { -fx-pref-width: 13px; }
+.scroll-bar:horizontal { -fx-pref-height: 13px; }
+.scroll-bar .track {
+    -fx-background-color: #EEF2F7;
+    -fx-background-radius: 999px;
+    -fx-border-color: transparent;
+}
+.scroll-bar .thumb {
+    -fx-background-color: #9AA5B5;
+    -fx-background-insets: 2px;
+    -fx-background-radius: 999px;
+}
+.scroll-bar .thumb:hover { -fx-background-color: #7F8B9C; }
+.scroll-bar .thumb:pressed { -fx-background-color: #667286; }
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 3px;
+}
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: #6E788A;
+    -fx-padding: 3px;
+}
+.scroll-bar:horizontal .increment-arrow,
+.scroll-bar:horizontal .decrement-arrow {
+    -fx-padding: 3px 2px;
+}
+.scroll-pane .corner,
+.table-view .corner {
+    -fx-background-color: transparent;
+}
+
+.panel, .metric-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12px;
+    -fx-border-color: #DCE2EC;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+}
+.panel-body { -fx-padding: 20px; }
+.metric-card { -fx-padding: 19px; }
+
+.button {
+    -fx-min-height: 40px;
+    -fx-padding: 9px 15px;
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 9px;
+    -fx-border-color: #DCE2EC;
+    -fx-border-radius: 9px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #18243A;
+    -fx-font-weight: 700;
+    -fx-cursor: hand;
+}
+.button:hover { -fx-background-color: #F9FAFC; -fx-border-color: #AEB9CA; }
+.button:focused, .text-input:focused, .combo-box:focused, .date-picker:focused {
+    -fx-border-color: #4169D8;
+    -fx-border-width: 2px;
+}
+.button.primary { -fx-background-color: #4169D8; -fx-border-color: #4169D8; -fx-text-fill: #FFFFFF; }
+.button.primary:hover { -fx-background-color: #345BC4; -fx-border-color: #345BC4; }
+.button.danger { -fx-background-color: #FCE4E4; -fx-border-color: #E5B1B1; -fx-text-fill: #B33A3A; }
+.button.ghost { -fx-background-color: transparent; -fx-border-color: transparent; }
+.button.small { -fx-min-height: 40px; -fx-pref-height: 40px; -fx-padding: 6px 10px; -fx-font-size: 13px; }
+.button:disabled { -fx-opacity: 0.55; -fx-cursor: default; }
+.role-button { -fx-pref-width: 220px; }
+
+.text-field, .password-field, .text-area, .combo-box, .date-picker {
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
+    -fx-max-height: 40px;
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 8px;
+    -fx-border-color: #C9D1DD;
+    -fx-border-radius: 8px;
+    -fx-border-width: 2px;
+    -fx-text-fill: #18243A;
+}
+.text-field, .password-field, .combo-box, .date-picker { -fx-padding: 9px 11px; }
+.text-area { -fx-padding: 5px; }
+.text-area { -fx-min-height: 108px; -fx-pref-height: 108px; -fx-max-height: 108px; }
+.text-area .content { -fx-background-color: #FFFFFF; -fx-background-radius: 7px; }
+.date-picker > .text-field {
+    -fx-min-height: 0;
+    -fx-pref-height: -1;
+    -fx-max-height: infinity;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+.combo-box > .list-cell { -fx-padding: 0; -fx-background-color: transparent; }
+.invalid, .invalid:focused { -fx-border-color: #B33A3A; }
+.field-error { -fx-font-size: 12px; -fx-text-fill: #B33A3A; }
+
+.table-view {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12px;
+    -fx-border-color: #DCE2EC;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+}
+.table-view .column-header-background {
+    -fx-background-color: #EDF1F7;
+    -fx-background-radius: 11px 11px 0 0;
+    -fx-border-color: transparent transparent #C7D0DE transparent;
+    -fx-border-width: 0 0 1px 0;
+}
+.table-view .column-header, .table-view .filler { -fx-background-color: transparent; }
+.table-view .column-header { -fx-size: 30px; }
+.table-view .column-header .label { -fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #6E788A; }
+.table-view .table-cell { -fx-padding: 12px; }
+.table-row-cell { -fx-background-color: #FFFFFF; -fx-border-color: transparent transparent #DCE2EC transparent; }
+.table-row-cell:hover, .table-row-cell:selected { -fx-background-color: #F8FAFD; }
+.table-view {
+    -fx-table-cell-border-color: #DCE2EC;
+}
+.table-row-cell:selected .table-cell,
+.table-row-cell:focused:selected .table-cell {
+    -fx-border-color: transparent #DCE2EC transparent transparent;
+}
+.table-row-cell:selected .text { -fx-fill: #18243A; }
+.table-row-cell:empty, .table-row-cell:empty:hover {
+    -fx-background-color: transparent;
+    -fx-table-cell-border-color: transparent;
+}
+
+.badge {
+    -fx-padding: 4px 9px;
+    -fx-background-color: #E4ECFF;
+    -fx-background-radius: 999px;
+    -fx-text-fill: #2854B6;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+.badge.success { -fx-background-color: #DDF4E9; -fx-text-fill: #1F7A55; }
+.badge.warning { -fx-background-color: #FFF0D3; -fx-text-fill: #946016; }
+.badge.danger { -fx-background-color: #FCE4E4; -fx-text-fill: #B33A3A; }
+.badge.neutral { -fx-background-color: #E9EDF3; -fx-text-fill: #596579; }
+
+.attachment-tile, .empty-state, .loading-state, .error-banner, .toast {
+    -fx-padding: 18px;
+    -fx-background-radius: 9px;
+}
+.attachment-tile { -fx-min-height: 92px; -fx-background-color: #F8FAFD; -fx-border-color: #AAB5C5; -fx-border-radius: 9px; -fx-border-style: segments(5, 5); }
+.empty-state { -fx-background-color: #F8FAFD; }
+.loading-state { -fx-background-color: #E4ECFF; }
+.error-banner { -fx-background-color: #FCE4E4; -fx-border-color: #E5B1B1; -fx-border-radius: 9px; }
+.error-banner .label { -fx-text-fill: #B33A3A; }
+.toast { -fx-background-color: #FFFFFF; -fx-border-color: transparent transparent transparent #1F7A55; -fx-border-width: 0 0 0 4px; -fx-effect: dropshadow(gaussian, rgba(23, 35, 63, 0.16), 16, 0, 0, 5); }
+
+.avatar { -fx-min-width: 34px; -fx-min-height: 34px; -fx-max-width: 34px; -fx-max-height: 34px; -fx-background-color: #FFFFFF; -fx-background-radius: 999px; -fx-text-fill: #17233F; -fx-font-weight: 700; -fx-alignment: CENTER; }
+.comment-body { -fx-padding: 11px 13px; -fx-background-color: #F5F7FB; -fx-background-radius: 9px; }
+.comment-author { -fx-font-weight: 700; }
+.comment-date { -fx-font-size: 12px; }
+.timeline-marker { -fx-min-width: 8px; -fx-min-height: 8px; -fx-max-width: 8px; -fx-max-height: 8px; -fx-background-color: #4169D8; -fx-background-radius: 999px; }
+
+.progress-bar { -fx-min-height: 6px; -fx-pref-height: 6px; -fx-max-height: 6px; }
+.progress-bar > .track { -fx-background-color: #E8ECF3; -fx-background-radius: 999px; }
+.progress-bar > .bar { -fx-background-color: #4169D8; -fx-background-radius: 999px; -fx-padding: 3px; }
+.slo-progress-track {
+    -fx-min-height: 8px;
+    -fx-pref-height: 8px;
+    -fx-max-height: 8px;
+    -fx-background-color: #E8ECF3;
+    -fx-background-radius: 999px;
+}
+.slo-progress-fill {
+    -fx-min-height: 8px;
+    -fx-pref-height: 8px;
+    -fx-max-height: 8px;
+    -fx-background-color: #4169D8;
+    -fx-background-radius: 999px;
+}
+.chart-bar { -fx-bar-fill: #4169D8; }
+.chart-plot-background { -fx-background-color: transparent; }
+
+.dialog-pane { -fx-background-color: #FFFFFF; -fx-background-radius: 13px; }
+.dialog-pane .header-panel { -fx-background-color: #FFFFFF; }
+.tooltip { -fx-background-color: #17233F; -fx-text-fill: #FFFFFF; -fx-background-radius: 6px; -fx-padding: 7px 9px; }
