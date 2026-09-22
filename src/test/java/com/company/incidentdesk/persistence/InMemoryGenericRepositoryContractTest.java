@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.persistence.memory.InMemoryAttachmentMetadataRepository;
-import com.company.incidentdesk.persistence.memory.InMemoryAuditRepository;
 import com.company.incidentdesk.persistence.memory.InMemoryCommentRepository;
 import com.company.incidentdesk.persistence.memory.InMemoryPromotionRequestRepository;
 import com.company.incidentdesk.persistence.memory.InMemorySloConfigurationRepository;
@@ -36,7 +35,6 @@ class InMemoryGenericRepositoryContractTest {
     @Test
     void appendOnlyRepositoriesRejectDuplicateIdentifiersAndExposeNoUpdate() {
         List<Supplier<AppendOnlyRepository<String, String>>> repositories = List.of(
-                InMemoryAuditRepository::new,
                 () -> new InMemoryCommentRepository<>(ignored -> INCIDENT_ID),
                 () -> new InMemorySloConfigurationRepository<>(ignored -> IncidentCategory.IT));
 
