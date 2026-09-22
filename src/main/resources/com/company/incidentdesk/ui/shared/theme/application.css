@@ -168,6 +168,15 @@
     -fx-padding: 18px;
     -fx-background-radius: 9px;
 }
+.feedback-card {
+    -fx-alignment: TOP_LEFT;
+}
+.component-showcase .feedback-card {
+    -fx-pref-width: 310px;
+    -fx-min-width: 310px;
+    -fx-max-width: 310px;
+    -fx-min-height: 145px;
+}
 .attachment-tile { -fx-min-height: 92px; -fx-background-color: #F8FAFD; -fx-border-color: #AAB5C5; -fx-border-radius: 9px; -fx-border-style: segments(5, 5); }
 .empty-state { -fx-background-color: #F8FAFD; }
 .loading-state { -fx-background-color: #E4ECFF; }

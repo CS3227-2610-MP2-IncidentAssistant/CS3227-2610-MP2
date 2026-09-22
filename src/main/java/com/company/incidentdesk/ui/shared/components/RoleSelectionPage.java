@@ -40,7 +40,7 @@ public final class RoleSelectionPage extends VBox {
     }
 
     private Button createRoleButton(String label, Role role, Consumer<Role> onRoleSelected) {
-        Button button = new Button(label);
+        Button button = UiComponents.action(label, ActionStyle.SECONDARY);
         button.setPrefWidth(BUTTON_WIDTH);
         button.getStyleClass().add("role-button");
         button.setOnAction(event -> onRoleSelected.accept(role));
@@ -48,10 +48,10 @@ public final class RoleSelectionPage extends VBox {
     }
 
     private Button createShowcaseButton(Runnable onShowcaseSelected) {
-        Button button = new Button("UI component showcase");
+        Button button = UiComponents.action("UI component showcase", ActionStyle.PRIMARY);
         button.setAccessibleText("Open the UI component showcase");
         button.setPrefWidth(BUTTON_WIDTH);
-        button.getStyleClass().addAll("role-button", "primary");
+        button.getStyleClass().add("role-button");
         button.setOnAction(event -> onShowcaseSelected.run());
         return button;
     }

@@ -26,7 +26,7 @@ public class RolePageLayout extends BorderPane {
         Label descriptionLabel = new Label(description);
         descriptionLabel.setWrapText(true);
 
-        Button backButton = new Button("Back to role selection");
+        Button backButton = UiComponents.action("Back to role selection", ActionStyle.SECONDARY);
         backButton.setOnAction(event -> onBack.run());
 
         VBox content = new VBox(CONTENT_SPACING, titleLabel, descriptionLabel, backButton);

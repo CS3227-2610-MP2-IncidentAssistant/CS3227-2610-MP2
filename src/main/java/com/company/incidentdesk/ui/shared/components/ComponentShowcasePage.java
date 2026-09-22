@@ -1,5 +1,6 @@
 package com.company.incidentdesk.ui.shared.components;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,7 +34,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 /** Interactive catalogue of the visual primitives needed by the product. */
@@ -60,7 +60,7 @@ public final class ComponentShowcasePage extends BorderPane {
         ScrollPane scrollPane = new ScrollPane(catalogue);
         scrollPane.setFitToWidth(true);
         setCenter(scrollPane);
-        getStyleClass().add("content-pane");
+        getStyleClass().addAll("content-pane", "component-showcase");
     }
 
     private Node createHeader(Runnable onBack) {
@@ -70,7 +70,7 @@ public final class ComponentShowcasePage extends BorderPane {
         subtitle.getStyleClass().add("muted");
         subtitle.setWrapText(true);
 
-        Button back = UiComponents.button("Back to role selection", "secondary");
+        Button back = UiComponents.action("Back to role selection", ActionStyle.SECONDARY);
         back.setOnAction(event -> onBack.run());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -84,15 +84,15 @@ public final class ComponentShowcasePage extends BorderPane {
     private Node createActionsPanel() {
         FlowPane actions = new FlowPane(10, 10);
         actions.getChildren().addAll(
-                UiComponents.button("Create incident", "primary"),
-                UiComponents.button("Secondary action", "secondary"),
-                UiComponents.button("Delete account", "danger"),
-                UiComponents.button("Low emphasis", "ghost"),
-                UiComponents.button("Edit", "small"));
+                UiComponents.action("Create incident", ActionStyle.PRIMARY),
+                UiComponents.action("Secondary action", ActionStyle.SECONDARY),
+                UiComponents.action("Delete account", ActionStyle.DANGER),
+                UiComponents.action("Low emphasis", ActionStyle.GHOST),
+                UiComponents.action("Edit", ActionStyle.SMALL));
 
-        Button disabled = UiComponents.button("Unavailable", "secondary");
+        Button disabled = UiComponents.action("Unavailable", ActionStyle.SECONDARY);
         disabled.setDisable(true);
-        Button confirm = UiComponents.button("Open confirmation", "secondary");
+        Button confirm = UiComponents.action("Open confirmation", ActionStyle.SECONDARY);
         confirm.setOnAction(event -> showConfirmation());
         actions.getChildren().addAll(disabled, confirm);
         return UiComponents.panel("Buttons and confirmation dialog", actions);
@@ -119,10 +119,10 @@ public final class ComponentShowcasePage extends BorderPane {
             constraints.setPercentWidth(25);
             metrics.getColumnConstraints().add(constraints);
         }
-        metrics.add(metricCard("Open incidents", "24", "Across all categories"), 0, 0);
-        metrics.add(metricCard("Resolved this week", "18", "+12% from last week"), 1, 0);
-        metrics.add(metricCard("Within SLO", "92%", "Healthy performance"), 2, 0);
-        metrics.add(metricCard("Reopened", "3", "Requires review"), 3, 0);
+        metrics.add(UiComponents.metricCard("Open incidents", "24", "Across all categories"), 0, 0);
+        metrics.add(UiComponents.metricCard("Resolved this week", "18", "+12% from last week"), 1, 0);
+        metrics.add(UiComponents.metricCard("Within SLO", "92%", "Healthy performance"), 2, 0);
+        metrics.add(UiComponents.metricCard("Reopened", "3", "Requires review"), 3, 0);
         return UiComponents.panel("Metric cards", metrics);
     }
 
@@ -143,19 +143,17 @@ public final class ComponentShowcasePage extends BorderPane {
 
         TextField invalid = new TextField();
         invalid.setPromptText("Required title");
-        invalid.setAccessibleText("Invalid incident title. Title is required.");
-        invalid.getStyleClass().add("invalid");
-        Label error = new Label("Title is required.");
-        error.getStyleClass().add("field-error");
+        ValidatedField invalidField = UiComponents.field("Validation example", invalid);
+        invalidField.showError("Title is required.");
 
         GridPane form = new GridPane();
         form.setHgap(18);
         form.setVgap(14);
-        addField(form, 0, "Title", title);
-        addField(form, 1, "Category", category);
-        addField(form, 2, "Date", date);
-        addField(form, 3, "Validation example", new VBox(5, invalid, error));
-        form.add(new VBox(7, new Label("Description"), description), 0, 2, 2, 1);
+        form.add(UiComponents.field("Title", title), 0, 0);
+        form.add(UiComponents.field("Category", category), 1, 0);
+        form.add(UiComponents.field("Date", date), 0, 1);
+        form.add(invalidField, 1, 1);
+        form.add(UiComponents.field("Description", description), 0, 2, 2, 1);
         form.add(anonymous, 0, 3, 2, 1);
         return UiComponents.panel("Fields, forms, and validation", form);
     }
@@ -194,46 +192,47 @@ public final class ComponentShowcasePage extends BorderPane {
     }
 
     private Node createFeedbackPanel() {
-        VBox loading = stateCard(
+        VBox loading = UiComponents.feedback(
                 "Loading incidents",
                 "Shown while records are being read from local storage.",
-                "loading-state");
-        VBox empty = stateCard(
+                FeedbackType.LOADING);
+        VBox empty = UiComponents.feedback(
                 "No incidents found",
                 "Shown after a successful query returns no records. Adjust the filters or create an incident.",
-                "empty-state");
-        VBox error = stateCard(
+                FeedbackType.EMPTY);
+        VBox error = UiComponents.feedback(
                 "Incidents could not be loaded",
                 "Shown when an operation fails. Check the data files and try again.",
-                "error-banner");
-        VBox success = stateCard(
+                FeedbackType.ERROR);
+        VBox success = UiComponents.feedback(
                 "Incident created",
                 "A short-lived confirmation shown after an action succeeds.",
-                "toast");
+                FeedbackType.SUCCESS);
 
         FlowPane states = new FlowPane(14, 14, loading, empty, error, success);
         return UiComponents.panel("Loading, empty, error, and success states", states);
     }
 
     private Node createCollaborationPanel() {
-        VBox attachment = stateCard("Image attachment", "office-printer.jpg · 1.4 MB", "attachment-tile");
-        Label marker = new Label();
-        marker.getStyleClass().add("timeline-marker");
-        Label event = new Label("Assigned to Morgan Lee · "
+        VBox attachment = UiComponents.attachmentTile(
+                "Image attachment",
+                "office-printer.jpg · 1.4 MB");
+        HBox timeline = UiComponents.timelineEvent("Assigned to Morgan Lee · "
                 + UiComponents.localDateTimeFormatter().format(Instant.parse("2026-09-22T02:15:00Z")));
-        HBox timeline = new HBox(10, marker, event);
-        timeline.setAlignment(Pos.CENTER_LEFT);
+        Clock sampleClock = sampleCommentClock();
         VBox comments = new VBox(
                 10,
-                createComment("AR", "Alex Rivera", "Reporter", sampleCommentDate(2026, 9, 25, 8, 43), "The issue affects the whole third floor."),
-                createComment("ML", "Morgan Lee", "Responder", sampleCommentDate(2026, 9, 24, 16, 14), "I have reproduced the printer fault."),
-                createComment("PS", "Priya Shah", "Administrator", sampleCommentDate(2026, 9, 19, 12, 0), "The incident has been moved to the IT queue."),
-                createComment("JT", "Jordan Tan", "Responder", sampleCommentDate(2026, 6, 24, 15, 0), "The replacement component has arrived."));
+                UiComponents.comment("AR", "Alex Rivera", "Reporter", sampleCommentInstant(2026, 9, 25, 8, 43), sampleClock, "The issue affects the whole third floor."),
+                UiComponents.comment("ML", "Morgan Lee", "Responder", sampleCommentInstant(2026, 9, 24, 16, 14), sampleClock, "I have reproduced the printer fault."),
+                UiComponents.comment("PS", "Priya Shah", "Administrator", sampleCommentInstant(2026, 9, 19, 12, 0), sampleClock, "The incident has been moved to the IT queue."),
+                UiComponents.comment("JT", "Jordan Tan", "Responder", sampleCommentInstant(2026, 6, 24, 15, 0), sampleClock, "The replacement component has arrived."));
         return UiComponents.panel("Attachments, comments, and lifecycle timeline", attachment, comments, timeline);
     }
 
     private Node createProgressPanel() {
-        StackPane slo = createSloProgress(0.72);
+        SloProgressBar slo = UiComponents.sloProgress(
+                0.72,
+                "Seventy-two percent of the incident SLO elapsed");
 
         CategoryAxis categories = new CategoryAxis();
         NumberAxis totals = new NumberAxis();
@@ -254,79 +253,15 @@ public final class ComponentShowcasePage extends BorderPane {
         return UiComponents.panel("SLO progress and operational chart", new Label("SLO elapsed: 72%"), slo, chart);
     }
 
-    private StackPane createSloProgress(double progress) {
-        Region fill = new Region();
-        fill.getStyleClass().add("slo-progress-fill");
-
-        StackPane track = new StackPane(fill);
-        track.getStyleClass().add("slo-progress-track");
-        track.setAlignment(Pos.CENTER_LEFT);
-        track.setAccessibleText("Seventy-two percent of the incident SLO elapsed");
-        fill.minWidthProperty().bind(track.widthProperty().multiply(progress));
-        fill.prefWidthProperty().bind(track.widthProperty().multiply(progress));
-        fill.maxWidthProperty().bind(track.widthProperty().multiply(progress));
-        return track;
-    }
-
-    private VBox metricCard(String label, String value, String detail) {
-        Label metricLabel = new Label(label);
-        metricLabel.getStyleClass().add("metric-label");
-        Label metricValue = new Label(value);
-        metricValue.getStyleClass().add("metric-value");
-        Label metricDetail = new Label(detail);
-        metricDetail.getStyleClass().add("muted");
-        VBox card = new VBox(6, metricLabel, metricValue, metricDetail);
-        card.getStyleClass().add("metric-card");
-        card.setMaxWidth(Double.MAX_VALUE);
-        return card;
-    }
-
-    private void addField(GridPane form, int column, String labelText, Node field) {
-        form.add(new VBox(7, new Label(labelText), field), column % 2, column / 2);
-    }
-
-    private VBox stateCard(String title, String detail, String styleClass) {
-        Label heading = new Label(title);
-        heading.getStyleClass().add("section-title");
-        Label description = new Label(detail);
-        description.setWrapText(true);
-        VBox card = new VBox(7, heading, description);
-        card.setAlignment(Pos.TOP_LEFT);
-        card.setPrefWidth(310);
-        card.setMinWidth(310);
-        card.setMaxWidth(310);
-        card.setMinHeight(145);
-        card.getStyleClass().add(styleClass);
-        return card;
-    }
-
-    private HBox createComment(String initials, String name, String roleName, String sentAtText, String bodyText) {
-        Label avatar = new Label(initials);
-        avatar.getStyleClass().add("avatar");
-
-        Label author = new Label(name);
-        author.getStyleClass().add("comment-author");
-        Label role = new Label("· " + roleName);
-        role.getStyleClass().add("muted");
-        HBox identity = new HBox(5, author, role);
-
-        Label sentAt = new Label(sentAtText);
-        sentAt.getStyleClass().addAll("muted", "comment-date");
-        Label message = new Label(bodyText);
-        message.setWrapText(true);
-
-        VBox body = new VBox(4, identity, sentAt, message);
-        body.getStyleClass().add("comment-body");
-        HBox comment = new HBox(10, avatar, body);
-        HBox.setHgrow(body, Priority.ALWAYS);
-        return comment;
-    }
-
-    private String sampleCommentDate(int year, int month, int day, int hour, int minute) {
+    private Instant sampleCommentInstant(int year, int month, int day, int hour, int minute) {
         ZoneId zone = ZoneId.systemDefault();
-        ZonedDateTime reference = ZonedDateTime.of(2026, 9, 25, 18, 0, 0, 0, zone);
-        Instant timestamp = ZonedDateTime.of(year, month, day, hour, minute, 0, 0, zone).toInstant();
-        return UiDateTimeFormatter.formatRelative(timestamp, reference);
+        return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, zone).toInstant();
+    }
+
+    private Clock sampleCommentClock() {
+        ZoneId zone = ZoneId.systemDefault();
+        Instant reference = ZonedDateTime.of(2026, 9, 25, 18, 0, 0, 0, zone).toInstant();
+        return Clock.fixed(reference, zone);
     }
 
     private void showConfirmation() {

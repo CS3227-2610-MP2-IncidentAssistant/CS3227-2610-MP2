@@ -90,3 +90,22 @@ Confirmation dialogs state the consequence, have explicit cancel/confirm actions
 ## JavaFX CSS boundaries
 
 JavaFX CSS does not support browser custom properties, Grid/Flexbox, media queries, fixed positioning, `z-index`, browser overflow, transitions, or arbitrary font weights. Keep responsive behavior and layout in Java; use looked-up colors or the small repeated token set in CSS. Use `-fx-background-radius`, `-fx-border-radius`, `-fx-border-color`, and `-fx-effect`. Custom window behavior belongs in Java, and rounded backgrounds may require explicit child radii or clipping.
+
+## Shared component API
+
+Role pages should use `UiComponents` rather than repeating style-class strings or rebuilding common component structure. Use `ActionStyle`, `SemanticTone`, and `FeedbackType` to select closed visual variants. Standard JavaFX controls remain available for ordinary layout and data binding.
+
+| Need | Shared API |
+| --- | --- |
+| Action button | `UiComponents.action(text, ActionStyle.PRIMARY)` |
+| Semantic badge | `UiComponents.badge(text, SemanticTone.SUCCESS)` |
+| Titled surface | `UiComponents.panel(title, content...)` |
+| Metric | `UiComponents.metricCard(label, value, detail)` |
+| Labelled/validated control | `UiComponents.field(label, control)` and `ValidatedField.showError(...)` |
+| Loading/empty/error/success | `UiComponents.feedback(title, detail, FeedbackType.ERROR)` |
+| Attachment summary | `UiComponents.attachmentTile(title, detail)` |
+| Timestamped comment | `UiComponents.comment(..., sentAt, clock, message)` |
+| Lifecycle event | `UiComponents.timelineEvent(description)` |
+| SLO progress | `UiComponents.sloProgress(progress, accessibleDescription)` |
+
+Keep business authorization, lifecycle decisions, validation rules, and data access outside these components. Supply already-authorized display data and application validation results to the UI layer.
