@@ -21,12 +21,12 @@ public class RolePageLayout extends BorderPane {
      */
     protected RolePageLayout(String title, String description, Runnable onBack) {
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        titleLabel.getStyleClass().add("page-title");
 
         Label descriptionLabel = new Label(description);
         descriptionLabel.setWrapText(true);
 
-        Button backButton = new Button("Back to role selection");
+        Button backButton = UiComponents.action("Back to role selection", ActionStyle.SECONDARY);
         backButton.setOnAction(event -> onBack.run());
 
         VBox content = new VBox(CONTENT_SPACING, titleLabel, descriptionLabel, backButton);
