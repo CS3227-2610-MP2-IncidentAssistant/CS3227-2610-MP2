@@ -14,10 +14,13 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Popup;
 import javafx.stage.Window;
 
@@ -49,9 +52,19 @@ public final class NotificationCenter extends VBox implements AutoCloseable {
         toggle.setOnAction(event -> toggleTray());
         unseenBadge.setId("notification-unseen-count");
 
-        HBox header = new HBox(8, toggle, unseenBadge);
-        header.setAlignment(Pos.CENTER_RIGHT);
-        HBox.setHgrow(toggle, Priority.ALWAYS);
+        SVGPath bell = new SVGPath();
+        bell.setContent("M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-5v-6a7 7 0 0 0-5-6.71V3a2 2 0 0 0-4 0v1.29A7 7 0 0 0 5 11v6l-2 2h18l-2-2Z");
+        bell.getStyleClass().add("notification-bell");
+        toggle.setText("");
+        toggle.setGraphic(bell);
+        AnchorPane unreadOverlay = new AnchorPane(unseenBadge);
+        unreadOverlay.setId("notification-unread-overlay");
+        unreadOverlay.setMouseTransparent(true);
+        AnchorPane.setTopAnchor(unseenBadge, 1.0);
+        AnchorPane.setRightAnchor(unseenBadge, 1.0);
+        StackPane header = new StackPane(toggle, unreadOverlay);
+        header.setId("notification-bell-stack");
+        header.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
         tray.setId("notification-tray");
         tray.setAccessibleText("Notification tray");

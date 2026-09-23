@@ -9,17 +9,13 @@ import com.company.incidentdesk.ui.shared.components.UiComponents;
 
 /** Initial workspace for incident reporters. */
 public final class ReporterPage extends RolePageLayout {
-    /**
-     * Creates the reporter page.
-     *
-     * @param onBack action that returns to role selection
-     */
-    public ReporterPage(Runnable onBack) {
-        super(
-                "Reporter",
-                "Create incident reports and track the incidents you submitted.",
-                onBack);
+    /** Creates the dashboard hosted by the authenticated shell. */
+    public ReporterPage() {
+        super("Reporter", "Create incident reports and track the incidents you submitted.");
+        addSubmissionForm();
+    }
 
+    private void addSubmissionForm() {
         VBox feedback = new VBox();
         IncidentSubmissionForm form = new IncidentSubmissionForm(submission ->
                 feedback.getChildren().setAll(UiComponents.feedback(

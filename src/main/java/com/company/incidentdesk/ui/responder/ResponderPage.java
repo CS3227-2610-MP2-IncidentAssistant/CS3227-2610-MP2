@@ -13,9 +13,7 @@ import com.company.incidentdesk.application.presentation.ResponderDashboardModel
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
-import com.company.incidentdesk.application.session.AuthenticatedSession;
 import com.company.incidentdesk.application.session.SessionProvider;
-import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
@@ -47,22 +45,17 @@ public final class ResponderPage extends BorderPane {
     private Task<ApplicationResult<ResponderDashboardModel>> activeLoad;
     private boolean rendering;
 
-    /** Safe preview until the authenticated shell is integrated; never fabricates a session. */
-    public ResponderPage(Runnable onBack) {
-        this(signedOut(), ResponderPage::unavailable, ignored -> { }, onBack);
-    }
-
     public ResponderPage(IncidentService service, IncidentPresentationMapper mapper,
-            SessionProvider sessions, Consumer<IncidentId> onOpenDetail, Runnable onBack) {
-        this(sessions, () -> service.responderDashboard(mapper), onOpenDetail, onBack);
+            SessionProvider sessions, Consumer<IncidentId> onOpenDetail) {
+        this(sessions, () -> service.responderDashboard(mapper), onOpenDetail);
     }
 
     ResponderPage(SessionProvider sessions, Supplier<ApplicationResult<ResponderDashboardModel>> load,
-            Consumer<IncidentId> onOpenDetail, Runnable onBack) {
+            Consumer<IncidentId> onOpenDetail) {
         presenter = new ResponderDashboardPresenter(sessions);
         this.load = Objects.requireNonNull(load, "load");
         this.onOpenDetail = Objects.requireNonNull(onOpenDetail, "onOpenDetail");
-        setCenter(createContent(onBack));
+        setCenter(createContent());
         configureSelection(eligible, assigned);
         configureSelection(assigned, eligible);
         sceneProperty().addListener((observable, previous, current) -> {
@@ -75,19 +68,16 @@ public final class ResponderPage extends BorderPane {
         render();
     }
 
-    private ScrollPane createContent(Runnable onBack) {
+    private ScrollPane createContent() {
         Label title = new Label("Responder");
         title.getStyleClass().add("page-title");
         Label description = new Label("Review eligible incidents and manage incidents assigned to you.");
         description.setWrapText(true);
-        Button back = UiComponents.action("Back to role selection", ActionStyle.SECONDARY);
-        back.setOnAction(event -> {
-            deactivate();
-            onBack.run();
-        });
         refresh.setOnAction(event -> refresh());
         open.setOnAction(event -> openSelected());
-        VBox content = new VBox(16, title, description, new FlowPane(12, 12, back, refresh, open), feedback,
+        FlowPane actions = new FlowPane(12, 12);
+        actions.getChildren().addAll(refresh, open);
+        VBox content = new VBox(16, title, description, actions, feedback,
                 UiComponents.panel("Eligible queue", eligible),
                 UiComponents.panel("My assigned incidents", assigned));
         content.setPadding(new Insets(24));
@@ -220,12 +210,5 @@ public final class ResponderPage extends BorderPane {
 
     private static ApplicationResult<ResponderDashboardModel> unavailable() {
         return ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE));
-    }
-
-    private static SessionProvider signedOut() {
-        return new SessionProvider() {
-            @Override public Optional<AuthenticatedSession> currentSession() { return Optional.empty(); }
-            @Override public Optional<Account> currentAccount() { return Optional.empty(); }
-        };
     }
 }

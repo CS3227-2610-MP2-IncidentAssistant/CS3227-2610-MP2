@@ -1,17 +1,12 @@
 package com.company.incidentdesk.startup;
 
 import javafx.application.Application;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
-import com.company.incidentdesk.domain.account.Role;
-import com.company.incidentdesk.persistence.file.LocalApplicationStore;
-import com.company.incidentdesk.ui.admin.AdminPage;
-import com.company.incidentdesk.ui.reporter.ReporterPage;
-import com.company.incidentdesk.ui.responder.ResponderPage;
-import com.company.incidentdesk.ui.shared.components.ComponentShowcasePage;
-import com.company.incidentdesk.ui.shared.components.RoleSelectionPage;
+import com.company.incidentdesk.ui.navigation.ApplicationNavigator;
+import com.company.incidentdesk.ui.navigation.DefaultViewFactory;
 import com.company.incidentdesk.ui.shared.theme.ApplicationTheme;
 
 /** JavaFX application for Incident Desk. */
@@ -20,13 +15,24 @@ public final class IncidentDeskApplication extends Application {
     private static final double INITIAL_HEIGHT = 480;
 
     private Scene scene;
-    private LocalApplicationStore applicationStore;
+    private ApplicationContext applicationContext;
+    private ApplicationNavigator navigator;
 
     @Override
     public void start(Stage primaryStage) {
-        applicationStore = LocalApplicationStore.openDefault();
-        scene = new Scene(createRoleSelectionPage(), INITIAL_WIDTH, INITIAL_HEIGHT);
+        applicationContext = ApplicationContext.openDefault((accountId, candidatePassword) -> false);
+        scene = new Scene(new StackPane(), INITIAL_WIDTH, INITIAL_HEIGHT);
         ApplicationTheme.applyTo(scene);
+        navigator = new ApplicationNavigator(
+                scene,
+                applicationContext.sessions(),
+                applicationContext.notifications(),
+                new DefaultViewFactory(
+                        applicationContext.incidents(),
+                        applicationContext.presentationMapper(),
+                        applicationContext.sessions()),
+                this::showRegistrationUnavailable);
+        navigator.start();
         primaryStage.setTitle("Incident Desk");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -34,29 +40,15 @@ public final class IncidentDeskApplication extends Application {
 
     @Override
     public void stop() {
-        if (applicationStore != null) {
-            applicationStore.close();
+        if (navigator != null) {
+            navigator.close();
+        }
+        if (applicationContext != null) {
+            applicationContext.close();
         }
     }
 
-    private Parent createRoleSelectionPage() {
-        return new RoleSelectionPage(this::showRolePage, this::showComponentShowcase);
-    }
-
-    private void showRolePage(Role role) {
-        Parent rolePage = switch (role) {
-            case REPORTER -> new ReporterPage(this::showRoleSelectionPage);
-            case RESPONDER -> new ResponderPage(this::showRoleSelectionPage);
-            case ADMINISTRATOR -> new AdminPage(this::showRoleSelectionPage);
-        };
-        scene.setRoot(rolePage);
-    }
-
-    private void showRoleSelectionPage() {
-        scene.setRoot(createRoleSelectionPage());
-    }
-
-    private void showComponentShowcase() {
-        scene.setRoot(new ComponentShowcasePage(this::showRoleSelectionPage));
+    private void showRegistrationUnavailable() {
+        // Registration credentials are intentionally deferred until the account service owns hashing and storage.
     }
 }

@@ -16,6 +16,7 @@ On Windows, run:
 .\gradlew.bat test
 .\gradlew.bat check
 .\gradlew.bat run
+.\gradlew.bat previewAuthenticatedShell
 .\gradlew.bat shadowJar
 ```
 
@@ -23,6 +24,18 @@ On macOS or Linux, replace `.\gradlew.bat` with `./gradlew`.
 
 The executable Shadow JAR is written to `build/libs/incident-desk.jar`. It
 contains JavaFX native libraries for Windows, macOS, and Linux.
+
+`previewAuthenticatedShell` exercises the real login, session, role-routing,
+shell, and logout path with in-memory administrator, reporter, and responder accounts:
+
+```powershell
+.\gradlew.bat previewAuthenticatedShell
+```
+
+The login names are `admin`, `reporter`, and `responder`; the preview accepts
+any password for each account. These accounts and the test-only verifier exist
+only in the preview process and are not written to application data or included
+in production.
 
 ## Architecture
 
@@ -35,6 +48,12 @@ contains JavaFX native libraries for Windows, macOS, and Linux.
 - `com.company.incidentdesk.ui`: JavaFX presentation code.
 - `com.company.incidentdesk.startup`: runtime checks, configuration, locking,
   and assembly.
+
+`ApplicationContext` assembles process-wide repositories and application
+services once at startup. `ApplicationNavigator` owns the authentication
+boundary and places every role dashboard inside the same `AuthenticatedShell`;
+views receive their dependencies through `DefaultViewFactory` rather than
+constructing services themselves.
 
 Dependencies point inward: UI, persistence, and startup may depend on
 application and domain code; domain code must not depend on those outer layers.
