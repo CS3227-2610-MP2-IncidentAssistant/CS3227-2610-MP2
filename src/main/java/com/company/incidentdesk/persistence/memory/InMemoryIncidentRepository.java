@@ -1,24 +1,42 @@
 package com.company.incidentdesk.persistence.memory;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
+import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.audit.AuditEvent;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
+import com.company.incidentdesk.domain.incident.ReopenExplanation;
+import com.company.incidentdesk.persistence.AuditedMutation;
 import com.company.incidentdesk.persistence.IncidentQuery;
-import com.company.incidentdesk.persistence.IncidentRepository;
+import com.company.incidentdesk.persistence.IncidentStore;
 import com.company.incidentdesk.persistence.IncidentSort;
 import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** In-memory incident repository supporting the shared role-list query scopes. */
-public final class InMemoryIncidentRepository implements IncidentRepository {
-    private final Map<IncidentId, Incident> incidentsById = new LinkedHashMap<>();
+public final class InMemoryIncidentRepository implements IncidentStore {
+    private final Consumer<AuditedMutation<IncidentMutation>> commitPreparation;
+    private Map<IncidentId, Incident> incidentsById = new LinkedHashMap<>();
+    private List<ReopenExplanation> reopenExplanations = List.of();
+    private List<AuditEvent> auditEvents = List.of();
+
+    public InMemoryIncidentRepository() {
+        this(ignored -> { });
+    }
+
+    public InMemoryIncidentRepository(
+            Consumer<AuditedMutation<IncidentMutation>> commitPreparation) {
+        this.commitPreparation = Objects.requireNonNull(commitPreparation, "commitPreparation");
+    }
 
     @Override
     public synchronized void create(Incident incident) {
@@ -51,6 +69,60 @@ public final class InMemoryIncidentRepository implements IncidentRepository {
                 .filter(incident -> matches(query, incident))
                 .sorted(sort.comparator())
                 .toList();
+    }
+
+    @Override
+    public synchronized void commit(AuditedMutation<IncidentMutation> auditedMutation) {
+        AuditedMutation<IncidentMutation> requiredMutation = Objects.requireNonNull(
+                auditedMutation,
+                "auditedMutation");
+        rejectDuplicateAuditEvent(requiredMutation.auditEvent());
+
+        Map<IncidentId, Incident> nextIncidents = new LinkedHashMap<>(incidentsById);
+        List<ReopenExplanation> nextExplanations = new ArrayList<>(reopenExplanations);
+        List<AuditEvent> nextAuditEvents = new ArrayList<>(auditEvents);
+        apply(requiredMutation.nextState(), nextIncidents, nextExplanations);
+        nextAuditEvents.add(requiredMutation.auditEvent());
+
+        commitPreparation.accept(requiredMutation);
+        incidentsById = nextIncidents;
+        reopenExplanations = List.copyOf(nextExplanations);
+        auditEvents = List.copyOf(nextAuditEvents);
+    }
+
+    public synchronized List<ReopenExplanation> reopenExplanations() {
+        return reopenExplanations;
+    }
+
+    public synchronized List<AuditEvent> auditEvents() {
+        return auditEvents;
+    }
+
+    private void rejectDuplicateAuditEvent(AuditEvent auditEvent) {
+        boolean duplicate = auditEvents.stream().anyMatch(existing -> existing.id().equals(auditEvent.id()));
+        if (duplicate) {
+            throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "audit event already exists");
+        }
+    }
+
+    private static void apply(
+            IncidentMutation mutation,
+            Map<IncidentId, Incident> incidents,
+            List<ReopenExplanation> explanations) {
+        Incident incident = mutation.incident();
+        switch (mutation.type()) {
+        case CREATE -> {
+            if (incidents.putIfAbsent(incident.id(), incident) != null) {
+                throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "incident already exists");
+            }
+        }
+        case UPDATE -> {
+            if (incidents.replace(incident.id(), incident) == null) {
+                throw new RepositoryException(StorageFailureCode.NOT_FOUND, "incident does not exist");
+            }
+        }
+        }
+        mutation.reopenExplanation().ifPresent(explanations::add);
     }
 
     private static boolean matches(IncidentQuery query, Incident incident) {
