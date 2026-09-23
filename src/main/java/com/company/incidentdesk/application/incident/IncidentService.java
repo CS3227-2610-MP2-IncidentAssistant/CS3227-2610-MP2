@@ -439,7 +439,8 @@ public final class IncidentService {
         } catch (RepositoryException exception) {
             return storageFailure(exception);
         }
-        eventPublisher.publish(new IncidentChangedEvent(mutation.incident().id(), incidentAction));
+        eventPublisher.publish(new IncidentChangedEvent(
+                mutation.incident().id(), incidentAction, actor.id()));
         return ApplicationResult.success(IncidentView.from(mutation.incident()));
     }
 

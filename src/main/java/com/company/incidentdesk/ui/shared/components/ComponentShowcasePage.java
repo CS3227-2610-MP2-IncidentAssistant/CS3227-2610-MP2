@@ -40,6 +40,10 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import com.company.incidentdesk.application.notification.Notification;
+import com.company.incidentdesk.application.notification.NotificationId;
+import com.company.incidentdesk.application.notification.NotificationInbox;
+import com.company.incidentdesk.application.notification.NotificationType;
 import com.company.incidentdesk.application.presentation.IncidentActionModel;
 import com.company.incidentdesk.application.presentation.IncidentDisplayLabels;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
@@ -57,6 +61,9 @@ import com.company.incidentdesk.persistence.SortDirection;
 public final class ComponentShowcasePage extends BorderPane {
     private static final double PAGE_PADDING = 28;
     private static final double SECTION_SPACING = 18;
+    private static final AccountId SHOWCASE_ACCOUNT_ID = new AccountId(new UUID(0, 1));
+
+    private final NotificationInbox showcaseNotifications = new NotificationInbox();
 
     public ComponentShowcasePage(Runnable onBack) {
         setTop(createHeader(onBack));
@@ -69,6 +76,7 @@ public final class ComponentShowcasePage extends BorderPane {
                 createFormsPanel(),
                 createDataPanel(),
                 createFeedbackPanel(),
+                createNotificationPanel(),
                 createCollaborationPanel(),
                 createProgressPanel());
         catalogue.setPadding(new Insets(PAGE_PADDING));
@@ -260,6 +268,18 @@ public final class ComponentShowcasePage extends BorderPane {
 
         FlowPane states = new FlowPane(14, 14, loading, empty, error, success);
         return UiComponents.panel("Loading, empty, error, and success states", states);
+    }
+
+    private Node createNotificationPanel() {
+        NotificationCenter notificationCenter = new NotificationCenter(
+                showcaseNotifications, SHOWCASE_ACCOUNT_ID);
+        Button getNotification = UiComponents.action("Get notification", ActionStyle.PRIMARY);
+        getNotification.setId("get-notification");
+        getNotification.setOnAction(event -> showcaseNotifications.add(new Notification(
+                new NotificationId(UUID.randomUUID()), SHOWCASE_ACCOUNT_ID,
+                NotificationType.INCIDENT, Optional.empty(),
+                "A new incident was submitted.", Instant.now(), 1)));
+        return UiComponents.panel("Notification center", getNotification, notificationCenter);
     }
 
     private Node createCollaborationPanel() {

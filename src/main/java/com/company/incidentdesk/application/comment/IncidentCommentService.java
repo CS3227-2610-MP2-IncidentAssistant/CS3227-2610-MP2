@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.event.ApplicationEventPublisher;
 import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.application.presentation.CommentModel;
 import com.company.incidentdesk.application.result.ApplicationError;
@@ -49,6 +50,7 @@ public final class IncidentCommentService {
     private final AuditEventFactory auditEvents;
     private final Clock clock;
     private final Supplier<CommentId> identifiers;
+    private final ApplicationEventPublisher eventPublisher;
     private final RequiredTextValidator requiredText = new RequiredTextValidator();
 
     public IncidentCommentService(
@@ -59,6 +61,19 @@ public final class IncidentCommentService {
             AuditEventFactory auditEvents,
             Clock clock,
             Supplier<CommentId> identifiers) {
+        this(sessions, incidents, accounts, authorization, auditEvents, clock, identifiers,
+                ApplicationEventPublisher.NO_OP);
+    }
+
+    public IncidentCommentService(
+            SessionProvider sessions,
+            IncidentStore incidents,
+            AccountRepository accounts,
+            IncidentAuthorizationPolicy authorization,
+            AuditEventFactory auditEvents,
+            Clock clock,
+            Supplier<CommentId> identifiers,
+            ApplicationEventPublisher eventPublisher) {
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.incidents = Objects.requireNonNull(incidents, "incidents");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
@@ -66,6 +81,7 @@ public final class IncidentCommentService {
         this.auditEvents = Objects.requireNonNull(auditEvents, "auditEvents");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.identifiers = Objects.requireNonNull(identifiers, "identifiers");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
 
     public ApplicationResult<List<CommentModel>> list(IncidentId incidentId) {
@@ -112,6 +128,8 @@ public final class IncidentCommentService {
                     List.of(), Optional.of(new AuditEvidenceReference(
                             AuditEvidenceType.COMMENT, comment.id().value().toString())));
             incidents.commit(new AuditedMutation<>(IncidentMutation.comment(visibleIncident, comment), audit));
+            eventPublisher.publish(new CommentAddedEvent(
+                    incidentId, comment.id(), actor.orElseThrow().id()));
             return ApplicationResult.success(toModel(visibleIncident, comment));
         } catch (RepositoryException exception) {
             return storageFailure(exception);
