@@ -15,4 +15,7 @@ public interface IncidentRepository {
     Optional<Incident> findById(IncidentId incidentId);
 
     List<Incident> find(IncidentQuery query, IncidentSort sort);
+
+    /** Finds incidents using the shared advanced-search criteria. */
+    List<Incident> find(IncidentQuery query, IncidentSearchCriteria criteria);
 }

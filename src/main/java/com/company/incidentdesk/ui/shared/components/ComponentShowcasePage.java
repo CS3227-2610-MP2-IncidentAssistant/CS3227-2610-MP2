@@ -181,14 +181,9 @@ public final class ComponentShowcasePage extends BorderPane {
                 new IncidentRow("Water leak", "Facilities", "Assigned", "22 Sep 2026, 08:15"),
                 new IncidentRow("Access request", "Human Relations", "Resolved", "21 Sep 2026, 17:30")));
 
-        TextField search = new TextField();
-        search.setPromptText("Search incidents");
-        search.setAccessibleText("Search sample incidents");
-        ComboBox<String> filter = new ComboBox<>(FXCollections.observableArrayList("All statuses", "Submitted", "Assigned", "Resolved"));
-        filter.setValue("All statuses");
-        HBox controls = new HBox(10, search, filter);
-        HBox.setHgrow(search, Priority.ALWAYS);
-        return UiComponents.panel("Search, filter, table, and list rows", controls, table);
+        IncidentFilterBar filters = new IncidentFilterBar();
+        filters.setIdentityFiltersVisible(false);
+        return UiComponents.panel("Search, filter, table, and list rows", filters, table);
     }
 
     private Node createFeedbackPanel() {

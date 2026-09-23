@@ -173,6 +173,53 @@ class InMemoryIncidentRepositoryTest {
                         Set.of()));
     }
 
+    @Test
+    void advancedSearchCombinesGroupsAndReturnsEmptyForNoMatch() {
+        InMemoryIncidentRepository repository = populatedRepository();
+        IncidentSearchCriteria matching = new IncidentSearchCriteria(
+                "  QUEUE  ", Set.of(IncidentCategory.IT),
+                Set.of(com.company.incidentdesk.domain.incident.IncidentStatus.SUBMITTED),
+                AssignmentState.UNASSIGNED, Optional.empty(), Optional.empty(),
+                Optional.of(CREATED_AT), Optional.of(CREATED_AT), Set.of(),
+                new IncidentSort(IncidentSortField.CREATED_AT, SortDirection.DESCENDING));
+
+        assertEquals(List.of(FIRST_ID), ids(repository.find(IncidentQuery.administratorAll(), matching)));
+
+        IncidentSearchCriteria empty = new IncidentSearchCriteria(
+                "does not exist", Set.of(), Set.of(), AssignmentState.ANY,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Set.of(),
+                IncidentSort.queueOrder());
+        assertTrue(repository.find(IncidentQuery.administratorAll(), empty).isEmpty());
+    }
+
+    @Test
+    void reporterIdentityFilterNeverMatchesAnonymousIncidents() {
+        InMemoryIncidentRepository repository = new InMemoryIncidentRepository();
+        repository.create(lifecycleAt(CREATED_AT).submit(
+                FIRST_ID, REPORTER_ID, "Anonymous", "Hidden reporter", IncidentCategory.IT, true));
+        repository.create(submitted(SECOND_ID, REPORTER_ID, IncidentCategory.IT, "Visible", CREATED_AT));
+        IncidentSearchCriteria criteria = new IncidentSearchCriteria(
+                "", Set.of(), Set.of(), AssignmentState.ANY, Optional.of(REPORTER_ID), Optional.empty(),
+                Optional.empty(), Optional.empty(), Set.of(), IncidentSort.queueOrder());
+
+        assertEquals(List.of(SECOND_ID), ids(repository.find(IncidentQuery.administratorAll(), criteria)));
+    }
+
+    @Test
+    void sloFilterUsesInjectedProspectiveClassifier() {
+        InMemoryIncidentRepository repository = new InMemoryIncidentRepository(
+                ignored -> { }, incident -> incident.id().equals(FIRST_ID)
+                        ? IncidentSloState.OVERDUE : IncidentSloState.WITHIN_TARGET);
+        repository.create(submitted(FIRST_ID, REPORTER_ID, IncidentCategory.IT, "Late", CREATED_AT));
+        repository.create(submitted(SECOND_ID, REPORTER_ID, IncidentCategory.IT, "On time", CREATED_AT));
+        IncidentSearchCriteria criteria = new IncidentSearchCriteria(
+                "", Set.of(), Set.of(), AssignmentState.ANY, Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Set.of(IncidentSloState.OVERDUE),
+                new IncidentSort(IncidentSortField.TITLE, SortDirection.ASCENDING));
+
+        assertEquals(List.of(FIRST_ID), ids(repository.find(IncidentQuery.administratorAll(), criteria)));
+    }
+
     private static InMemoryIncidentRepository populatedRepository() {
         InMemoryIncidentRepository repository = new InMemoryIncidentRepository();
         Incident reporterQueue = submitted(
