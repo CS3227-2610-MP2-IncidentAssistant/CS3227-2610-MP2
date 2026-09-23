@@ -183,6 +183,7 @@ class IncidentAuthorizationPolicyTest {
         Account eligibleTarget = responder(OTHER_RESPONDER_ID, IncidentCategory.IT);
         sessionProvider.signIn(administrator());
 
+        assertEquals(ALLOWED, policy.authorizeReassign(incident));
         assertEquals(ALLOWED, policy.authorizeReassign(incident, eligibleTarget));
         assertEquals(
                 DENIED,
@@ -197,6 +198,7 @@ class IncidentAuthorizationPolicyTest {
 
         sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.IT));
 
+        assertEquals(DENIED, policy.authorizeReassign(incident));
         assertEquals(DENIED, policy.authorizeReassign(incident, eligibleTarget));
     }
 
@@ -205,12 +207,14 @@ class IncidentAuthorizationPolicyTest {
         Incident incident = resolved(false);
         sessionProvider.signIn(reporter(REPORTER_ID));
 
+        assertEquals(ALLOWED, policy.authorizeReopen(incident));
         assertEquals(ALLOWED, policy.authorizeReopen(incident, "The problem returned"));
         assertEquals(DENIED, policy.authorizeReopen(incident, " \n"));
         assertEquals(DENIED, policy.authorizeReopen(submitted(false), "Still broken"));
 
         sessionProvider.signIn(reporter(OTHER_REPORTER_ID));
 
+        assertEquals(DENIED, policy.authorizeReopen(incident));
         assertEquals(DENIED, policy.authorizeReopen(incident, "Still broken"));
     }
 
