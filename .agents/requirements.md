@@ -19,6 +19,14 @@ accounts may exist, but only one user can operate the application at a time.
 - Role- and category-based access control.
 - Reusable table/list views with searching, filtering, and sorting where
   required.
+- Incident list search trims input and matches title, description, or incident
+  identifier case-insensitively. Category/status selections use OR within each
+  group and all filter groups combine with AND. Empty selections mean "all".
+- Incident filters support assignment state, inclusive creation-date bounds,
+  evaluated SLO state, and authorized reporter/responder identities. Reporter
+  identity filtering excludes anonymous incidents. The default ordering is
+  newest creation time first; every ordering uses incident identifier ascending
+  as its stable tie-breaker.
 - A shared incident-detail view.
 - Incident comment threads.
 - Image and video attachment upload and rendering.
