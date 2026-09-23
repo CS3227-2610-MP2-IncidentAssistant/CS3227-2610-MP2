@@ -11,6 +11,9 @@ import java.util.function.Supplier;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.AuthorizationDecision;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
@@ -332,6 +335,38 @@ public final class IncidentService {
         } catch (RepositoryException exception) {
             return storageFailure(exception);
         }
+    }
+
+    /** Reads both responder queues through current authorization and privacy-safe mapping. */
+    public ApplicationResult<ResponderDashboardModel> responderDashboard(IncidentPresentationMapper mapper) {
+        Objects.requireNonNull(mapper, "mapper");
+        try {
+            Optional<Account> actor = currentActor();
+            if (actor.isEmpty() || actor.orElseThrow().role() != Role.RESPONDER) {
+                return unavailable();
+            }
+            IncidentSort order = IncidentSort.queueOrder();
+            List<Incident> authorized = queryFor(actor.orElseThrow(), order).stream()
+                    .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
+                    .sorted(order.comparator())
+                    .toList();
+            List<IncidentRowModel> eligible = dashboardRows(authorized, IncidentStatus.SUBMITTED, mapper);
+            List<IncidentRowModel> assigned = dashboardRows(authorized, IncidentStatus.ASSIGNED, mapper);
+            if (!actor.equals(currentActor())) {
+                return unavailable();
+            }
+            return ApplicationResult.success(new ResponderDashboardModel(eligible, assigned));
+        } catch (SecurityException exception) {
+            // A permission change during mapping invalidates the entire snapshot.
+            return unavailable();
+        } catch (RepositoryException exception) {
+            return storageFailure(exception);
+        }
+    }
+
+    private List<IncidentRowModel> dashboardRows(
+            List<Incident> incidents, IncidentStatus status, IncidentPresentationMapper mapper) {
+        return incidents.stream().filter(incident -> incident.status() == status).map(mapper::toRow).toList();
     }
 
     private List<Incident> queryFor(Account actor, IncidentSort sort) {

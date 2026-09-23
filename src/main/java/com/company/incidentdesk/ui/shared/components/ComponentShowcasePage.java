@@ -5,8 +5,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.UUID;
 
-import javafx.beans.property.ReadOnlyStringWrapper;
+import com.company.incidentdesk.application.presentation.IncidentActionModel;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.domain.incident.IncidentId;
+
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,8 +27,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
@@ -159,27 +161,16 @@ public final class ComponentShowcasePage extends BorderPane {
     }
 
     private Node createDataPanel() {
-        TableView<IncidentRow> table = new TableView<>();
-        table.setAccessibleText("Sample incident list");
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        IncidentTable table = new IncidentTable("Sample incident list", "No sample incidents.");
         table.setFixedCellSize(48);
         table.setPrefHeight(190);
         table.setMinHeight(190);
         table.setMaxHeight(190);
 
-        TableColumn<IncidentRow, String> title = new TableColumn<>("Incident");
-        title.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().title()));
-        TableColumn<IncidentRow, String> category = new TableColumn<>("Category");
-        category.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().category()));
-        TableColumn<IncidentRow, String> status = new TableColumn<>("Status");
-        status.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().status()));
-        TableColumn<IncidentRow, String> updated = new TableColumn<>("Updated");
-        updated.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().updated()));
-        table.getColumns().addAll(List.of(title, category, status, updated));
         table.getItems().addAll(List.of(
-                new IncidentRow("Printer unavailable", "IT", "Submitted", "22 Sep 2026, 09:40"),
-                new IncidentRow("Water leak", "Facilities", "Assigned", "22 Sep 2026, 08:15"),
-                new IncidentRow("Access request", "Human Relations", "Resolved", "21 Sep 2026, 17:30")));
+                sampleIncident(1, "Printer unavailable", "IT", "Submitted", "22 Sep 2026, 09:40"),
+                sampleIncident(2, "Water leak", "Facilities", "Assigned", "22 Sep 2026, 08:15"),
+                sampleIncident(3, "Access request", "Human Relations", "Resolved", "21 Sep 2026, 17:30")));
 
         TextField search = new TextField();
         search.setPromptText("Search incidents");
@@ -276,7 +267,9 @@ public final class ComponentShowcasePage extends BorderPane {
         dialog.showAndWait();
     }
 
-    /** Read-only table data used by the showcase. */
-    public record IncidentRow(String title, String category, String status, String updated) {
+    private IncidentRowModel sampleIncident(long identifier, String title, String category, String status, String created) {
+        return new IncidentRowModel(new IncidentId(new UUID(0, identifier)), title, category, status,
+                "Anonymous reporter", "Unassigned", created, true, 0,
+                new IncidentActionModel(false, false, false, false, false, false, false, false, false));
     }
 }
