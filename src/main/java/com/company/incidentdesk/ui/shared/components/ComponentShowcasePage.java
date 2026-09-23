@@ -4,12 +4,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
-
-import com.company.incidentdesk.application.presentation.IncidentActionModel;
-import com.company.incidentdesk.application.presentation.IncidentRowModel;
-import com.company.incidentdesk.domain.incident.IncidentId;
+import java.util.stream.Stream;
 
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -29,6 +29,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
@@ -38,10 +40,30 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import com.company.incidentdesk.application.notification.Notification;
+import com.company.incidentdesk.application.notification.NotificationId;
+import com.company.incidentdesk.application.notification.NotificationInbox;
+import com.company.incidentdesk.application.notification.NotificationType;
+import com.company.incidentdesk.application.presentation.IncidentActionModel;
+import com.company.incidentdesk.application.presentation.IncidentDisplayLabels;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.application.presentation.SloSummaryModel;
+import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.incident.IncidentCategory;
+import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.domain.incident.IncidentStatus;
+import com.company.incidentdesk.persistence.AssignmentState;
+import com.company.incidentdesk.persistence.IncidentSearchCriteria;
+import com.company.incidentdesk.persistence.IncidentSloState;
+import com.company.incidentdesk.persistence.SortDirection;
+
 /** Interactive catalogue of the visual primitives needed by the product. */
 public final class ComponentShowcasePage extends BorderPane {
     private static final double PAGE_PADDING = 28;
     private static final double SECTION_SPACING = 18;
+    private static final AccountId SHOWCASE_ACCOUNT_ID = new AccountId(new UUID(0, 1));
+
+    private final NotificationInbox showcaseNotifications = new NotificationInbox();
 
     public ComponentShowcasePage(Runnable onBack) {
         setTop(createHeader(onBack));
@@ -54,6 +76,7 @@ public final class ComponentShowcasePage extends BorderPane {
                 createFormsPanel(),
                 createDataPanel(),
                 createFeedbackPanel(),
+                createNotificationPanel(),
                 createCollaborationPanel(),
                 createProgressPanel());
         catalogue.setPadding(new Insets(PAGE_PADDING));
@@ -161,25 +184,68 @@ public final class ComponentShowcasePage extends BorderPane {
     }
 
     private Node createDataPanel() {
-        IncidentTable table = new IncidentTable("Sample incident list", "No sample incidents.");
-        table.setFixedCellSize(48);
-        table.setPrefHeight(190);
-        table.setMinHeight(190);
-        table.setMaxHeight(190);
+        DemoIncidentStore store = new DemoIncidentStore();
+        VBox tableHost = new VBox();
+        Label selection = new Label("Double-click a row or press Enter to open its detail callback.");
+        selection.getStyleClass().add("muted");
 
-        table.getItems().addAll(List.of(
-                sampleIncident(1, "Printer unavailable", "IT", "Submitted", "22 Sep 2026, 09:40"),
-                sampleIncident(2, "Water leak", "Facilities", "Assigned", "22 Sep 2026, 08:15"),
-                sampleIncident(3, "Access request", "Human Relations", "Resolved", "21 Sep 2026, 17:30")));
+        ToggleGroup roles = new ToggleGroup();
+        FlowPane roleToggle = new FlowPane(8, 8);
+        for (DemoRole role : DemoRole.values()) {
+            ToggleButton button = new ToggleButton(role.label);
+            button.setToggleGroup(roles);
+            button.setUserData(role);
+            button.getStyleClass().add("role-view-toggle");
+            roleToggle.getChildren().add(button);
+        }
+        roles.selectedToggleProperty().addListener((observable, previous, selected) -> {
+            if (selected == null) {
+                roles.selectToggle(previous);
+                return;
+            }
+            showDemoTable((DemoRole) selected.getUserData(), store, tableHost, selection);
+        });
+        ((ToggleButton) roleToggle.getChildren().getFirst()).setSelected(true);
 
-        TextField search = new TextField();
-        search.setPromptText("Search incidents");
-        search.setAccessibleText("Search sample incidents");
-        ComboBox<String> filter = new ComboBox<>(FXCollections.observableArrayList("All statuses", "Submitted", "Assigned", "Resolved"));
-        filter.setValue("All statuses");
-        HBox controls = new HBox(10, search, filter);
-        HBox.setHgrow(search, Priority.ALWAYS);
-        return UiComponents.panel("Search, filter, table, and list rows", controls, table);
+        FlowPane stateControls = new FlowPane(8, 8,
+                stateButton("Show loading", () -> currentDemoTable(tableHost)
+                        .setState(IncidentTableState.loading())),
+                stateButton("Show empty", () -> currentDemoTable(tableHost)
+                        .setState(IncidentTableState.loaded(List.of()))),
+                stateButton("Show error", () -> currentDemoTable(tableHost)
+                        .setState(IncidentTableState.error(
+                                "Sample storage failure. Use Try again or Restore data."))),
+                stateButton("Restore data", () -> {
+                    IncidentTable table = currentDemoTable(tableHost);
+                    DemoRole role = (DemoRole) roles.getSelectedToggle().getUserData();
+                    table.setState(IncidentTableState.loaded(store.query(role, table.criteria())));
+                }));
+        return UiComponents.panel(
+                "Reusable incident table", roleToggle, stateControls, selection, tableHost);
+    }
+
+    private Button stateButton(String label, Runnable action) {
+        Button button = UiComponents.action(label, ActionStyle.SECONDARY);
+        button.setOnAction(event -> action.run());
+        return button;
+    }
+
+    private IncidentTable currentDemoTable(VBox tableHost) {
+        return (IncidentTable) tableHost.getChildren().getFirst();
+    }
+
+    private void showDemoTable(
+            DemoRole role,
+            DemoIncidentStore store,
+            VBox tableHost,
+            Label selection) {
+        IncidentTable table = new IncidentTable(role.configuration);
+        table.setPrefHeight(430);
+        table.setIdentityOptions(store.reporters(), store.responders());
+        table.setOnOpenDetail(row -> selection.setText("Open detail: " + row.title()));
+        table.setOnRefresh(criteria -> table.setState(IncidentTableState.loaded(store.query(role, criteria))));
+        table.setState(IncidentTableState.loaded(store.query(role, table.criteria())));
+        tableHost.getChildren().setAll(table);
     }
 
     private Node createFeedbackPanel() {
@@ -202,6 +268,18 @@ public final class ComponentShowcasePage extends BorderPane {
 
         FlowPane states = new FlowPane(14, 14, loading, empty, error, success);
         return UiComponents.panel("Loading, empty, error, and success states", states);
+    }
+
+    private Node createNotificationPanel() {
+        NotificationCenter notificationCenter = new NotificationCenter(
+                showcaseNotifications, SHOWCASE_ACCOUNT_ID);
+        Button getNotification = UiComponents.action("Get notification", ActionStyle.PRIMARY);
+        getNotification.setId("get-notification");
+        getNotification.setOnAction(event -> showcaseNotifications.add(new Notification(
+                new NotificationId(UUID.randomUUID()), SHOWCASE_ACCOUNT_ID,
+                NotificationType.INCIDENT, Optional.empty(),
+                "A new incident was submitted.", Instant.now(), 1)));
+        return UiComponents.panel("Notification center", getNotification, notificationCenter);
     }
 
     private Node createCollaborationPanel() {
@@ -267,9 +345,156 @@ public final class ComponentShowcasePage extends BorderPane {
         dialog.showAndWait();
     }
 
-    private IncidentRowModel sampleIncident(long identifier, String title, String category, String status, String created) {
-        return new IncidentRowModel(new IncidentId(new UUID(0, identifier)), title, category, status,
-                "Anonymous reporter", "Unassigned", created, true, 0,
-                new IncidentActionModel(false, false, false, false, false, false, false, false, false));
+    enum DemoRole {
+        REPORTER("Reporter view", IncidentTableConfiguration.reporter()),
+        RESPONDER("Responder view", IncidentTableConfiguration.responder()),
+        ADMINISTRATOR("Administrator view", IncidentTableConfiguration.administrator());
+
+        private final String label;
+        private final IncidentTableConfiguration configuration;
+
+        DemoRole(String label, IncidentTableConfiguration configuration) {
+            this.label = label;
+            this.configuration = configuration;
+        }
+    }
+
+    /** In-memory showcase store containing authorized, privacy-safe dummy rows. */
+    static final class DemoIncidentStore {
+        private static final AccountId ALEX = accountId("aaaaaaaa-0000-0000-0000-000000000001");
+        private static final AccountId JAMIE = accountId("aaaaaaaa-0000-0000-0000-000000000002");
+        private static final AccountId TAYLOR = accountId("aaaaaaaa-0000-0000-0000-000000000003");
+        private static final AccountId MORGAN = accountId("bbbbbbbb-0000-0000-0000-000000000001");
+        private static final AccountId PRIYA = accountId("bbbbbbbb-0000-0000-0000-000000000002");
+        private static final IncidentActionModel NO_ACTIONS = new IncidentActionModel(
+                false, false, false, false, false, false, false, false, false);
+        private final List<DemoIncident> incidents = List.of(
+                incident("10000000-0000-0000-0000-000000000001", "Printer unavailable", "Printer on level three is offline",
+                        IncidentCategory.IT, IncidentStatus.SUBMITTED, ALEX, "Alex Rivera", null, "Unassigned",
+                        "2026-09-23T01:40:00Z", new SloSummaryModel("2h remaining", .55, false),
+                        IncidentSloState.WITHIN_TARGET, false),
+                incident("20000000-0000-0000-0000-000000000002", "Water leak", "Leak beside the pantry",
+                        IncidentCategory.FACILITIES, IncidentStatus.ASSIGNED, ALEX, "Anonymous reporter", MORGAN, "Morgan Lee",
+                        "2026-09-23T00:15:00Z", new SloSummaryModel("Overdue 18m", 1.12, true),
+                        IncidentSloState.OVERDUE, true),
+                incident("30000000-0000-0000-0000-000000000003", "Access request", "Card access is not working",
+                        IncidentCategory.HUMAN_RELATIONS, IncidentStatus.RESOLVED, JAMIE, "Jamie Chen", PRIYA, "Priya Shah",
+                        "2026-09-22T09:30:00Z", new SloSummaryModel("Met", .72, false),
+                        IncidentSloState.WITHIN_TARGET, false),
+                incident("40000000-0000-0000-0000-000000000004", "VPN disconnects", "Remote connection drops repeatedly",
+                        IncidentCategory.IT, IncidentStatus.ASSIGNED, JAMIE, "Jamie Chen", MORGAN, "Morgan Lee",
+                        "2026-09-21T06:05:00Z", new SloSummaryModel("At risk", .88, false),
+                        IncidentSloState.WITHIN_TARGET, false),
+                incident("50000000-0000-0000-0000-000000000005", "Email delivery delayed", "Outbound messages remain queued",
+                        IncidentCategory.IT, IncidentStatus.SUBMITTED, TAYLOR, "Taylor Wong", null, "Unassigned",
+                        "2026-09-20T03:25:00Z", new SloSummaryModel("4h remaining", .35, false),
+                        IncidentSloState.WITHIN_TARGET, false),
+                incident("60000000-0000-0000-0000-000000000006", "Shared drive unavailable", "Department share cannot be opened",
+                        IncidentCategory.IT, IncidentStatus.SUBMITTED, TAYLOR, "Anonymous reporter", null, "Unassigned",
+                        "2026-09-19T08:10:00Z", new SloSummaryModel("Overdue 1h", 1.25, true),
+                        IncidentSloState.OVERDUE, true));
+
+        List<IncidentRowModel> query(DemoRole role, IncidentSearchCriteria criteria) {
+            Stream<DemoIncident> stream = incidents.stream().filter(incident -> visibleTo(role, incident));
+            if (!criteria.text().isBlank()) {
+                String term = criteria.text().toLowerCase(Locale.ROOT);
+                stream = stream.filter(incident -> incident.searchText().contains(term));
+            }
+            if (!criteria.categories().isEmpty()) {
+                stream = stream.filter(incident -> criteria.categories().contains(incident.category));
+            }
+            if (!criteria.statuses().isEmpty()) {
+                stream = stream.filter(incident -> criteria.statuses().contains(incident.status));
+            }
+            if (criteria.assignmentState() != AssignmentState.ANY) {
+                boolean assigned = criteria.assignmentState() == AssignmentState.ASSIGNED;
+                stream = stream.filter(incident -> assigned == !incident.row.assigneeLabel().equals("Unassigned"));
+            }
+            if (criteria.reporterId().isPresent()) {
+                AccountId reporterId = criteria.reporterId().orElseThrow();
+                stream = stream.filter(incident -> !incident.row.anonymous() && incident.reporterId.equals(reporterId));
+            }
+            if (criteria.responderId().isPresent()) {
+                AccountId responderId = criteria.responderId().orElseThrow();
+                stream = stream.filter(incident -> incident.responderId.filter(responderId::equals).isPresent());
+            }
+            if (criteria.createdFrom().isPresent()) {
+                Instant createdFrom = criteria.createdFrom().orElseThrow();
+                stream = stream.filter(incident -> !incident.createdAt.isBefore(createdFrom));
+            }
+            if (criteria.createdThrough().isPresent()) {
+                Instant createdThrough = criteria.createdThrough().orElseThrow();
+                stream = stream.filter(incident -> !incident.createdAt.isAfter(createdThrough));
+            }
+            if (!criteria.sloStates().isEmpty()) {
+                stream = stream.filter(incident -> criteria.sloStates().contains(incident.sloState));
+            }
+            Comparator<DemoIncident> comparator = comparator(criteria);
+            if (criteria.sort().direction() == SortDirection.DESCENDING) {
+                comparator = comparator.reversed();
+            }
+            return stream.sorted(comparator.thenComparing(incident -> incident.row.id().value()))
+                    .map(DemoIncident::row).toList();
+        }
+
+        private boolean visibleTo(DemoRole role, DemoIncident incident) {
+            return switch (role) {
+                case REPORTER -> incident.reporterId.equals(ALEX);
+                case RESPONDER -> incident.category == IncidentCategory.IT;
+                case ADMINISTRATOR -> true;
+            };
+        }
+
+        private Comparator<DemoIncident> comparator(IncidentSearchCriteria criteria) {
+            return switch (criteria.sort().field()) {
+                case TITLE -> Comparator.comparing(incident -> incident.row.title(), String.CASE_INSENSITIVE_ORDER);
+                case STATUS -> Comparator.comparing(incident -> incident.row.statusLabel());
+                case CATEGORY -> Comparator.comparing(incident -> incident.row.categoryLabel());
+                case QUEUE_ENTERED_AT -> Comparator.comparing(incident -> incident.row.queueEnteredAt());
+                case CREATED_AT, SUBMITTED_AT -> Comparator.comparing(incident -> incident.row.createdAt());
+            };
+        }
+
+        List<IncidentFilterBar.AccountOption> reporters() {
+            return List.of(
+                    new IncidentFilterBar.AccountOption(ALEX, "Alex Rivera"),
+                    new IncidentFilterBar.AccountOption(JAMIE, "Jamie Chen"),
+                    new IncidentFilterBar.AccountOption(TAYLOR, "Taylor Wong"));
+        }
+
+        List<IncidentFilterBar.AccountOption> responders() {
+            return List.of(
+                    new IncidentFilterBar.AccountOption(MORGAN, "Morgan Lee"),
+                    new IncidentFilterBar.AccountOption(PRIYA, "Priya Shah"));
+        }
+
+        private static AccountId accountId(String id) {
+            return new AccountId(UUID.fromString(id));
+        }
+
+        private static DemoIncident incident(
+                String id, String title, String description, IncidentCategory category,
+                IncidentStatus status, AccountId reporterId, String reporter, AccountId responderId,
+                String assignee, String createdAt, SloSummaryModel slo,
+                IncidentSloState sloState, boolean anonymous) {
+            Instant createdAtInstant = Instant.parse(createdAt);
+            String createdAtLabel = UiComponents.localDateTimeFormatter().format(createdAtInstant);
+            IncidentRowModel row = new IncidentRowModel(
+                    new IncidentId(UUID.fromString(id)), title,
+                    IncidentDisplayLabels.category(category), IncidentDisplayLabels.status(status),
+                    reporter, assignee, createdAtLabel, createdAtLabel, slo, anonymous, 0, NO_ACTIONS);
+            return new DemoIncident(
+                    row, description.toLowerCase(Locale.ROOT), category, status,
+                    reporterId, Optional.ofNullable(responderId), createdAtInstant, sloState);
+        }
+
+        private record DemoIncident(
+                IncidentRowModel row, String description, IncidentCategory category,
+                IncidentStatus status, AccountId reporterId, Optional<AccountId> responderId,
+                Instant createdAt, IncidentSloState sloState) {
+            private String searchText() {
+                return (row.id().value() + " " + row.title() + " " + description).toLowerCase(Locale.ROOT);
+            }
+        }
     }
 }

@@ -78,6 +78,24 @@ class IncidentCommentServiceTest {
     }
 
     @Test
+    void successfulCommitPublishesSanitizedCommentEvent() {
+        createIncident(false);
+        sessions.signIn(accounts.findById(RESPONDER).orElseThrow());
+        List<CommentAddedEvent> events = new java.util.ArrayList<>();
+        service = new IncidentCommentService(sessions, incidents, accounts,
+                new IncidentAuthorizationPolicy(sessions),
+                new AuditEventFactory(clock, () -> new AuditEventId(new UUID(0, sequence.incrementAndGet()))),
+                clock, () -> new CommentId(new UUID(1, sequence.incrementAndGet())),
+                event -> events.add((CommentAddedEvent) event));
+
+        assertTrue(service.add(INCIDENT, "Sensitive comment text").isSuccess());
+
+        assertEquals(1, events.size());
+        assertEquals(INCIDENT, events.getFirst().incidentId());
+        assertEquals(RESPONDER, events.getFirst().actorId());
+    }
+
+    @Test
     void anonymousReporterIdentityIsRedactedForResponder() {
         createIncident(true);
         sessions.signIn(accounts.findById(REPORTER).orElseThrow());

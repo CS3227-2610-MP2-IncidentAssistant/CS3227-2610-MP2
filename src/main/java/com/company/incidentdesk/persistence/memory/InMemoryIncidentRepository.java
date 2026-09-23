@@ -3,6 +3,7 @@ package com.company.incidentdesk.persistence.memory;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -20,24 +21,36 @@ import com.company.incidentdesk.persistence.AuditedMutation;
 import com.company.incidentdesk.persistence.IncidentQuery;
 import com.company.incidentdesk.persistence.IncidentStore;
 import com.company.incidentdesk.persistence.IncidentSort;
+import com.company.incidentdesk.persistence.AssignmentState;
+import com.company.incidentdesk.persistence.IncidentSearchCriteria;
+import com.company.incidentdesk.persistence.IncidentSloClassifier;
+import com.company.incidentdesk.persistence.IncidentSloState;
 import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** In-memory incident repository supporting the shared role-list query scopes. */
 public final class InMemoryIncidentRepository implements IncidentStore {
     private final Consumer<AuditedMutation<IncidentMutation>> commitPreparation;
+    private final IncidentSloClassifier sloClassifier;
     private Map<IncidentId, Incident> incidentsById = new LinkedHashMap<>();
     private List<ReopenExplanation> reopenExplanations = List.of();
     private List<IncidentComment> comments = List.of();
     private List<AuditEvent> auditEvents = List.of();
 
     public InMemoryIncidentRepository() {
-        this(ignored -> { });
+        this(ignored -> { }, incident -> IncidentSloState.NOT_APPLICABLE);
     }
 
     public InMemoryIncidentRepository(
             Consumer<AuditedMutation<IncidentMutation>> commitPreparation) {
+        this(commitPreparation, incident -> IncidentSloState.NOT_APPLICABLE);
+    }
+
+    public InMemoryIncidentRepository(
+            Consumer<AuditedMutation<IncidentMutation>> commitPreparation,
+            IncidentSloClassifier sloClassifier) {
         this.commitPreparation = Objects.requireNonNull(commitPreparation, "commitPreparation");
+        this.sloClassifier = Objects.requireNonNull(sloClassifier, "sloClassifier");
     }
 
     @Override
@@ -70,6 +83,17 @@ public final class InMemoryIncidentRepository implements IncidentStore {
         return incidentsById.values().stream()
                 .filter(incident -> matches(query, incident))
                 .sorted(sort.comparator())
+                .toList();
+    }
+
+    @Override
+    public synchronized List<Incident> find(IncidentQuery query, IncidentSearchCriteria criteria) {
+        Objects.requireNonNull(query, "query");
+        Objects.requireNonNull(criteria, "criteria");
+        return incidentsById.values().stream()
+                .filter(incident -> matches(query, incident))
+                .filter(incident -> matches(criteria, incident))
+                .sorted(criteria.sort().comparator())
                 .toList();
     }
 
@@ -152,6 +176,71 @@ public final class InMemoryIncidentRepository implements IncidentStore {
                 && isAssignedTo(incident, query.accountId().orElseThrow());
         case ADMINISTRATOR_ALL -> true;
         };
+    }
+
+    private boolean matches(IncidentSearchCriteria criteria, Incident incident) {
+        return matchesText(criteria.text(), incident)
+                && matchesCategories(criteria, incident)
+                && matchesStatuses(criteria, incident)
+                && matchesAssignment(criteria.assignmentState(), incident)
+                && matchesReporter(criteria, incident)
+                && matchesResponder(criteria, incident)
+                && matchesCreatedRange(criteria, incident)
+                && matchesSloState(criteria, incident);
+    }
+
+    private static boolean matchesText(String text, Incident incident) {
+        String searchText = text.toLowerCase(Locale.ROOT);
+        return searchText.isEmpty()
+                || containsIgnoringCase(incident.title(), searchText)
+                || containsIgnoringCase(incident.description(), searchText)
+                || containsIgnoringCase(incident.id().value().toString(), searchText);
+    }
+
+    private static boolean containsIgnoringCase(String value, String normalizedSearchText) {
+        return value.toLowerCase(Locale.ROOT).contains(normalizedSearchText);
+    }
+
+    private static boolean matchesCategories(IncidentSearchCriteria criteria, Incident incident) {
+        return criteria.categories().isEmpty() || criteria.categories().contains(incident.category());
+    }
+
+    private static boolean matchesStatuses(IncidentSearchCriteria criteria, Incident incident) {
+        return criteria.statuses().isEmpty() || criteria.statuses().contains(incident.status());
+    }
+
+    private static boolean matchesAssignment(AssignmentState assignmentState, Incident incident) {
+        return switch (assignmentState) {
+        case ANY -> true;
+        case ASSIGNED -> incident.assigneeId().isPresent();
+        case UNASSIGNED -> incident.assigneeId().isEmpty();
+        };
+    }
+
+    private static boolean matchesReporter(IncidentSearchCriteria criteria, Incident incident) {
+        // Anonymous incidents never participate in reporter-identity filtering.
+        return criteria.reporterId().isEmpty()
+                || (!incident.anonymous() && criteria.reporterId().orElseThrow().equals(incident.reporterId()));
+    }
+
+    private static boolean matchesResponder(IncidentSearchCriteria criteria, Incident incident) {
+        return criteria.responderId().isEmpty()
+                || incident.assigneeId().filter(criteria.responderId().orElseThrow()::equals).isPresent();
+    }
+
+    private static boolean matchesCreatedRange(IncidentSearchCriteria criteria, Incident incident) {
+        boolean afterStart = criteria.createdFrom()
+                .map(from -> !incident.createdAt().isBefore(from))
+                .orElse(true);
+        boolean beforeEnd = criteria.createdThrough()
+                .map(through -> !incident.createdAt().isAfter(through))
+                .orElse(true);
+        return afterStart && beforeEnd;
+    }
+
+    private boolean matchesSloState(IncidentSearchCriteria criteria, Incident incident) {
+        return criteria.sloStates().isEmpty()
+                || criteria.sloStates().contains(sloClassifier.classify(incident));
     }
 
     private static boolean isAssignedTo(Incident incident, AccountId responderId) {

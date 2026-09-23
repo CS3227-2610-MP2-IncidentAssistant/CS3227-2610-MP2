@@ -64,3 +64,26 @@ Single-user operation removes simultaneous user races, including concurrent
 incident claims. It does not remove the need to handle crashes, disk-full
 errors, interrupted writes, duplicate application instances, corrupt files, or
 authorization between sequentially logged-in accounts.
+
+## Implemented local format and recovery
+
+- The application resolves its data directory from the
+  `incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, and
+  otherwise uses `.incident-desk` under the current user's home directory.
+- `incident-desk.dat` is one versioned aggregate state file. Schema version 1
+  persists accounts, incidents, comments, audits, and SLO target configuration
+  history, and reserves empty placeholder sections for attachment metadata and
+  promotion requests. The whole file shares one schema version; there is no
+  independent per-section versioning.
+- Each successful replacement retains one bounded last-known-good copy at
+  `incident-desk.dat.bak`. Unique unfinished temporary files are never treated
+  as canonical state.
+- Corrupt canonical data and unknown newer schemas stop startup without
+  modifying any data. Recovery from the backup is an explicit operation, not
+  an automatic reset.
+- `incident-desk.lock` is held for the JavaFX application lifetime. Failure to
+  acquire it means another writer is active and startup is refused.
+- Schema migrations are introduced only when an older supported schema exists.
+  Each migration must decode the old version deterministically, retain the
+  pre-migration file as the backup, validate the new representation, and record
+  the required migration audit event before that version is declared supported.

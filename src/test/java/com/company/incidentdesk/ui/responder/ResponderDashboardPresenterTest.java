@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import com.company.incidentdesk.application.presentation.IncidentActionModel;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
+import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
@@ -156,7 +157,8 @@ class ResponderDashboardPresenterTest {
 
     static IncidentRowModel row() {
         return new IncidentRowModel(new IncidentId(new UUID(1, 1)), "Printer", "IT", "Submitted",
-                "Anonymous reporter", "Unassigned", "23 Sep 2026, 16:00", true, 0,
+                "Anonymous reporter", "Unassigned", "23 Sep 2026, 16:00", "23 Sep 2026, 16:00",
+                new SloSummaryModel("Unavailable", 0, false), true, 0,
                 new IncidentActionModel(false, false, true, false, false, false, false, true, true));
     }
 

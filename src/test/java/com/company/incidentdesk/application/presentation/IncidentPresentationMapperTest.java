@@ -129,6 +129,19 @@ class IncidentPresentationMapperTest {
     }
 
     @Test
+    void rowCarriesQueueAndSuppliedSloWithoutRequiringProtectedIdentity() {
+        Incident assigned = lifecycleAt(Instant.parse("2026-09-20T16:30:00Z"))
+                .claim(submitted(true), RESPONDER_ID);
+        SloSummaryModel slo = new SloSummaryModel("At risk", .85, false);
+
+        IncidentRowModel row = mapper(RESPONDER).toRow(assigned, slo);
+
+        assertEquals("21 Sep 2026 00:00", row.queueEnteredAt());
+        assertEquals(slo, row.slo());
+        assertEquals(IncidentPresentationMapper.ANONYMOUS_REPORTER_LABEL, row.reporterLabel());
+    }
+
+    @Test
     void everyLifecycleStateHasCentralizedDisplayLabels() {
         assertEquals("Draft", IncidentDisplayLabels.status(draft(false).status()));
         assertEquals("Submitted", IncidentDisplayLabels.status(submitted(false).status()));

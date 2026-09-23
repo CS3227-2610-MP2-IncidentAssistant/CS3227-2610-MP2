@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.ui.responder.ResponderDashboardPresenterTest.MutableSessions;
@@ -26,8 +27,10 @@ import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TableView;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.StackPane;
 
 class ResponderPageTest {
     @BeforeAll
@@ -155,8 +158,8 @@ class ResponderPageTest {
         private final Button refresh;
         private final Button open;
         private final VBox feedback;
-        private final IncidentTable eligible;
-        private final IncidentTable assigned;
+        private final TableView<IncidentRowModel> eligible;
+        private final TableView<IncidentRowModel> assigned;
 
         private Fixture(Supplier<ApplicationResult<ResponderDashboardModel>> load) {
             page = new ResponderPage(sessions, load, opened::add, () -> { });
@@ -169,8 +172,11 @@ class ResponderPageTest {
             assigned = tableIn((VBox) content.getChildren().get(5));
         }
 
-        private IncidentTable tableIn(VBox panel) {
-            return (IncidentTable) ((VBox) panel.getChildren().get(1)).getChildren().getFirst();
+        @SuppressWarnings("unchecked")
+        private TableView<IncidentRowModel> tableIn(VBox panel) {
+            IncidentTable component = (IncidentTable) ((VBox) panel.getChildren().get(1)).getChildren().getFirst();
+            StackPane state = (StackPane) component.getChildren().get(1);
+            return (TableView<IncidentRowModel>) state.getChildren().getFirst();
         }
     }
 }

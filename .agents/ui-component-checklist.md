@@ -36,6 +36,7 @@ This inventory is derived from `.agents/requirements.md`, `.agents/mvp-scope.md`
 - [x] Empty state with next step
 - [x] Page-level error state
 - [x] Success notification/toast
+- [x] Notification center with unseen count and tray
 
 ## Incident details and operations
 

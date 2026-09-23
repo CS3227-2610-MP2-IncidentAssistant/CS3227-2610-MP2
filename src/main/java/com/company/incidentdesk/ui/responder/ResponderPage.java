@@ -1,12 +1,14 @@
 package com.company.incidentdesk.ui.responder;
 
 import java.util.Objects;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
@@ -18,6 +20,9 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
 import com.company.incidentdesk.ui.shared.components.IncidentTable;
+import com.company.incidentdesk.ui.shared.components.IncidentTableColumn;
+import com.company.incidentdesk.ui.shared.components.IncidentTableConfiguration;
+import com.company.incidentdesk.ui.shared.components.IncidentTableState;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
 import javafx.concurrent.Task;
@@ -25,7 +30,6 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
@@ -35,10 +39,8 @@ public final class ResponderPage extends BorderPane {
     private final ResponderDashboardPresenter presenter;
     private final Supplier<ApplicationResult<ResponderDashboardModel>> load;
     private final Consumer<IncidentId> onOpenDetail;
-    private final IncidentTable eligible = new IncidentTable("Eligible incidents",
-            "No eligible incidents. Refresh to check for new work.");
-    private final IncidentTable assigned = new IncidentTable("My assigned incidents",
-            "No assigned incidents. Select an eligible incident to view its details.");
+    private final IncidentTable eligible = createQueueTable("Eligible incidents");
+    private final IncidentTable assigned = createQueueTable("My assigned incidents");
     private final Button refresh = UiComponents.action("Refresh", ActionStyle.SECONDARY);
     private final Button open = UiComponents.action("Open details", ActionStyle.PRIMARY);
     private final VBox feedback = new VBox();
@@ -117,18 +119,18 @@ public final class ResponderPage extends BorderPane {
     }
 
     private void configureSelection(IncidentTable table, IncidentTable other) {
-        table.getSelectionModel().selectedItemProperty().addListener((observable, oldRow, row) -> {
+        table.selectedRowProperty().addListener((observable, oldRow, row) -> {
             if (rendering) {
                 return;
             }
             if (row == null) {
-                if (other.getSelectionModel().getSelectedItem() == null) {
+                if (other.selectedRowProperty().get() == null) {
                     presenter.select(null);
                     open.setDisable(true);
                 }
                 return;
             }
-            other.getSelectionModel().clearSelection();
+            other.clearSelection();
             presenter.select(row.id());
             if (presenter.state() == ResponderDashboardPresenter.State.UNAVAILABLE) {
                 render();
@@ -136,12 +138,11 @@ public final class ResponderPage extends BorderPane {
                 open.setDisable(presenter.selectedIncident().isEmpty());
             }
         });
-        table.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                openSelected();
-                event.consume();
-            }
+        table.setOnOpenDetail(row -> {
+            presenter.select(row.id());
+            openSelected();
         });
+        table.setOnRefresh(ignored -> refresh());
     }
 
     private void openSelected() {
@@ -156,11 +157,11 @@ public final class ResponderPage extends BorderPane {
         try {
             Optional<IncidentId> selected = presenter.state() == ResponderDashboardPresenter.State.READY
                     ? presenter.selectedIncident() : Optional.empty();
-            eligible.getItems().setAll(presenter.model().eligible());
-            assigned.getItems().setAll(presenter.model().assigned());
+            renderTable(eligible, presenter.model().eligible());
+            renderTable(assigned, presenter.model().assigned());
             selected.ifPresent(id -> {
-                restoreSelection(eligible, id);
-                restoreSelection(assigned, id);
+                eligible.selectIncident(id);
+                assigned.selectIncident(id);
             });
             open.setDisable(selected.isEmpty());
             refresh.setDisable(presenter.state() == ResponderDashboardPresenter.State.LOADING);
@@ -183,9 +184,25 @@ public final class ResponderPage extends BorderPane {
         feedback.setVisible(feedback.isManaged());
     }
 
-    private void restoreSelection(IncidentTable table, IncidentId id) {
-        table.getItems().stream().filter(row -> row.id().equals(id)).findFirst()
-                .ifPresent(row -> table.getSelectionModel().select(row));
+    private void renderTable(IncidentTable table, List<IncidentRowModel> rows) {
+        table.clearSelection();
+        table.setState(switch (presenter.state()) {
+            case LOADING -> IncidentTableState.loading();
+            case READY -> IncidentTableState.loaded(rows);
+            case UNAVAILABLE -> IncidentTableState.error("Sign in as a responder and refresh to try again.");
+        });
+    }
+
+    private static IncidentTable createQueueTable(String accessibleName) {
+        IncidentTable table = new IncidentTable(new IncidentTableConfiguration(List.of(
+                IncidentTableColumn.TITLE, IncidentTableColumn.CATEGORY, IncidentTableColumn.STATUS,
+                IncidentTableColumn.REPORTER, IncidentTableColumn.QUEUE_ENTERED), false, false));
+        table.setTableAccessibleText(accessibleName);
+        table.setFiltersVisible(false);
+        table.setColumnSortingEnabled(false);
+        table.setPrefHeight(240);
+        table.setMinHeight(180);
+        return table;
     }
 
     private void deactivate() {

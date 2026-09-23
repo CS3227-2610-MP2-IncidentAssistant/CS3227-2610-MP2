@@ -51,6 +51,7 @@ import com.company.incidentdesk.persistence.AuditedMutation;
 import com.company.incidentdesk.persistence.IncidentQuery;
 import com.company.incidentdesk.persistence.IncidentStore;
 import com.company.incidentdesk.persistence.IncidentSort;
+import com.company.incidentdesk.persistence.IncidentSearchCriteria;
 import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
@@ -337,6 +338,29 @@ public final class IncidentService {
         }
     }
 
+    /** Searches the current actor's authorized incident scope using shared criteria. */
+    public ApplicationResult<List<IncidentView>> search(IncidentSearchCriteria criteria) {
+        Objects.requireNonNull(criteria, "criteria");
+        Optional<Account> actor = currentActor();
+        if (actor.isEmpty()) {
+            return unavailable();
+        }
+        try {
+            Account current = actor.orElseThrow();
+            IncidentSearchCriteria authorizedCriteria = current.role() == Role.REPORTER
+                    ? criteria.withoutIdentityFilters()
+                    : criteria;
+            List<Incident> incidents = queryFor(current, authorizedCriteria);
+            return ApplicationResult.success(incidents.stream()
+                    .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
+                    .sorted(authorizedCriteria.sort().comparator())
+                    .map(IncidentView::from)
+                    .toList());
+        } catch (RepositoryException exception) {
+            return storageFailure(exception);
+        }
+    }
+
     /** Reads both responder queues through current authorization and privacy-safe mapping. */
     public ApplicationResult<ResponderDashboardModel> responderDashboard(IncidentPresentationMapper mapper) {
         Objects.requireNonNull(mapper, "mapper");
@@ -367,6 +391,19 @@ public final class IncidentService {
     private List<IncidentRowModel> dashboardRows(
             List<Incident> incidents, IncidentStatus status, IncidentPresentationMapper mapper) {
         return incidents.stream().filter(incident -> incident.status() == status).map(mapper::toRow).toList();
+    }
+
+    private List<Incident> queryFor(Account actor, IncidentSearchCriteria criteria) {
+        return switch (actor.role()) {
+        case REPORTER -> incidentStore.find(IncidentQuery.reporterOwned(actor.id()), criteria);
+        case ADMINISTRATOR -> incidentStore.find(IncidentQuery.administratorAll(), criteria);
+        case RESPONDER -> {
+            List<Incident> combined = new ArrayList<>(incidentStore.find(
+                    IncidentQuery.responderEligibleUnassigned(actor.responderAccess().categories()), criteria));
+            combined.addAll(incidentStore.find(IncidentQuery.responderAssigned(actor.id()), criteria));
+            yield combined;
+        }
+        };
     }
 
     private List<Incident> queryFor(Account actor, IncidentSort sort) {
@@ -437,7 +474,8 @@ public final class IncidentService {
         } catch (RepositoryException exception) {
             return storageFailure(exception);
         }
-        eventPublisher.publish(new IncidentChangedEvent(mutation.incident().id(), incidentAction));
+        eventPublisher.publish(new IncidentChangedEvent(
+                mutation.incident().id(), incidentAction, actor.id()));
         return ApplicationResult.success(IncidentView.from(mutation.incident()));
     }
 

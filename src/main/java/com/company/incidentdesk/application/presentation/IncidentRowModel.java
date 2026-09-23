@@ -13,6 +13,8 @@ public record IncidentRowModel(
         String reporterLabel,
         String assigneeLabel,
         String createdAt,
+        String queueEnteredAt,
+        SloSummaryModel slo,
         boolean anonymous,
         int reopenCount,
         IncidentActionModel actions) {
@@ -24,6 +26,8 @@ public record IncidentRowModel(
         Objects.requireNonNull(reporterLabel, "reporterLabel");
         Objects.requireNonNull(assigneeLabel, "assigneeLabel");
         Objects.requireNonNull(createdAt, "createdAt");
+        Objects.requireNonNull(queueEnteredAt, "queueEnteredAt");
+        Objects.requireNonNull(slo, "slo");
         Objects.requireNonNull(actions, "actions");
     }
 }

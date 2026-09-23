@@ -68,9 +68,11 @@ authorized eligible and assigned queues asynchronously, in deterministic queue
 order. Refresh and navigation recheck the session and current category access;
 detaching the page clears its contents and invalidates outstanding reads.
 
-The basic `IncidentTable` is shared with the component showcase and consumes
-only privacy-safe `IncidentRowModel` values. Advanced filters, sorting controls,
-and SLO columns remain separate work under #20/#42.
+The reusable `IncidentTable` from #20 is shared with the component showcase and
+consumes only privacy-safe `IncidentRowModel` values. The dashboard displays
+queue-entry timestamps and keeps application queue ordering. Its filters and
+interactive sorting remain hidden until their integration under #42; SLO
+columns are not enabled by this dashboard change.
 
 The role-selection launcher still uses the signed-out preview constructor. It
 does not impersonate a responder or load production data. Authenticated service
