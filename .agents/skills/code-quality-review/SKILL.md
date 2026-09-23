@@ -41,6 +41,7 @@ Ask for a specific decision, rather than proposing an automatic edit, when resol
 - **R10 — Premature optimization:** Do not sacrifice clarity for unmeasured or unnecessary optimization. Respect demonstrated performance requirements.
 - **R11 — Single level of abstraction:** Keep each code fragment at a consistent conceptual level; extract lower-level mechanics when they interrupt the higher-level narrative.
 - **R12 — Happy path:** Make the main successful flow prominent, commonly with guard clauses for exceptional or invalid cases.
+- **R13 — Unnecessary verbosity:** In Java, prefer an import over a fully qualified type name in executable code when the imported name is unambiguous. Retain qualification when it resolves a name conflict or improves clarity.
 
 ### Naming
 
