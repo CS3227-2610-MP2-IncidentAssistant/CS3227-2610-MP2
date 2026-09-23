@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.application.presentation.IncidentDisplayLabels;
@@ -23,6 +24,7 @@ import com.company.incidentdesk.persistence.IncidentSortField;
 import com.company.incidentdesk.persistence.SortDirection;
 
 import javafx.collections.FXCollections;
+import javafx.animation.PauseTransition;
 import javafx.css.PseudoClass;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -38,9 +40,11 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 /** Reusable, stateful controls for the shared incident search language. */
 public final class IncidentFilterBar extends VBox {
+    private static final Duration SEARCH_DEBOUNCE = Duration.millis(200);
     static final double FILTER_WIDTH = 165;
     static final double MENU_ROW_WIDTH = FILTER_WIDTH - 16;
     private final TextField search = new TextField();
@@ -57,7 +61,9 @@ public final class IncidentFilterBar extends VBox {
             "All SLO states", IncidentSloState.values(), IncidentDisplayLabels::sloState);
     private final ComboBox<IncidentSortField> sortField = combo(IncidentSortField.values());
     private final ComboBox<SortDirection> sortDirection = combo(SortDirection.values());
+    private final PauseTransition searchDebounce = new PauseTransition(SEARCH_DEBOUNCE);
     private Consumer<IncidentSearchCriteria> onSearch = ignored -> { };
+    private boolean suppressSearch;
 
     public IncidentFilterBar() {
         super(12);
@@ -72,16 +78,29 @@ public final class IncidentFilterBar extends VBox {
         reporters.setPromptText("Any reporter");
         responders.setPromptText("Any responder");
 
-        Button apply = UiComponents.action("Apply filters", ActionStyle.PRIMARY);
-        apply.setOnAction(event -> onSearch.accept(criteria()));
-        Button clear = UiComponents.action("Clear", ActionStyle.SECONDARY);
-        clear.setOnAction(event -> {
+        Button reset = UiComponents.action("Reset", ActionStyle.SECONDARY);
+        reset.setOnAction(event -> {
             setCriteria(IncidentSearchCriteria.defaults());
-            onSearch.accept(criteria());
+            searchNow();
         });
-        search.setOnAction(event -> onSearch.accept(criteria()));
+        searchDebounce.setOnFinished(event -> searchNow());
+        search.textProperty().addListener((observable, previous, current) -> restartSearchDebounce());
+        search.setOnAction(event -> {
+            searchDebounce.stop();
+            searchNow();
+        });
+        categories.setOnChange(this::searchNow);
+        statuses.setOnChange(this::searchNow);
+        sloStates.setOnChange(this::searchNow);
+        assignment.valueProperty().addListener((observable, previous, current) -> searchNow());
+        reporters.valueProperty().addListener((observable, previous, current) -> searchNow());
+        responders.valueProperty().addListener((observable, previous, current) -> searchNow());
+        createdFrom.valueProperty().addListener((observable, previous, current) -> searchNow());
+        createdThrough.valueProperty().addListener((observable, previous, current) -> searchNow());
+        sortField.valueProperty().addListener((observable, previous, current) -> searchNow());
+        sortDirection.valueProperty().addListener((observable, previous, current) -> searchNow());
 
-        HBox query = new HBox(10, search, apply, clear);
+        HBox query = new HBox(10, search, reset);
         query.setAlignment(Pos.CENTER_LEFT);
         FlowPane filters = new FlowPane(10, 10,
                 labelled("Categories", categories), labelled("Statuses", statuses),
@@ -95,13 +114,17 @@ public final class IncidentFilterBar extends VBox {
 
     /** Supplies already-authorized identity options; anonymous reporters must never be included. */
     public void setIdentityOptions(List<AccountOption> reporterOptions, List<AccountOption> responderOptions) {
-        reporters.setItems(FXCollections.observableArrayList(List.copyOf(reporterOptions)));
-        responders.setItems(FXCollections.observableArrayList(List.copyOf(responderOptions)));
+        reporters.setItems(FXCollections.observableArrayList(withEmptyOption("Any reporter", reporterOptions)));
+        responders.setItems(FXCollections.observableArrayList(withEmptyOption("Any responder", responderOptions)));
     }
 
     public void setIdentityFiltersVisible(boolean visible) {
         setVisibleAndManaged(reporters.getParent(), visible);
         setVisibleAndManaged(responders.getParent(), visible);
+    }
+
+    public void setSloFilterVisible(boolean visible) {
+        setVisibleAndManaged(sloStates.getParent(), visible);
     }
 
     public void setOnSearch(Consumer<IncidentSearchCriteria> handler) {
@@ -122,18 +145,36 @@ public final class IncidentFilterBar extends VBox {
     /** Restores a previous snapshot so list/detail navigation can retain filter state. */
     public void setCriteria(IncidentSearchCriteria criteria) {
         IncidentSearchCriteria value = Objects.requireNonNull(criteria, "criteria");
-        search.setText(value.text());
-        categories.select(value.categories());
-        statuses.select(value.statuses());
-        assignment.setValue(value.assignmentState());
-        selectAccount(reporters, value.reporterId());
-        selectAccount(responders, value.responderId());
-        ZoneId zone = ZoneId.systemDefault();
-        createdFrom.setValue(value.createdFrom().map(at -> LocalDate.ofInstant(at, zone)).orElse(null));
-        createdThrough.setValue(value.createdThrough().map(at -> LocalDate.ofInstant(at, zone)).orElse(null));
-        sloStates.select(value.sloStates());
-        sortField.setValue(value.sort().field());
-        sortDirection.setValue(value.sort().direction());
+        suppressSearch = true;
+        try {
+            searchDebounce.stop();
+            search.setText(value.text());
+            categories.select(value.categories());
+            statuses.select(value.statuses());
+            assignment.setValue(value.assignmentState());
+            selectAccount(reporters, value.reporterId());
+            selectAccount(responders, value.responderId());
+            ZoneId zone = ZoneId.systemDefault();
+            createdFrom.setValue(value.createdFrom().map(at -> LocalDate.ofInstant(at, zone)).orElse(null));
+            createdThrough.setValue(value.createdThrough().map(at -> LocalDate.ofInstant(at, zone)).orElse(null));
+            sloStates.select(value.sloStates());
+            sortField.setValue(value.sort().field());
+            sortDirection.setValue(value.sort().direction());
+        } finally {
+            suppressSearch = false;
+        }
+    }
+
+    private void restartSearchDebounce() {
+        if (!suppressSearch) {
+            searchDebounce.playFromStart();
+        }
+    }
+
+    private void searchNow() {
+        if (!suppressSearch) {
+            onSearch.accept(criteria());
+        }
     }
 
     private static VBox labelled(String text, Node control) {
@@ -157,12 +198,19 @@ public final class IncidentFilterBar extends VBox {
     }
 
     private static Optional<AccountId> selectedAccount(ComboBox<AccountOption> comboBox) {
-        return Optional.ofNullable(comboBox.getValue()).map(AccountOption::id);
+        return Optional.ofNullable(comboBox.getValue()).flatMap(AccountOption::filterId);
     }
 
     private static void selectAccount(ComboBox<AccountOption> comboBox, Optional<AccountId> accountId) {
         comboBox.setValue(accountId.flatMap(id -> comboBox.getItems().stream()
-                .filter(option -> option.id().equals(id)).findFirst()).orElse(null));
+                .filter(option -> option.filterId().filter(id::equals).isPresent()).findFirst()).orElse(null));
+    }
+
+    private static List<AccountOption> withEmptyOption(String label, List<AccountOption> options) {
+        Objects.requireNonNull(options, "options");
+        return Stream.concat(
+                Stream.of(AccountOption.empty(label)),
+                options.stream()).toList();
     }
 
     private static void setVisibleAndManaged(Node node, boolean visible) {
@@ -175,6 +223,7 @@ public final class IncidentFilterBar extends VBox {
         private final String emptyLabel;
         private final Function<T, String> label;
         private final List<Option<T>> options;
+        private Runnable onChange = () -> { };
 
         private MultiSelectDropdown(String emptyLabel, T[] values, Function<T, String> label) {
             this.emptyLabel = Objects.requireNonNull(emptyLabel, "emptyLabel");
@@ -186,6 +235,7 @@ public final class IncidentFilterBar extends VBox {
                 option.item().setOnAction(event -> {
                     option.toggle();
                     updateLabel();
+                    onChange.run();
                 });
                 getItems().add(option.item());
             });
@@ -198,6 +248,10 @@ public final class IncidentFilterBar extends VBox {
                     .filter(Option::isSelected)
                     .map(Option::value)
                     .collect(Collectors.toUnmodifiableSet());
+        }
+
+        private void setOnChange(Runnable handler) {
+            onChange = Objects.requireNonNull(handler, "handler");
         }
 
         private void select(Set<T> values) {
@@ -270,13 +324,29 @@ public final class IncidentFilterBar extends VBox {
     }
 
     /** Safe label/id pair for identity filter options. */
-    public record AccountOption(AccountId id, String displayName) {
+    public record AccountOption(AccountId id, String displayName, boolean empty) {
+        public AccountOption(AccountId id, String displayName) {
+            this(id, displayName, false);
+        }
+
         public AccountOption {
-            Objects.requireNonNull(id, "id");
+            if (!empty) {
+                Objects.requireNonNull(id, "id");
+            } else if (id != null) {
+                throw new IllegalArgumentException("Empty option must not have an account id");
+            }
             Objects.requireNonNull(displayName, "displayName");
             if (displayName.isBlank()) {
                 throw new IllegalArgumentException("displayName must not be blank");
             }
+        }
+
+        private static AccountOption empty(String displayName) {
+            return new AccountOption(null, displayName, true);
+        }
+
+        private Optional<AccountId> filterId() {
+            return empty ? Optional.empty() : Optional.of(id);
         }
 
         @Override

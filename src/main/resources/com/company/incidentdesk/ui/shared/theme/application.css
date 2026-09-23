@@ -68,12 +68,12 @@
 
 .button {
     -fx-min-height: 40px;
-    -fx-padding: 9px 15px;
+    -fx-padding: 8px 14px;
     -fx-background-color: #FFFFFF;
     -fx-background-radius: 9px;
     -fx-border-color: #DCE2EC;
     -fx-border-radius: 9px;
-    -fx-border-width: 1px;
+    -fx-border-width: 2px;
     -fx-text-fill: #18243A;
     -fx-font-weight: 700;
     -fx-cursor: hand;
@@ -220,6 +220,20 @@
 .multi-select-menu-row { -fx-padding: 7px 9px; -fx-spacing: 12px; -fx-alignment: CENTER_LEFT; }
 .multi-select-menu-row:selected { -fx-background-color: #E4ECFF; }
 .multi-select-menu-row:selected .label { -fx-text-fill: #2854B6; }
+.incident-table { -fx-min-height: 360px; }
+.incident-table .feedback-card { -fx-max-width: 520px; }
+.incident-table .incident-table-state {
+    -fx-alignment: CENTER;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 24px;
+}
+.incident-table .incident-table-state .label { -fx-text-alignment: center; }
+.role-view-toggle:selected {
+    -fx-background-color: #E4ECFF;
+    -fx-border-color: #4169D8;
+    -fx-text-fill: #2854B6;
+}
 
 .dialog-pane { -fx-background-color: #FFFFFF; -fx-background-radius: 13px; }
 .dialog-pane .header-panel { -fx-background-color: #FFFFFF; }

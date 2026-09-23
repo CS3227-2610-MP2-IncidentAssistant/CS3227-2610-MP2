@@ -39,6 +39,11 @@ public final class IncidentPresentationMapper {
 
     /** Maps an incident to a compact row after current-view authorization succeeds. */
     public IncidentRowModel toRow(Incident incident) {
+        return toRow(incident, SloSummaryModel.unavailable());
+    }
+
+    /** Maps an incident and its already-calculated SLO summary to a compact row. */
+    public IncidentRowModel toRow(Incident incident, SloSummaryModel slo) {
         requireViewAuthorization(incident);
         return new IncidentRowModel(
                 incident.id(),
@@ -48,6 +53,8 @@ public final class IncidentPresentationMapper {
                 reporterLabel(incident),
                 incident.assigneeId().map(this::accountLabel).orElse(UNASSIGNED_LABEL),
                 format(incident.createdAt()),
+                incident.currentCycle().map(cycle -> format(cycle.queueEnteredAt())).orElse(""),
+                Objects.requireNonNull(slo, "slo"),
                 incident.anonymous(),
                 incident.reopenCount(),
                 actions(incident));

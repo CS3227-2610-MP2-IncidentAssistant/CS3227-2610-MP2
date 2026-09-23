@@ -20,8 +20,11 @@ class ApplicationThemeTest {
         try (InputStream input = stylesheet.openStream()) {
             css = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
+        String normalizedCss = css.replace("\r\n", "\n");
         assertTrue(css.contains(".button.primary"));
         assertTrue(css.contains(".button.danger"));
+        assertTrue(normalizedCss.matches("(?s).*\\.button \\{[^}]*-fx-padding: 8px 14px;"
+                + "[^}]*-fx-border-width: 2px;[^}]*}.*"));
         assertTrue(css.contains(".badge.success"));
         assertTrue(css.contains(".field-error"));
         assertTrue(css.contains(".empty-state"));
