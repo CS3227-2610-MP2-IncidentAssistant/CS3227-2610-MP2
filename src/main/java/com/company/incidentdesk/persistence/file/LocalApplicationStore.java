@@ -18,8 +18,11 @@ import com.company.incidentdesk.domain.audit.AuditEvent;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.IncidentComment;
 import com.company.incidentdesk.domain.incident.Incident;
+import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
+import com.company.incidentdesk.domain.slo.SloTargetVersion;
+import com.company.incidentdesk.domain.slo.SloTargetVersionId;
 import com.company.incidentdesk.persistence.AccountRepository;
 import com.company.incidentdesk.persistence.AssignmentState;
 import com.company.incidentdesk.persistence.AuditQuery;
@@ -33,15 +36,18 @@ import com.company.incidentdesk.persistence.IncidentSloState;
 import com.company.incidentdesk.persistence.IncidentSort;
 import com.company.incidentdesk.persistence.IncidentStore;
 import com.company.incidentdesk.persistence.RepositoryException;
+import com.company.incidentdesk.persistence.SloConfigurationStore;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
-/** Durable aggregate repository for accounts, incidents, comments, and audits. */
-public final class LocalApplicationStore implements AccountRepository, IncidentStore, AuditRepository, AutoCloseable {
+/** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
+public final class LocalApplicationStore
+        implements AccountRepository, IncidentStore, AuditRepository, AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
     private final ApplicationProcessLock processLock;
     private final RecoverySafeFile<LocalApplicationState> file;
     private final IncidentSloClassifier sloClassifier;
+    private final SloConfigurationStore sloConfigurationStore = new SloConfigurationStoreFacet();
     private LocalApplicationState state;
 
     public LocalApplicationStore(Path dataDirectory) {
@@ -83,7 +89,8 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
                         && existing.loginName().equals(required.loginName()))) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account already exists");
         }
-        persist(new LocalApplicationState(accounts, state.incidents(), state.comments(), state.auditEvents()));
+        persist(new LocalApplicationState(
+                accounts, state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
     @Override
@@ -99,7 +106,8 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
         if (duplicateLogin) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account login already exists");
         }
-        persist(new LocalApplicationState(accounts, state.incidents(), state.comments(), state.auditEvents()));
+        persist(new LocalApplicationState(
+                accounts, state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
     @Override
@@ -159,7 +167,7 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
         apply(required.nextState(), incidents, comments);
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required.auditEvent());
-        persist(new LocalApplicationState(state.accounts(), incidents, comments, audits));
+        persist(new LocalApplicationState(state.accounts(), incidents, comments, audits, state.sloTargetVersions()));
     }
 
     @Override
@@ -174,7 +182,13 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
         rejectDuplicateAudit(required);
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required);
-        persist(new LocalApplicationState(state.accounts(), state.incidents(), state.comments(), audits));
+        persist(new LocalApplicationState(
+                state.accounts(), state.incidents(), state.comments(), audits, state.sloTargetVersions()));
+    }
+
+    /** Returns the SLO configuration facet of this aggregate store. */
+    public SloConfigurationStore sloConfigurationStore() {
+        return sloConfigurationStore;
     }
 
     @Override
@@ -212,7 +226,8 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
         if (!update && previous != null) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "incident already exists");
         }
-        persist(new LocalApplicationState(state.accounts(), incidents, state.comments(), state.auditEvents()));
+        persist(new LocalApplicationState(
+                state.accounts(), incidents, state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
     private void persist(LocalApplicationState nextState) {
@@ -287,5 +302,69 @@ public final class LocalApplicationStore implements AccountRepository, IncidentS
                 && query.actorId().map(id -> id.equals(event.actor().accountId())).orElse(true)
                 && (query.actions().isEmpty() || query.actions().contains(event.action()))
                 && query.target().map(event.target()::equals).orElse(true);
+    }
+
+    /** SLO configuration facet sharing this aggregate's canonical state and safe-write protocol. */
+    private final class SloConfigurationStoreFacet implements SloConfigurationStore {
+        @Override
+        public void append(SloTargetVersionId id, SloTargetVersion value) {
+            synchronized (LocalApplicationStore.this) {
+                SloTargetVersionId requiredId = Objects.requireNonNull(id, "id");
+                SloTargetVersion requiredValue = Objects.requireNonNull(value, "value");
+                if (!requiredId.equals(requiredValue.id())) {
+                    throw new IllegalArgumentException("id must match the SLO target version identifier");
+                }
+                Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions =
+                        new LinkedHashMap<>(state.sloTargetVersions());
+                if (sloTargetVersions.putIfAbsent(requiredId, requiredValue) != null) {
+                    throw new RepositoryException(
+                            StorageFailureCode.ALREADY_EXISTS, "SLO target version already exists");
+                }
+                persist(new LocalApplicationState(
+                        state.accounts(), state.incidents(), state.comments(), state.auditEvents(),
+                        sloTargetVersions));
+            }
+        }
+
+        @Override
+        public Optional<SloTargetVersion> findById(SloTargetVersionId id) {
+            synchronized (LocalApplicationStore.this) {
+                return Optional.ofNullable(state.sloTargetVersions().get(Objects.requireNonNull(id, "id")));
+            }
+        }
+
+        @Override
+        public List<SloTargetVersion> findAll() {
+            synchronized (LocalApplicationStore.this) {
+                return state.sloTargetVersions().values().stream()
+                        .sorted(Comparator.comparing(version -> version.id().value())).toList();
+            }
+        }
+
+        @Override
+        public List<SloTargetVersion> findByCategory(IncidentCategory category) {
+            IncidentCategory requiredCategory = Objects.requireNonNull(category, "category");
+            return findAll().stream().filter(version -> version.category() == requiredCategory).toList();
+        }
+
+        @Override
+        public void commit(AuditedMutation<SloTargetVersion> auditedMutation) {
+            synchronized (LocalApplicationStore.this) {
+                AuditedMutation<SloTargetVersion> required = Objects.requireNonNull(
+                        auditedMutation, "auditedMutation");
+                rejectDuplicateAudit(required.auditEvent());
+                Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions =
+                        new LinkedHashMap<>(state.sloTargetVersions());
+                SloTargetVersion version = required.nextState();
+                if (sloTargetVersions.putIfAbsent(version.id(), version) != null) {
+                    throw new RepositoryException(
+                            StorageFailureCode.ALREADY_EXISTS, "SLO target version already exists");
+                }
+                List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+                audits.add(required.auditEvent());
+                persist(new LocalApplicationState(
+                        state.accounts(), state.incidents(), state.comments(), audits, sloTargetVersions));
+            }
+        }
     }
 }

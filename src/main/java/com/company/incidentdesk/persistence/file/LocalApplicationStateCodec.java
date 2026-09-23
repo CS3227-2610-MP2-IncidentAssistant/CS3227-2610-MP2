@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -41,14 +42,19 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
 import com.company.incidentdesk.domain.incident.Resolution;
 import com.company.incidentdesk.domain.incident.ResolutionCycle;
+import com.company.incidentdesk.domain.slo.SloTarget;
+import com.company.incidentdesk.domain.slo.SloTargetVersion;
+import com.company.incidentdesk.domain.slo.SloTargetVersionId;
 import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Deterministic binary schema for the aggregate local application state. */
 final class LocalApplicationStateCodec implements DataCodec<LocalApplicationState> {
     static final int SCHEMA_VERSION = 1;
+    private static final int MIN_SUPPORTED_SCHEMA_VERSION = 1;
     private static final int MAGIC = 0x49444B31; // IDK1
     private static final int MAX_RECORDS = 1_000_000;
+    private static final int RESERVED_SECTION_RECORD_COUNT = 0;
 
     @Override
     public byte[] encode(LocalApplicationState state) throws IOException {
@@ -59,11 +65,10 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             writeAccounts(output, state.accounts());
             writeIncidents(output, state.incidents());
             writeComments(output, state.comments());
-            writeEmptyLegacyReopenExplanationSection(output);
             writeAudits(output, state.auditEvents());
             writeReservedSection(output, "attachments");
             writeReservedSection(output, "promotions");
-            writeReservedSection(output, "slo-configurations");
+            writeSloTargetVersions(output, state.sloTargetVersions());
         }
         return bytes.toByteArray();
     }
@@ -79,17 +84,18 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
                 throw new RepositoryException(StorageFailureCode.UNSUPPORTED_SCHEMA,
                         "application data was written by a newer version");
             }
-            if (version < 1) {
+            if (version < MIN_SUPPORTED_SCHEMA_VERSION) {
                 throw new IOException("unsupported legacy schema");
             }
             Map<AccountId, Account> accounts = readAccounts(input);
             Map<IncidentId, Incident> incidents = readIncidents(input);
             List<IncidentComment> comments = readComments(input);
-            skipLegacyReopenExplanationSection(input);
-            LocalApplicationState state = new LocalApplicationState(accounts, incidents, comments, readAudits(input));
+            List<AuditEvent> auditEvents = readAudits(input);
             readReservedSection(input, "attachments");
             readReservedSection(input, "promotions");
-            readReservedSection(input, "slo-configurations");
+            Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = readSloTargetVersions(input);
+            LocalApplicationState state = new LocalApplicationState(
+                    accounts, incidents, comments, auditEvents, sloTargetVersions);
             if (input.read() != -1) {
                 throw new IOException("unexpected trailing application data");
             }
@@ -235,18 +241,53 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         return comments;
     }
 
-    private static void writeEmptyLegacyReopenExplanationSection(DataOutputStream output) throws IOException {
-        output.writeInt(0);
+    private static void writeSloTargetVersions(
+            DataOutputStream output,
+            Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions) throws IOException {
+        output.writeUTF("slo-configurations");
+        output.writeInt(sloTargetVersions.size());
+        for (SloTargetVersion version : sloTargetVersions.values().stream()
+                .sorted((left, right) -> left.id().value().compareTo(right.id().value())).toList()) {
+            writeUuid(output, version.id().value());
+            output.writeUTF(version.category().name());
+            writeDuration(output, version.target().timeToClaimTarget());
+            writeDuration(output, version.target().timeInProgressTarget());
+            output.writeDouble(version.target().reopenRateTarget());
+            writeInstant(output, version.effectiveFrom());
+            writeUuid(output, version.changedBy().value());
+        }
     }
 
-    private static void skipLegacyReopenExplanationSection(DataInputStream input) throws IOException {
-        int explanationCount = readCount(input);
-        for (int index = 0; index < explanationCount; index++) {
-            readUuid(input);
-            input.readUTF();
-            readInstant(input);
-            input.readInt();
+    private static Map<SloTargetVersionId, SloTargetVersion> readSloTargetVersions(DataInputStream input)
+            throws IOException {
+        if (!"slo-configurations".equals(input.readUTF())) {
+            throw new IOException("invalid SLO configuration schema section");
         }
+        Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = new LinkedHashMap<>();
+        int count = readCount(input);
+        for (int index = 0; index < count; index++) {
+            SloTargetVersionId id = new SloTargetVersionId(readUuid(input));
+            IncidentCategory category = readEnum(input, IncidentCategory.class);
+            Duration timeToClaimTarget = readDuration(input);
+            Duration timeInProgressTarget = readDuration(input);
+            double reopenRateTarget = input.readDouble();
+            Instant effectiveFrom = readInstant(input);
+            AccountId changedBy = new AccountId(readUuid(input));
+            SloTargetVersion version = new SloTargetVersion(
+                    id, category, new SloTarget(timeToClaimTarget, timeInProgressTarget, reopenRateTarget),
+                    effectiveFrom, changedBy);
+            requireUnique(sloTargetVersions.put(id, version), "SLO target version identifier");
+        }
+        return sloTargetVersions;
+    }
+
+    private static void writeDuration(DataOutputStream output, Duration duration) throws IOException {
+        output.writeLong(duration.getSeconds());
+        output.writeInt(duration.getNano());
+    }
+
+    private static Duration readDuration(DataInputStream input) throws IOException {
+        return Duration.ofSeconds(input.readLong(), input.readInt());
     }
 
     private static void writeAudits(DataOutputStream output, List<AuditEvent> events) throws IOException {
@@ -314,6 +355,9 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             }
             requireAccount(state, comment.authorId(), "comment author");
         }
+        for (SloTargetVersion version : state.sloTargetVersions().values()) {
+            requireAccount(state, version.changedBy(), "SLO configuration changedBy");
+        }
     }
 
     private static void requireAccount(LocalApplicationState state, AccountId id, String relation) throws IOException {
@@ -330,12 +374,11 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
 
     private static void writeReservedSection(DataOutputStream output, String name) throws IOException {
         output.writeUTF(name);
-        output.writeInt(1);
-        output.writeInt(0);
+        output.writeInt(RESERVED_SECTION_RECORD_COUNT);
     }
 
     private static void readReservedSection(DataInputStream input, String expectedName) throws IOException {
-        if (!expectedName.equals(input.readUTF()) || input.readInt() != 1 || input.readInt() != 0) {
+        if (!expectedName.equals(input.readUTF()) || input.readInt() != RESERVED_SECTION_RECORD_COUNT) {
             throw new IOException("invalid reserved schema section");
         }
     }
