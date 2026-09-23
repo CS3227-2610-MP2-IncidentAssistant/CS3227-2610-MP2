@@ -95,21 +95,31 @@ public final class IncidentAuthorizationPolicy {
     }
 
     /** Authorizes reassigning an incident to an eligible responder. */
+    public AuthorizationDecision authorizeReassign(Incident incident) {
+        Objects.requireNonNull(incident, "incident");
+        return decide(actor -> canReassign(actor, incident));
+    }
+
+    /** Authorizes reassigning an incident to a specific eligible responder. */
     public AuthorizationDecision authorizeReassign(Incident incident, Account targetResponder) {
         Objects.requireNonNull(incident, "incident");
         Objects.requireNonNull(targetResponder, "targetResponder");
-        return decide(actor -> actor.role() == Role.ADMINISTRATOR
-                && incident.status() == IncidentStatus.ASSIGNED
+        return decide(actor -> canReassign(actor, incident)
                 && targetResponder.isEnabled()
                 && targetResponder.role() == Role.RESPONDER
                 && targetResponder.responderAccess().permits(incident.category()));
     }
 
-    /** Authorizes reopening a resolved report with a non-blank explanation. */
+    /** Authorizes offering the reopen action for a resolved report. */
+    public AuthorizationDecision authorizeReopen(Incident incident) {
+        Objects.requireNonNull(incident, "incident");
+        return decide(actor -> canReopen(actor, incident));
+    }
+
+    /** Authorizes reopening a resolved report with a supplied non-blank explanation. */
     public AuthorizationDecision authorizeReopen(Incident incident, String explanation) {
         Objects.requireNonNull(incident, "incident");
-        return decide(actor -> isReporterOwner(actor, incident.reporterId())
-                && incident.status() == IncidentStatus.RESOLVED
+        return decide(actor -> canReopen(actor, incident)
                 && explanation != null
                 && !explanation.isBlank());
     }
@@ -155,6 +165,16 @@ public final class IncidentAuthorizationPolicy {
         case RESPONDER -> isAssignedEligibleResponder(actor, incident);
         case ADMINISTRATOR -> true;
         };
+    }
+
+    private static boolean canReassign(Account actor, Incident incident) {
+        return actor.role() == Role.ADMINISTRATOR
+                && incident.status() == IncidentStatus.ASSIGNED;
+    }
+
+    private static boolean canReopen(Account actor, Incident incident) {
+        return isReporterOwner(actor, incident.reporterId())
+                && incident.status() == IncidentStatus.RESOLVED;
     }
 
     private static boolean canViewReporterIdentity(Account actor, Incident incident) {
