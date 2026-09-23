@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,9 @@ import org.junit.jupiter.api.Test;
 
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.application.session.AuthenticatedSession;
@@ -264,6 +268,95 @@ class IncidentServiceTest {
         assertTrue(service.submit("Printer", "Jammed", IncidentCategory.IT, anonymous).isSuccess());
     }
 
+    @Test
+    void dashboardSeparatesAuthorizedQueuesAndRedactsAnonymousReporter() {
+        IncidentLifecycle lifecycle = new IncidentLifecycle(clock);
+        Incident eligible = dashboardIncident(1, IncidentCategory.IT, true);
+        Incident assigned = lifecycle.claim(dashboardIncident(2, IncidentCategory.IT, false), RESPONDER_ID);
+        incidents.create(eligible);
+        incidents.create(assigned);
+        incidents.create(lifecycle.claim(dashboardIncident(3, IncidentCategory.IT, false), SECOND_RESPONDER_ID));
+        incidents.create(dashboardIncident(4, IncidentCategory.FACILITIES, false));
+        incidents.create(lifecycle.claim(dashboardIncident(5, IncidentCategory.FACILITIES, false), RESPONDER_ID));
+        incidents.create(lifecycle.withdraw(dashboardIncident(6, IncidentCategory.IT, false)));
+        incidents.create(lifecycle.saveDraft(new IncidentId(new UUID(1, 7)), REPORTER_ID,
+                "Draft", "Private", IncidentCategory.IT, false));
+        incidents.create(lifecycle.resolve(
+                lifecycle.claim(dashboardIncident(8, IncidentCategory.IT, false), RESPONDER_ID),
+                RESPONDER_ID, "Done"));
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+
+        ResponderDashboardModel model = service.responderDashboard(dashboardMapper()).value().orElseThrow();
+
+        assertEquals(List.of(eligible.id()), model.eligible().stream().map(IncidentRowModel::id).toList());
+        assertEquals(List.of(assigned.id()), model.assigned().stream().map(IncidentRowModel::id).toList());
+        assertEquals("Anonymous reporter", model.eligible().getFirst().reporterLabel());
+        assertFalse(model.eligible().toString().contains(REPORTER_ID.value().toString()));
+        assertTrue(incidents.auditEvents().isEmpty());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void dashboardUsesQueueOrderWithStableTiesAndPreservesHandoffPosition() {
+        IncidentLifecycle lifecycle = new IncidentLifecycle(clock);
+        Incident first = dashboardIncident(1, IncidentCategory.IT, false);
+        Incident second = dashboardIncident(2, IncidentCategory.IT, false);
+        Incident handedOff = lifecycle.handoff(lifecycle.claim(first, RESPONDER_ID));
+        incidents.create(second);
+        incidents.create(handedOff);
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+
+        ResponderDashboardModel model = service.responderDashboard(dashboardMapper()).value().orElseThrow();
+
+        assertEquals(List.of(first.id(), second.id()), model.eligible().stream().map(IncidentRowModel::id).toList());
+        assertEquals(first.currentCycle().orElseThrow().queueEnteredAt(),
+                incidents.findById(first.id()).orElseThrow().currentCycle().orElseThrow().queueEnteredAt());
+    }
+
+    @Test
+    void dashboardRechecksCategoryAccessForBothLists() {
+        incidents.create(dashboardIncident(1, IncidentCategory.IT, false));
+        incidents.create(new IncidentLifecycle(clock).claim(dashboardIncident(2, IncidentCategory.IT, false), RESPONDER_ID));
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertEquals(1, service.responderDashboard(dashboardMapper()).value().orElseThrow().assigned().size());
+
+        sessions.signIn(responder(RESPONDER_ID));
+
+        assertEquals(ResponderDashboardModel.empty(), service.responderDashboard(dashboardMapper()).value().orElseThrow());
+    }
+
+    @Test
+    void dashboardDeniesSignedOutReporterAdministratorAndDisabledResponder() {
+        assertFalse(service.responderDashboard(dashboardMapper()).isSuccess());
+        for (Account actor : List.of(reporter(REPORTER_ID), administrator(),
+                new Account(RESPONDER_ID, "disabled", Role.RESPONDER, AccountStatus.DISABLED,
+                        ResponderAccess.to(Set.of(IncidentCategory.IT))))) {
+            sessions.signIn(actor);
+            assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
+                    service.responderDashboard(dashboardMapper()).error().orElseThrow().code());
+        }
+    }
+
+    private Incident dashboardIncident(long identifier, IncidentCategory category, boolean anonymous) {
+        return new IncidentLifecycle(clock).submit(new IncidentId(new UUID(1, identifier)),
+                REPORTER_ID, "Incident " + identifier, "Description", category, anonymous);
+    }
+
+    @Test
+    void dashboardConvertsAccountReadFailureToSafeApplicationError() {
+        sessions.failOnRead = true;
+
+        ApplicationResult<ResponderDashboardModel> result = service.responderDashboard(dashboardMapper());
+
+        assertEquals(ApplicationErrorCode.PERSISTENCE_FAILURE, result.error().orElseThrow().code());
+        assertFalse(result.toString().contains("private path"));
+    }
+
+    private IncidentPresentationMapper dashboardMapper() {
+        return new IncidentPresentationMapper(accounts, new IncidentAuthorizationPolicy(sessions),
+                ZoneOffset.UTC, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    }
+
     private void createResolvedIncident() {
         createSubmittedIncident(false);
         sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
@@ -321,6 +414,7 @@ class IncidentServiceTest {
 
     private static final class MutableSessionProvider implements SessionProvider {
         private Optional<Account> current = Optional.empty();
+        private boolean failOnRead;
 
         void signIn(Account account) {
             current = Optional.of(account);
@@ -333,6 +427,9 @@ class IncidentServiceTest {
 
         @Override
         public Optional<Account> currentAccount() {
+            if (failOnRead) {
+                throw new RepositoryException(StorageFailureCode.STORAGE_UNAVAILABLE, "private path");
+            }
             return current;
         }
     }

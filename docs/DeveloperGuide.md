@@ -59,6 +59,27 @@ tests. Test both allowed and denied operations at the domain boundary.
 change is ready for review only after the relevant checks pass and its data,
 authorization, audit, privacy, and SLO effects have been considered.
 
+## Responder dashboard integration (#37)
+
+`ResponderPage` accepts the shared `IncidentService`, an
+`IncidentPresentationMapper` using the same authorization/session source, the
+`SessionProvider`, an incident-ID detail callback, and a back callback. It reads
+authorized eligible and assigned queues asynchronously, in deterministic queue
+order. Refresh and navigation recheck the session and current category access;
+detaching the page clears its contents and invalidates outstanding reads.
+
+The reusable `IncidentTable` from #20 is shared with the component showcase and
+consumes only privacy-safe `IncidentRowModel` values. The dashboard displays
+queue-entry timestamps and keeps application queue ordering. Its filters and
+interactive sorting remain hidden until their integration under #42; SLO
+columns are not enabled by this dashboard change.
+
+The role-selection launcher still uses the signed-out preview constructor. It
+does not impersonate a responder or load production data. Authenticated service
+wiring belongs to #40/#22; the detail callback is implemented by #38. Dashboard
+reads do not modify persisted data, audit records, or SLO timestamps, and require
+no migration or additional production dependency.
+
 ## Adding dependencies
 
 Production dependencies require team approval. Record why a dependency is

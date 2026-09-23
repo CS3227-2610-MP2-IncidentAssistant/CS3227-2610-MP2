@@ -167,6 +167,28 @@ class IncidentTableTest {
         return table.tableView().getColumns().stream().map(column -> column.getText()).toList();
     }
 
+    @Test
+    void simpleQueueControlsHideFiltersAndClearRetainedSelection() throws Exception {
+        runOnJavaFx(() -> {
+            IncidentTable table = new IncidentTable(IncidentTableConfiguration.responder());
+            table.setFiltersVisible(false);
+            table.setColumnSortingEnabled(false);
+            table.setTableAccessibleText("Eligible incidents");
+            assertTrue(!table.filterBar().isVisible());
+            assertTrue(!table.filterBar().isManaged());
+            assertTrue(table.tableView().getColumns().stream().noneMatch(column -> column.isSortable()));
+            assertEquals("Eligible incidents", table.tableView().getAccessibleText());
+
+            table.setState(IncidentTableState.loaded(List.of(FIRST, SECOND)));
+            table.selectIncident(SECOND.id());
+            assertSame(SECOND, table.selectedRowProperty().get());
+            table.setState(IncidentTableState.loading());
+            table.clearSelection();
+            table.setState(IncidentTableState.loaded(List.of(FIRST, SECOND)));
+            assertEquals(null, table.selectedRowProperty().get());
+        });
+    }
+
     private static IncidentRowModel row(String id, String title) {
         return new IncidentRowModel(
                 new IncidentId(UUID.fromString(id)), title, "IT", "Submitted",

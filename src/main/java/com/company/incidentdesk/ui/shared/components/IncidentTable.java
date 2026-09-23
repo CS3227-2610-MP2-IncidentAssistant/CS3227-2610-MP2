@@ -10,6 +10,7 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.persistence.IncidentSearchCriteria;
 
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -103,6 +104,36 @@ public final class IncidentTable extends VBox {
 
     public IncidentSearchCriteria criteria() {
         return filters.criteria();
+    }
+
+    /** Allows simple queues to defer filter integration without exposing inactive controls. */
+    public void setFiltersVisible(boolean visible) {
+        filters.setVisible(visible);
+        filters.setManaged(visible);
+    }
+
+    /** Preserves application queue order when interactive sorting is not part of a workflow. */
+    public void setColumnSortingEnabled(boolean enabled) {
+        table.getColumns().forEach(column -> column.setSortable(enabled));
+    }
+
+    public ReadOnlyObjectProperty<IncidentRowModel> selectedRowProperty() {
+        return table.getSelectionModel().selectedItemProperty();
+    }
+
+    public void selectIncident(IncidentId id) {
+        table.getItems().stream().filter(row -> row.id().equals(id)).findFirst()
+                .ifPresent(table.getSelectionModel()::select);
+    }
+
+    /** Clears both visible and retained selection when a caller invalidates its context. */
+    public void clearSelection() {
+        table.getSelectionModel().clearSelection();
+        retainedSelection = null;
+    }
+
+    public void setTableAccessibleText(String text) {
+        table.setAccessibleText(text);
     }
 
     public void setCriteria(IncidentSearchCriteria criteria) {
