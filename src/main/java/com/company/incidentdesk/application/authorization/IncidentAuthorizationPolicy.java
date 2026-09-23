@@ -135,7 +135,16 @@ public final class IncidentAuthorizationPolicy {
         return AuthorizationDecision.from(currentAccount.filter(Account::isEnabled).filter(rule).isPresent());
     }
 
-    private static boolean canViewIncident(Account actor, Incident incident) {
+    /**
+     * Evaluates incident visibility for an explicit account without relying on UI-supplied identity.
+     *
+     * @param actor current account and authorization attributes
+     * @param incident incident to evaluate
+     * @return true when the account may currently view the incident
+     */
+    public static boolean canViewIncident(Account actor, Incident incident) {
+        Objects.requireNonNull(actor, "actor");
+        Objects.requireNonNull(incident, "incident");
         return switch (actor.role()) {
         case REPORTER -> actor.id().equals(incident.reporterId());
         case RESPONDER -> isEligibleResponder(actor, incident)

@@ -84,7 +84,8 @@ class IncidentServiceTest {
         assertEquals(1, incidents.auditEvents().size());
         assertEquals(AuditActorVisibility.ANONYMOUS_REPORTER,
                 incidents.auditEvents().getFirst().actor().visibility());
-        assertEquals(List.of(new IncidentChangedEvent(INCIDENT_ID, IncidentAction.SUBMIT)), events);
+        assertEquals(List.of(new IncidentChangedEvent(
+                INCIDENT_ID, IncidentAction.SUBMIT, REPORTER_ID)), events);
         assertTrue(service.detail(INCIDENT_ID).isSuccess());
     }
 
