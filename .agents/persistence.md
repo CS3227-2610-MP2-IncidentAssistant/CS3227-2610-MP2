@@ -71,9 +71,10 @@ authorization between sequentially logged-in accounts.
   `incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, and
   otherwise uses `.incident-desk` under the current user's home directory.
 - `incident-desk.dat` is one versioned aggregate state file. Schema version 1
-  persists accounts, incidents, comments, and audits, and
-  reserves independently versioned sections for attachment metadata,
-  promotion requests, and SLO configuration.
+  persists accounts, incidents, comments, audits, and SLO target configuration
+  history, and reserves empty placeholder sections for attachment metadata and
+  promotion requests. The whole file shares one schema version; there is no
+  independent per-section versioning.
 - Each successful replacement retains one bounded last-known-good copy at
   `incident-desk.dat.bak`. Unique unfinished temporary files are never treated
   as canonical state.

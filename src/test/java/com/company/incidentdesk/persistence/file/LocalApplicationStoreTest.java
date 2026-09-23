@@ -1,10 +1,12 @@
 package com.company.incidentdesk.persistence.file;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -39,12 +41,16 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
 import com.company.incidentdesk.domain.incident.Resolution;
 import com.company.incidentdesk.domain.incident.ResolutionCycle;
+import com.company.incidentdesk.domain.slo.SloTarget;
+import com.company.incidentdesk.domain.slo.SloTargetVersion;
+import com.company.incidentdesk.domain.slo.SloTargetVersionId;
 import com.company.incidentdesk.persistence.AuditQuery;
 import com.company.incidentdesk.persistence.AuditSortDirection;
 import com.company.incidentdesk.persistence.AuditedMutation;
 import com.company.incidentdesk.persistence.IncidentQuery;
 import com.company.incidentdesk.persistence.IncidentSort;
 import com.company.incidentdesk.persistence.IncidentSortField;
+import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.SortDirection;
 
 class LocalApplicationStoreTest {
@@ -132,6 +138,68 @@ class LocalApplicationStoreTest {
             assertTrue(recovered.findById(REPORTER_ID).isPresent());
             assertTrue(recovered.findById(RESPONDER_ID).isEmpty());
         }
+    }
+
+    @Test
+    void sloConfigurationVersionAndAuditCommitTogetherAndSurviveRestart() {
+        SloTargetVersion version = new SloTargetVersion(
+                new SloTargetVersionId(uuid(50)), IncidentCategory.IT,
+                new SloTarget(Duration.ofMinutes(30), Duration.ofHours(4), 0.1),
+                CREATED, REPORTER_ID);
+        AuditEvent audit = new AuditEvent(new AuditEventId(uuid(51)), CREATED,
+                new AuditActor(REPORTER_ID, Role.REPORTER, AuditActorVisibility.STANDARD),
+                AuditAction.SLO_CONFIGURATION_CHANGED,
+                new AuditTarget(AuditTargetType.SLO_CONFIGURATION, IncidentCategory.IT.name()),
+                AuditOutcome.SUCCESS,
+                List.of(AuditChange.added(AuditChangeField.SLO_VERSION, version.id().value().toString())),
+                Optional.empty());
+
+        try (LocalApplicationStore store = new LocalApplicationStore(temporaryDirectory)) {
+            store.create(reporter());
+            store.sloConfigurationStore().commit(new AuditedMutation<>(version, audit));
+        }
+
+        try (LocalApplicationStore reopened = new LocalApplicationStore(temporaryDirectory)) {
+            assertEquals(version, reopened.sloConfigurationStore()
+                    .findById(new SloTargetVersionId(uuid(50))).orElseThrow());
+            assertEquals(List.of(version), reopened.sloConfigurationStore().findByCategory(IncidentCategory.IT));
+            assertEquals(List.of(), reopened.sloConfigurationStore().findByCategory(IncidentCategory.FACILITIES));
+            assertEquals(audit, reopened.findById(audit.id()).orElseThrow());
+        }
+    }
+
+    @Test
+    void duplicateSloConfigurationAuditEventIsRejectedWithoutPartiallyPersistingTheVersion() {
+        SloTargetVersion first = new SloTargetVersion(
+                new SloTargetVersionId(uuid(52)), IncidentCategory.IT,
+                new SloTarget(Duration.ofMinutes(30), Duration.ofHours(4), 0.1),
+                CREATED, REPORTER_ID);
+        SloTargetVersion second = new SloTargetVersion(
+                new SloTargetVersionId(uuid(53)), IncidentCategory.FACILITIES,
+                new SloTarget(Duration.ofMinutes(15), Duration.ofHours(2), 0.2),
+                CREATED, REPORTER_ID);
+        AuditEventId sharedAuditId = new AuditEventId(uuid(54));
+
+        try (LocalApplicationStore store = new LocalApplicationStore(temporaryDirectory)) {
+            store.create(reporter());
+            store.sloConfigurationStore().commit(new AuditedMutation<>(first, auditEventWithId(sharedAuditId, first)));
+
+            assertThrows(RepositoryException.class, () -> store.sloConfigurationStore()
+                    .commit(new AuditedMutation<>(second, auditEventWithId(sharedAuditId, second))));
+
+            assertEquals(Optional.empty(),
+                    store.sloConfigurationStore().findById(new SloTargetVersionId(uuid(53))));
+        }
+    }
+
+    private static AuditEvent auditEventWithId(AuditEventId id, SloTargetVersion version) {
+        return new AuditEvent(id, CREATED,
+                new AuditActor(REPORTER_ID, Role.REPORTER, AuditActorVisibility.STANDARD),
+                AuditAction.SLO_CONFIGURATION_CHANGED,
+                new AuditTarget(AuditTargetType.SLO_CONFIGURATION, version.category().name()),
+                AuditOutcome.SUCCESS,
+                List.of(AuditChange.added(AuditChangeField.SLO_VERSION, version.id().value().toString())),
+                Optional.empty());
     }
 
     private static Account reporter() {
