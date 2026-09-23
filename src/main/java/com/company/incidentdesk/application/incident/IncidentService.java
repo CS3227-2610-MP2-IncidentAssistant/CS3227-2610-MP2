@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -31,6 +32,9 @@ import com.company.incidentdesk.domain.audit.AuditEvidenceType;
 import com.company.incidentdesk.domain.audit.AuditOutcome;
 import com.company.incidentdesk.domain.audit.AuditTarget;
 import com.company.incidentdesk.domain.audit.AuditTargetType;
+import com.company.incidentdesk.domain.comment.CommentId;
+import com.company.incidentdesk.domain.comment.CommentType;
+import com.company.incidentdesk.domain.comment.IncidentComment;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentAction;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
@@ -62,6 +66,7 @@ public final class IncidentService {
     private final IncidentLifecycle lifecycle;
     private final AuditEventFactory auditEventFactory;
     private final Supplier<IncidentId> incidentIdentifierGenerator;
+    private final Supplier<CommentId> commentIdentifierGenerator;
     private final IncidentEventPublisher eventPublisher;
     private final RequiredTextValidator requiredTextValidator = new RequiredTextValidator();
 
@@ -74,6 +79,21 @@ public final class IncidentService {
             AuditEventFactory auditEventFactory,
             Supplier<IncidentId> incidentIdentifierGenerator,
             IncidentEventPublisher eventPublisher) {
+        this(sessionProvider, incidentStore, accountRepository, authorizationPolicy, lifecycle,
+                auditEventFactory, incidentIdentifierGenerator,
+                () -> new CommentId(UUID.randomUUID()), eventPublisher);
+    }
+
+    public IncidentService(
+            SessionProvider sessionProvider,
+            IncidentStore incidentStore,
+            AccountRepository accountRepository,
+            IncidentAuthorizationPolicy authorizationPolicy,
+            IncidentLifecycle lifecycle,
+            AuditEventFactory auditEventFactory,
+            Supplier<IncidentId> incidentIdentifierGenerator,
+            Supplier<CommentId> commentIdentifierGenerator,
+            IncidentEventPublisher eventPublisher) {
         this.sessionProvider = Objects.requireNonNull(sessionProvider, "sessionProvider");
         this.incidentStore = Objects.requireNonNull(incidentStore, "incidentStore");
         this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository");
@@ -83,6 +103,9 @@ public final class IncidentService {
         this.incidentIdentifierGenerator = Objects.requireNonNull(
                 incidentIdentifierGenerator,
                 "incidentIdentifierGenerator");
+        this.commentIdentifierGenerator = Objects.requireNonNull(
+                commentIdentifierGenerator,
+                "commentIdentifierGenerator");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
 
@@ -267,8 +290,11 @@ public final class IncidentService {
                 return unavailable();
             }
             ReopenTransition transition = lifecycle.reopen(incident, actor.id(), explanation);
+            IncidentComment comment = new IncidentComment(
+                    generatedCommentId(), incident.id(), actor.id(), actor.role(), transition.explanation().createdAt(),
+                    CommentType.REOPEN_EXPLANATION, transition.explanation().text());
             String evidenceId = incident.id().value() + ":reopen:" + transition.explanation().resolutionCycleNumber();
-            return commit(actor, IncidentMutation.reopen(transition.incident(), transition.explanation()),
+            return commit(actor, IncidentMutation.reopen(transition.incident(), transition.explanation(), comment),
                     IncidentAction.REOPEN, AuditAction.INCIDENT_REOPENED,
                     IncidentAuditChanges.statusChange(incident, transition.incident()),
                     Optional.of(new AuditEvidenceReference(AuditEvidenceType.COMMENT, evidenceId)));
@@ -390,6 +416,10 @@ public final class IncidentService {
 
     private IncidentId generatedIncidentId() {
         return Objects.requireNonNull(incidentIdentifierGenerator.get(), "generated incident identifier");
+    }
+
+    private CommentId generatedCommentId() {
+        return Objects.requireNonNull(commentIdentifierGenerator.get(), "generated comment identifier");
     }
 
     private ValidationResult validateSubmittedContent(

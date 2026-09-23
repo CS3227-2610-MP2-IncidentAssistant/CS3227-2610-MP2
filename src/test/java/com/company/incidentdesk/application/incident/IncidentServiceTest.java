@@ -30,6 +30,7 @@ import com.company.incidentdesk.domain.account.ResponderAccess;
 import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.audit.AuditActorVisibility;
 import com.company.incidentdesk.domain.audit.AuditEventId;
+import com.company.incidentdesk.domain.comment.CommentType;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentAction;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
@@ -211,6 +212,9 @@ class IncidentServiceTest {
         assertTrue(result.isSuccess());
         assertEquals(IncidentStatus.SUBMITTED, incidents.findById(INCIDENT_ID).orElseThrow().status());
         assertEquals("The fault returned", incidents.reopenExplanations().getFirst().text());
+        assertEquals("The fault returned", incidents.findCommentsByIncidentId(INCIDENT_ID).getFirst().text());
+        assertEquals(CommentType.REOPEN_EXPLANATION,
+                incidents.findCommentsByIncidentId(INCIDENT_ID).getFirst().type());
         assertEquals(4, incidents.auditEvents().size());
         assertEquals(4, events.size());
     }
@@ -228,6 +232,7 @@ class IncidentServiceTest {
         assertEquals(ApplicationErrorCode.PERSISTENCE_FAILURE, result.error().orElseThrow().code());
         assertEquals(IncidentStatus.RESOLVED, failingStore.findById(INCIDENT_ID).orElseThrow().status());
         assertTrue(failingStore.reopenExplanations().isEmpty());
+        assertTrue(failingStore.findCommentsByIncidentId(INCIDENT_ID).isEmpty());
         assertTrue(failingStore.auditEvents().isEmpty());
         assertEquals(eventsBefore, events.size());
     }
