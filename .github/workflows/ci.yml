@@ -37,4 +37,4 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run tests and build
-        run: ./gradlew build
+        run: xvfb-run --auto-servernum ./gradlew build

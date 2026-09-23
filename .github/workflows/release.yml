@@ -45,7 +45,13 @@ jobs:
         run: |
           chmod +x gradlew
 
+      - name: Build and test on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: xvfb-run --auto-servernum ./gradlew build
+
       - name: Build and test
+        if: runner.os != 'Linux'
         shell: bash
         run: ./gradlew build
 
