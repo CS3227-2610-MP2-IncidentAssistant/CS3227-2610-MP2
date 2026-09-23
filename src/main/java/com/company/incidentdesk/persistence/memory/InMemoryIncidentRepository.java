@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.audit.AuditEvent;
+import com.company.incidentdesk.domain.comment.IncidentComment;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
@@ -27,6 +28,7 @@ public final class InMemoryIncidentRepository implements IncidentStore {
     private final Consumer<AuditedMutation<IncidentMutation>> commitPreparation;
     private Map<IncidentId, Incident> incidentsById = new LinkedHashMap<>();
     private List<ReopenExplanation> reopenExplanations = List.of();
+    private List<IncidentComment> comments = List.of();
     private List<AuditEvent> auditEvents = List.of();
 
     public InMemoryIncidentRepository() {
@@ -80,13 +82,15 @@ public final class InMemoryIncidentRepository implements IncidentStore {
 
         Map<IncidentId, Incident> nextIncidents = new LinkedHashMap<>(incidentsById);
         List<ReopenExplanation> nextExplanations = new ArrayList<>(reopenExplanations);
+        List<IncidentComment> nextComments = new ArrayList<>(comments);
         List<AuditEvent> nextAuditEvents = new ArrayList<>(auditEvents);
-        apply(requiredMutation.nextState(), nextIncidents, nextExplanations);
+        apply(requiredMutation.nextState(), nextIncidents, nextExplanations, nextComments);
         nextAuditEvents.add(requiredMutation.auditEvent());
 
         commitPreparation.accept(requiredMutation);
         incidentsById = nextIncidents;
         reopenExplanations = List.copyOf(nextExplanations);
+        comments = List.copyOf(nextComments);
         auditEvents = List.copyOf(nextAuditEvents);
     }
 
@@ -96,6 +100,12 @@ public final class InMemoryIncidentRepository implements IncidentStore {
 
     public synchronized List<AuditEvent> auditEvents() {
         return auditEvents;
+    }
+
+    @Override
+    public synchronized List<IncidentComment> findCommentsByIncidentId(IncidentId incidentId) {
+        IncidentId requiredId = Objects.requireNonNull(incidentId, "incidentId");
+        return comments.stream().filter(comment -> comment.incidentId().equals(requiredId)).toList();
     }
 
     private void rejectDuplicateAuditEvent(AuditEvent auditEvent) {
@@ -108,7 +118,8 @@ public final class InMemoryIncidentRepository implements IncidentStore {
     private static void apply(
             IncidentMutation mutation,
             Map<IncidentId, Incident> incidents,
-            List<ReopenExplanation> explanations) {
+            List<ReopenExplanation> explanations,
+            List<IncidentComment> comments) {
         Incident incident = mutation.incident();
         switch (mutation.type()) {
         case CREATE -> {
@@ -123,6 +134,12 @@ public final class InMemoryIncidentRepository implements IncidentStore {
         }
         }
         mutation.reopenExplanation().ifPresent(explanations::add);
+        mutation.comment().ifPresent(comment -> {
+            if (comments.stream().anyMatch(existing -> existing.id().equals(comment.id()))) {
+                throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "comment already exists");
+            }
+            comments.add(comment);
+        });
     }
 
     private static boolean matches(IncidentQuery query, Incident incident) {

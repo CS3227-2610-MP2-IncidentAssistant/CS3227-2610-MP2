@@ -58,6 +58,10 @@ Badges use text plus a semantic foreground/background pair, 4px by 9px padding, 
 
 ### Attachments, comments, and timeline
 
+Comment author roles describe the role at posting time, captured from the
+authenticated account. Later role changes do not relabel past comments.
+Anonymous comment avatars derive only from the redacted author label.
+
 Attachment tiles are at least 92px high with a dashed border and visible file type. Comments use a 34px avatar and a neutral message bubble. Timeline markers use blue dots and textual event descriptions with locally formatted time.
 
 ### Dialogs and notifications

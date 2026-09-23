@@ -116,7 +116,7 @@ class IncidentPresentationMapperTest {
         Incident assigned = lifecycleAt(Instant.parse("2026-09-20T16:30:00Z"))
                 .claim(submitted(false), RESPONDER_ID);
         List<CommentModel> comments = new ArrayList<>(List.of(
-                new CommentModel("reporter", "Update", "21 Sep 2026 00:20")));
+                new CommentModel("reporter", "Reporter", "Update", Instant.parse("2026-09-21T00:20:00Z"))));
 
         IncidentDetailModel detail = mapper(ADMIN).toDetail(
                 assigned, comments, List.of(), SloSummaryModel.unavailable());
