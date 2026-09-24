@@ -12,6 +12,11 @@ import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.account.AccountPasswordService;
 import com.company.incidentdesk.application.account.AccountPasswordResetService;
+import com.company.incidentdesk.application.attachment.AttachmentService;
+import com.company.incidentdesk.application.attachment.AttachmentLimits;
+import com.company.incidentdesk.application.comment.IncidentCommentService;
+import com.company.incidentdesk.application.incident.IncidentDetailService;
+import com.company.incidentdesk.domain.attachment.AttachmentId;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
@@ -24,6 +29,7 @@ import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.domain.audit.AuditEventId;
+import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentLifecycle;
 import com.company.incidentdesk.domain.slo.SloTargetVersionId;
@@ -43,6 +49,9 @@ public final class ApplicationContext implements AutoCloseable {
     private final AccountPasswordService passwords;
     private final AccountPasswordResetService passwordResets;
     private final SloConfigurationService sloConfigurations;
+    private final AttachmentService attachments;
+    private final IncidentCommentService comments;
+    private final IncidentDetailService incidentDetails;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -56,7 +65,8 @@ public final class ApplicationContext implements AutoCloseable {
             AccountDeletionService accountDeletion,
             AccountPasswordService passwords,
             AccountPasswordResetService passwordResets,
-            SloConfigurationService sloConfigurations) {
+            SloConfigurationService sloConfigurations, AttachmentService attachments,
+            IncidentCommentService comments, IncidentDetailService incidentDetails) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -69,6 +79,9 @@ public final class ApplicationContext implements AutoCloseable {
         this.passwords = passwords;
         this.passwordResets = passwordResets;
         this.sloConfigurations = sloConfigurations;
+        this.attachments = attachments;
+        this.comments = comments;
+        this.incidentDetails = incidentDetails;
     }
 
     public static ApplicationContext openDefault() {
@@ -122,15 +135,29 @@ public final class ApplicationContext implements AutoCloseable {
                 sessions, accountAuthorization, store.sloConfigurationStore(),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
                 () -> new SloTargetVersionId(UUID.randomUUID()));
+        AttachmentService attachments = new AttachmentService(sessions, store, store.attachmentStore(), authorization,
+                AttachmentLimits.DEFAULT, new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
+                clock, () -> new AttachmentId(UUID.randomUUID()));
+        IncidentCommentService comments = new IncidentCommentService(sessions, store, store,
+                authorization, new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
+                clock, () -> new CommentId(UUID.randomUUID()), events::publish);
+        IncidentDetailService incidentDetails = new IncidentDetailService(sessions, store, authorization, mapper,
+                comments, attachments, store.sloConfigurationStore(), clock);
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
                 Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion, passwords,
-                passwordResets,
-                sloConfigurations);
+                passwordResets, sloConfigurations,
+                attachments, comments, incidentDetails);
     }
 
     public SessionService sessions() {
         return sessions;
     }
+
+    public AttachmentService attachments() { return attachments; }
+
+    public IncidentCommentService comments() { return comments; }
+
+    public IncidentDetailService incidentDetails() { return incidentDetails; }
 
     public NotificationInbox notifications() {
         return notifications;

@@ -99,6 +99,53 @@ wiring belongs to #40/#22; the detail callback is implemented by #38. Dashboard
 reads do not modify persisted data, audit records, or SLO timestamps, and require
 no migration or additional production dependency.
 
+## Shared attachments (#15)
+
+Use `ApplicationContext.attachments()` for application operations and compose
+`AttachmentPane(service, savedIncidentId)` into a page. The pane reuses the
+shared panel, attachment tile, action, and feedback components. It performs
+file reads off the JavaFX thread and owns an `AttachmentViewer`; close it on
+navigation if it is not detached from its scene. The viewer clears content
+when the authenticated session or incident permission snapshot changes.
+The pane must receive a persisted incident; saving a new draft/submission and
+attaching selected files is a separate, explicit sequence for #64. Detail-page
+integration belongs to #21. No existing role screen is replaced by this change.
+
+`AttachmentService.list/add/open` enforce current incident authorization.
+Only the owning reporter can add files while a draft or an unassigned submitted
+incident is editable. An upload does not change lifecycle or SLO timestamps.
+Successful additions commit metadata and `ATTACHMENT_ADDED` evidence together.
+Anonymous display models use generic names and do not contain local paths.
+The internal `AttachmentRead` capability rechecks authorization before exposing
+image bytes; it does not expose a storage URI.
+
+Attachments are image-only: PNG/JPEG ≤10 MiB,
+5 files/100 MiB per incident, and 40 million decoded image pixels. Inject an
+`AttachmentLimits` value when constructing the service to change the limits.
+The UI help text comes from `AttachmentService.uploadLimitSummary()` and
+reflects those configured limits without rounding byte bounds. Videos and audio
+are rejected even if renamed as an image. Images are decoded from memory;
+the app does not use JavaFX media or launch an external viewer.
+Original content and embedded metadata are preserved, so the uploader warns
+that media can disclose identity despite generic anonymous filenames.
+
+Storage uses generated UUID filenames with validated extensions beneath the
+configured application-data directory. Version-1 stores remain unchanged until
+the first successful attachment addition, which writes version 2, a migration
+audit, and the previous canonical file as the bounded backup. Later saves
+rotate that backup normally. Older app versions cannot read version 2.
+Pending-upload markers support restart cleanup without sweeping unrelated
+files. See `.agents/persistence.md` for the write/recovery protocol. Development
+tests use temporary directories and do not migrate real application data.
+
+Run `./gradlew test --tests '*Attachment*Test'` on macOS/Linux, or the equivalent
+`gradlew.bat` command on Windows. The tiny original H.264 fixture is retained
+only for rejection tests, never played. CI keeps the Linux full build and
+Windows/macOS attachment tests, with no native media codec requirement.
+Any legacy schema-2 MP4 metadata/blobs are preserved but cannot be opened.
+No data migration is needed for this policy change. Passing source tests is
+not a clean-machine packaging certificate; packaging remains #63.
+
 ## Adding dependencies
 
 Production dependencies require team approval. Record why a dependency is

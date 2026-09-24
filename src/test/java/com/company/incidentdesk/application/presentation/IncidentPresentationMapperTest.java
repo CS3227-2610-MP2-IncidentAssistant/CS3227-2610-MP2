@@ -125,6 +125,7 @@ class IncidentPresentationMapperTest {
         assertEquals("21 Sep 2026 00:00", detail.summary().createdAt());
         assertEquals("21 Sep 2026 00:30", detail.queue().firstAssignedAt());
         assertEquals(1, detail.comments().size());
+        assertEquals(SloSummaryModel.unavailable(), detail.summary().slo());
         assertThrows(UnsupportedOperationException.class, () -> detail.comments().clear());
     }
 

@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.company.incidentdesk.domain.attachment.AttachmentId;
+import com.company.incidentdesk.domain.attachment.AttachmentType;
+import com.company.incidentdesk.domain.attachment.IncidentAttachment;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
@@ -62,13 +65,13 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
             output.writeInt(MAGIC);
-            output.writeInt(SCHEMA_VERSION);
+            output.writeInt(state.schemaVersion());
             writeAccounts(output, state.accounts());
             writeCredentials(output, state.credentials());
             writeIncidents(output, state.incidents());
             writeComments(output, state.comments());
             writeAudits(output, state.auditEvents());
-            writeReservedSection(output, "attachments");
+            writeAttachments(output, state.attachments());
             writeReservedSection(output, "promotions");
             writeSloTargetVersions(output, state.sloTargetVersions());
         }
@@ -94,11 +97,11 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             Map<IncidentId, Incident> incidents = readIncidents(input);
             List<IncidentComment> comments = readComments(input);
             List<AuditEvent> auditEvents = readAudits(input);
-            readReservedSection(input, "attachments");
+            Map<AttachmentId, IncidentAttachment> attachments = readAttachments(input);
             readReservedSection(input, "promotions");
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = readSloTargetVersions(input);
             LocalApplicationState state = new LocalApplicationState(
-                    accounts, credentials, incidents, comments, auditEvents, sloTargetVersions);
+                    accounts, credentials, incidents, comments, auditEvents, sloTargetVersions, attachments, version);
             if (input.read() != -1) {
                 throw new IOException("unexpected trailing application data");
             }
@@ -394,6 +397,11 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
     }
 
     private static void validateReferences(LocalApplicationState state) throws IOException {
+        for (IncidentAttachment attachment : state.attachments().values()) {
+            if (!state.incidents().containsKey(attachment.incidentId())) {
+                throw new IOException("attachment references a missing incident");
+            }
+        }
         for (AccountId accountId : state.credentials().keySet()) {
             requireAccount(state, accountId, "credential");
         }
@@ -422,6 +430,37 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         if (!state.accounts().containsKey(id)) {
             throw new IllegalArgumentException(relation + " references a missing account");
         }
+    }
+
+    private static void writeAttachments(DataOutputStream output, Map<AttachmentId, IncidentAttachment> attachments)
+            throws IOException {
+        output.writeUTF("attachments");
+        output.writeInt(attachments.size());
+        for (IncidentAttachment attachment : attachments.values().stream()
+                .sorted((left, right) -> left.id().value().compareTo(right.id().value())).toList()) {
+            writeUuid(output, attachment.id().value());
+            writeUuid(output, attachment.incidentId().value());
+            output.writeUTF(attachment.type().name());
+            output.writeLong(attachment.sizeBytes());
+            output.writeUTF(attachment.displayName());
+            writeInstant(output, attachment.createdAt());
+        }
+    }
+
+    private static Map<AttachmentId, IncidentAttachment> readAttachments(DataInputStream input)
+            throws IOException {
+        if (!"attachments".equals(input.readUTF())) {
+            throw new IOException("invalid attachment schema section");
+        }
+        Map<AttachmentId, IncidentAttachment> attachments = new LinkedHashMap<>();
+        int count = readCount(input);
+        for (int index = 0; index < count; index++) {
+            AttachmentId id = new AttachmentId(readUuid(input));
+            IncidentAttachment attachment = new IncidentAttachment(id, new IncidentId(readUuid(input)),
+                    readEnum(input, AttachmentType.class), input.readLong(), input.readUTF(), readInstant(input));
+            requireUnique(attachments.put(id, attachment), "attachment identifier");
+        }
+        return attachments;
     }
 
     private static void writeReservedSection(DataOutputStream output, String name) throws IOException {
