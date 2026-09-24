@@ -44,4 +44,14 @@ public record Account(
     public boolean isEnabled() {
         return status == AccountStatus.ENABLED;
     }
+
+    /** Returns whether this identity is a non-login historical tombstone. */
+    public boolean isDeleted() {
+        return status == AccountStatus.DELETED;
+    }
+
+    /** Replaces login-capable identity data while retaining the stable account identifier. */
+    public Account tombstone() {
+        return new Account(id, "deleted:" + id.value(), role, AccountStatus.DELETED, ResponderAccess.NONE);
+    }
 }

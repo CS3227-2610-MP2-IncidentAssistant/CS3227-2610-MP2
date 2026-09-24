@@ -16,6 +16,7 @@ accounts may exist, but only one user can operate the application at a time.
 - Login names are case-sensitive. Names that differ only by letter case identify
   distinct accounts.
 - User registration.
+- Authenticated users can replace their own password after confirming their current password.
 - Role- and category-based access control.
 - Reusable table/list views with searching, filtering, and sorting where
   required.
@@ -83,7 +84,9 @@ An administrator can:
 - Review responder-promotion requests and approve or reject them.
 - Update a responder's permitted categories.
 - Delete an account subject to the retention rules below.
-- initiate a secure password reset without learning the existing password.
+- Initiate a secure password reset without learning the existing password. The application generates a
+  high-entropy one-time temporary password, displays it only after durable commit, and expires it after
+  24 hours. A user authenticated with it must replace it before accessing any role workflow.
 - Configure SLO targets for each incident category.
 - View incident and application audit records.
 - View operational statistics filtered by responder, reporter, category, and

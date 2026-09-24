@@ -70,11 +70,12 @@ authorization between sequentially logged-in accounts.
 - The application resolves its data directory from the
   `incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, and
   otherwise uses `.incident-desk` under the current user's home directory.
-- `incident-desk.dat` is one versioned aggregate state file. Schema version 2
+- `incident-desk.dat` is one versioned aggregate state file. Schema version 1
   persists accounts, salted PBKDF2 password credentials, incidents, comments,
   audits, and SLO target configuration
   history and attachment metadata, and reserves an empty promotion-request
-  section. The whole file shares one schema version; there is no
+  section. Password credentials include temporary-credential state and its UTC
+  expiry. The whole file shares one schema version; there is no
   independent per-section versioning.
 - Each successful replacement retains one bounded last-known-good copy at
   `incident-desk.dat.bak`. Unique unfinished temporary files are never treated

@@ -54,7 +54,7 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Deterministic binary schema for the aggregate local application state. */
 final class LocalApplicationStateCodec implements DataCodec<LocalApplicationState> {
-    static final int SCHEMA_VERSION = 2;
+    static final int SCHEMA_VERSION = 1;
     private static final int MIN_SUPPORTED_SCHEMA_VERSION = 1;
     private static final int MAGIC = 0x49444B31; // IDK1
     private static final int MAX_RECORDS = 1_000_000;
@@ -71,11 +71,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             writeIncidents(output, state.incidents());
             writeComments(output, state.comments());
             writeAudits(output, state.auditEvents());
-            if (state.schemaVersion() == 1) {
-                writeReservedSection(output, "attachments");
-            } else {
-                writeAttachments(output, state.attachments());
-            }
+            writeAttachments(output, state.attachments());
             writeReservedSection(output, "promotions");
             writeSloTargetVersions(output, state.sloTargetVersions());
         }
@@ -101,7 +97,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             Map<IncidentId, Incident> incidents = readIncidents(input);
             List<IncidentComment> comments = readComments(input);
             List<AuditEvent> auditEvents = readAudits(input);
-            Map<AttachmentId, IncidentAttachment> attachments = readAttachments(input, version);
+            Map<AttachmentId, IncidentAttachment> attachments = readAttachments(input);
             readReservedSection(input, "promotions");
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = readSloTargetVersions(input);
             LocalApplicationState state = new LocalApplicationState(
@@ -133,6 +129,8 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             byte[] hash = credential.hash();
             output.writeInt(hash.length);
             output.write(hash);
+            output.writeBoolean(credential.temporary());
+            writeOptionalInstant(output, credential.expiresAt());
         }
     }
 
@@ -145,7 +143,10 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             int iterations = input.readInt();
             byte[] salt = input.readNBytes(readByteArrayLength(input));
             byte[] hash = input.readNBytes(readByteArrayLength(input));
-            requireUnique(credentials.put(id, new PasswordCredential(algorithm, iterations, salt, hash)),
+            boolean temporary = input.readBoolean();
+            Optional<Instant> expiresAt = readOptionalInstant(input);
+            requireUnique(credentials.put(id,
+                    new PasswordCredential(algorithm, iterations, salt, hash, temporary, expiresAt)),
                     "account credential");
         }
         return credentials;
@@ -446,12 +447,8 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         }
     }
 
-    private static Map<AttachmentId, IncidentAttachment> readAttachments(DataInputStream input, int version)
+    private static Map<AttachmentId, IncidentAttachment> readAttachments(DataInputStream input)
             throws IOException {
-        if (version == 1) {
-            readReservedSection(input, "attachments");
-            return Map.of();
-        }
         if (!"attachments".equals(input.readUTF())) {
             throw new IOException("invalid attachment schema section");
         }

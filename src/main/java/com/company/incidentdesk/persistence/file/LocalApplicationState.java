@@ -34,7 +34,7 @@ record LocalApplicationState(
         auditEvents = List.copyOf(auditEvents);
         sloTargetVersions = Map.copyOf(new LinkedHashMap<>(sloTargetVersions));
         attachments = Map.copyOf(new LinkedHashMap<>(attachments));
-        if (schemaVersion < 1 || schemaVersion > 2 || (schemaVersion == 1 && !attachments.isEmpty())) {
+        if (schemaVersion != 1) {
             throw new IllegalArgumentException("Invalid attachment schema version");
         }
     }
@@ -42,7 +42,7 @@ record LocalApplicationState(
     LocalApplicationState(Map<AccountId, Account> accounts, Map<AccountId, PasswordCredential> credentials,
             Map<IncidentId, Incident> incidents, List<IncidentComment> comments, List<AuditEvent> auditEvents,
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions) {
-        this(accounts, credentials, incidents, comments, auditEvents, sloTargetVersions, Map.of(), 2);
+        this(accounts, credentials, incidents, comments, auditEvents, sloTargetVersions, Map.of(), 1);
     }
 
     static LocalApplicationState empty() {

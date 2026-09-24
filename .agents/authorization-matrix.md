@@ -6,6 +6,7 @@ must hold. UI visibility must mirror, but never replace, domain authorization.
 | Action | Reporter | Responder | Admin |
 | --- | --- | --- | --- |
 | Register account | Allowed | Not applicable; responder is promoted | Admin account bootstrap is implementation-specific |
+| Change own password | Allowed after current-password verification | Allowed after current-password verification | Allowed after current-password verification |
 | View incident list | Own incidents only | Assigned incidents and unassigned incidents in permitted categories | All incidents |
 | View incident details | Own incidents only | Incident is assigned to them, or is unassigned in a permitted category | All incidents |
 | View attachments/comments | Same permission as incident detail | Same permission as incident detail | Same permission as incident detail |

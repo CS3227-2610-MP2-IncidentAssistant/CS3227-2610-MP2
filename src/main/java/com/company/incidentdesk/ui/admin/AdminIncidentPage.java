@@ -1,6 +1,8 @@
 package com.company.incidentdesk.ui.admin;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -14,6 +16,8 @@ import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.application.session.SessionProvider;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.domain.incident.IncidentCategory;
+import com.company.incidentdesk.domain.slo.SloTargetVersion;
 import com.company.incidentdesk.ui.shared.components.IncidentTable;
 import com.company.incidentdesk.ui.shared.components.IncidentTableConfiguration;
 import com.company.incidentdesk.ui.shared.components.IncidentTableState;
@@ -25,7 +29,6 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
 /** Service-backed administrator view of company incidents. */
@@ -76,17 +79,22 @@ public final class AdminIncidentPage extends BorderPane {
 
     private VBox sloOverview(SloConfigurationService service) {
         var result = service.currentTargets();
-        if (!result.isSuccess() || result.value().orElseThrow().isEmpty()) {
+        if (!result.isSuccess()) {
             return UiComponents.panel("SLO overview", UiComponents.feedback(
-                    "No SLO summary available",
-                    "Use SLO configuration to define category targets.", FeedbackType.EMPTY));
+                    "SLO summary unavailable",
+                    "Sign in as an administrator and try again.", FeedbackType.ERROR));
         }
-        FlowPane cards = new FlowPane(12, 12);
-        result.value().orElseThrow().forEach(version -> cards.getChildren().add(UiComponents.metricCard(
-                version.category().name(), "Configured",
-                "Claim " + version.target().timeToClaimTarget().toHours() + "h · In progress "
-                        + version.target().timeInProgressTarget().toHours() + "h")));
-        return UiComponents.panel("SLO overview", cards);
+        Map<IncidentCategory, SloTargetVersion> current = new EnumMap<>(IncidentCategory.class);
+        result.value().orElseThrow().forEach(version -> current.put(version.category(), version));
+        VBox categories = new VBox(14);
+        for (IncidentCategory category : IncidentCategory.values()) {
+            categories.getChildren().add(categoryMetrics(category, current.get(category)));
+        }
+        return UiComponents.panel("SLO overview", categories);
+    }
+
+    private VBox categoryMetrics(IncidentCategory category, SloTargetVersion version) {
+        return UiComponents.panel(category.displayName(), SloTargetMetrics.create(version));
     }
 
     private void refresh() {

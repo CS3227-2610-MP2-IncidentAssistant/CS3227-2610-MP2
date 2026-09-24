@@ -101,6 +101,7 @@ class AuditEventTest {
                 AuditAction.RESPONDER_ACCESS_CHANGED,
                 AuditAction.ACCOUNT_DISABLED,
                 AuditAction.ACCOUNT_DELETED,
+                AuditAction.PASSWORD_CHANGED,
                 AuditAction.PASSWORD_RESET_INITIATED,
                 AuditAction.PASSWORD_RESET_COMPLETED,
                 AuditAction.SLO_CONFIGURATION_CHANGED,

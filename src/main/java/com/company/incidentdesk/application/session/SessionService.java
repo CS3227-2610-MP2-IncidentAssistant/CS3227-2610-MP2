@@ -1,5 +1,7 @@
 package com.company.incidentdesk.application.session;
 
+import com.company.incidentdesk.domain.account.AccountId;
+
 /** Authentication operations for the application's single active session. */
 public interface SessionService extends SessionProvider {
     /**
@@ -17,4 +19,12 @@ public interface SessionService extends SessionProvider {
 
     /** Clears the active session. */
     void logout();
+
+    /** Invalidates the active session when it belongs to the specified account. */
+    default void invalidate(AccountId accountId) {
+        currentSession().filter(session -> session.accountId().equals(accountId)).ifPresent(ignored -> logout());
+    }
+
+    /** Returns whether the active account must replace a temporary credential. */
+    default boolean requiresPasswordChange() { return false; }
 }

@@ -35,7 +35,7 @@ class AttachmentPersistenceTest {
         LocalApplicationStateCodec codec = new LocalApplicationStateCodec();
         LocalApplicationState state = codec.decode(Files.readAllBytes(canonical));
         byte[] legacy = codec.encode(new LocalApplicationState(state.accounts(), state.credentials(),
-                state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions(), Map.of(id, video), 2));
+                state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions(), Map.of(id, video), 1));
         Files.write(canonical, legacy);
         Path blob = Files.write(directory.resolve("attachments/" + video.storageName()), new byte[] {1, 2, 3});
         try (AttachmentFixture fixture = new AttachmentFixture(directory)) {
@@ -48,7 +48,7 @@ class AttachmentPersistenceTest {
     }
 
     @Test
-    void firstAttachmentUpgradesVersionOneWithBackupAndAudit() throws Exception {
+    void firstAttachmentKeepsVersionOneWithBackupAndAudit() throws Exception {
         Path directory = temporary.resolve("store");
         try (AttachmentFixture fixture = new AttachmentFixture(directory)) {
             assertTrue(fixture.store.findById(fixture.incident.id()).isPresent());
@@ -65,11 +65,11 @@ class AttachmentPersistenceTest {
             assertTrue(fixture.service.add(fixture.incident.id(), source).isSuccess());
             assertArrayEquals(legacy, Files.readAllBytes(directory.resolve("incident-desk.dat.bak")));
             LocalApplicationState migrated = codec.decode(Files.readAllBytes(canonical));
-            assertEquals(2, migrated.schemaVersion());
+            assertEquals(1, migrated.schemaVersion());
             assertEquals(current.accounts(), migrated.accounts());
             assertEquals(current.credentials(), migrated.credentials());
             assertEquals(current.incidents(), migrated.incidents());
-            assertEquals(Set.of(AuditAction.DATA_MIGRATED, AuditAction.ATTACHMENT_ADDED),
+            assertEquals(Set.of(AuditAction.ATTACHMENT_ADDED),
                     fixture.store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).stream()
                             .map(event -> event.action()).collect(java.util.stream.Collectors.toSet()));
         }

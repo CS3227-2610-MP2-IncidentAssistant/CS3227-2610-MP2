@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.company.incidentdesk.application.incident.IncidentMutation;
+import com.company.incidentdesk.application.account.AccountRegistration;
+import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
@@ -105,6 +107,37 @@ class LocalApplicationStoreTest {
             assertEquals(incident, reopened.findById(incident.id()).orElseThrow());
             assertEquals(List.of(comment), reopened.findCommentsByIncidentId(incident.id()));
             assertEquals(event, reopened.findById(event.id()).orElseThrow());
+        }
+    }
+
+    @Test
+    void accountTombstoneRemovesCredentialAndPreservesHistoricalReferencesAcrossRestart() {
+        Incident incident = submitted(44);
+        Account original = reporter();
+        Account tombstone = original.tombstone();
+        PasswordCredential credential = new PasswordCredential(
+                "PBKDF2WithHmacSHA256", 1, new byte[16], new byte[32]);
+        AuditEvent registrationAudit = auditEvent(45, incident.id(), AuditAction.ACCOUNT_REGISTERED);
+        AuditEvent deletionAudit = new AuditEvent(new AuditEventId(uuid(46)), CREATED.plusSeconds(46),
+                new AuditActor(RESPONDER_ID, Role.RESPONDER, AuditActorVisibility.STANDARD),
+                AuditAction.ACCOUNT_DELETED,
+                new AuditTarget(AuditTargetType.ACCOUNT, REPORTER_ID.value().toString()), AuditOutcome.SUCCESS,
+                List.of(AuditChange.changed(AuditChangeField.ACCOUNT_STATUS, "ENABLED", "DELETED")),
+                Optional.empty());
+
+        try (LocalApplicationStore store = new LocalApplicationStore(temporaryDirectory)) {
+            store.register(new AccountRegistration(original, credential, registrationAudit));
+            store.create(responder());
+            store.create(incident);
+            store.delete(tombstone, deletionAudit);
+            assertTrue(store.findCredential(REPORTER_ID).isEmpty());
+        }
+
+        try (LocalApplicationStore reopened = new LocalApplicationStore(temporaryDirectory)) {
+            assertEquals(tombstone, reopened.findById(REPORTER_ID).orElseThrow());
+            assertEquals(REPORTER_ID, reopened.findById(incident.id()).orElseThrow().reporterId());
+            assertEquals(deletionAudit, reopened.findById(deletionAudit.id()).orElseThrow());
+            assertTrue(reopened.findCredential(REPORTER_ID).isEmpty());
         }
     }
 

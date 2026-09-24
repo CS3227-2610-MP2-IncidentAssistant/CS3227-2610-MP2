@@ -16,6 +16,9 @@ import java.util.Optional;
 import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.application.account.AccountRegistration;
 import com.company.incidentdesk.application.account.AccountRegistrationStore;
+import com.company.incidentdesk.application.account.AccountDeletionStore;
+import com.company.incidentdesk.application.account.PasswordChangeStore;
+import com.company.incidentdesk.application.account.PasswordResetStore;
 import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.application.attachment.AttachmentLimits;
 import com.company.incidentdesk.application.attachment.AttachmentValidationException;
@@ -52,7 +55,9 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
 public final class LocalApplicationStore
-        implements AccountRepository, AccountRegistrationStore, IncidentStore, AuditRepository, AutoCloseable {
+        implements AccountRepository, AccountRegistrationStore, AccountDeletionStore, PasswordChangeStore, PasswordResetStore,
+        IncidentStore, AuditRepository,
+        AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
     private final ApplicationProcessLock processLock;
@@ -153,6 +158,53 @@ public final class LocalApplicationStore
     @Override
     public synchronized Optional<PasswordCredential> findCredential(AccountId accountId) {
         return Optional.ofNullable(state.credentials().get(Objects.requireNonNull(accountId, "accountId")));
+    }
+
+    @Override
+    public synchronized void changePassword(AccountId accountId, PasswordCredential credential, AuditEvent auditEvent) {
+        AccountId requiredId = Objects.requireNonNull(accountId, "accountId");
+        PasswordCredential requiredCredential = Objects.requireNonNull(credential, "credential");
+        AuditEvent requiredAudit = Objects.requireNonNull(auditEvent, "auditEvent");
+        if (!state.accounts().containsKey(requiredId) || !state.credentials().containsKey(requiredId)) {
+            throw new RepositoryException(StorageFailureCode.NOT_FOUND, "active account credential does not exist");
+        }
+        rejectDuplicateAudit(requiredAudit);
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>(state.credentials());
+        credentials.put(requiredId, requiredCredential);
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(requiredAudit);
+        persist(new LocalApplicationState(state.accounts(), credentials, state.incidents(), state.comments(), audits,
+                state.sloTargetVersions()));
+    }
+
+    @Override
+    public synchronized void resetPassword(AccountId accountId, PasswordCredential credential, AuditEvent auditEvent) {
+        if (!Objects.requireNonNull(credential, "credential").temporary()) {
+            throw new IllegalArgumentException("password reset requires a temporary credential");
+        }
+        changePassword(accountId, credential, auditEvent);
+    }
+
+    @Override
+    public synchronized void delete(Account tombstone, AuditEvent auditEvent) {
+        Account required = Objects.requireNonNull(tombstone, "tombstone");
+        AuditEvent requiredAudit = Objects.requireNonNull(auditEvent, "auditEvent");
+        if (!required.isDeleted()) {
+            throw new IllegalArgumentException("account deletion requires a tombstone");
+        }
+        rejectDuplicateAudit(requiredAudit);
+        Map<AccountId, Account> accounts = new LinkedHashMap<>(state.accounts());
+        Account existing = accounts.get(required.id());
+        if (existing == null || existing.isDeleted()) {
+            throw new RepositoryException(StorageFailureCode.NOT_FOUND, "active account does not exist");
+        }
+        accounts.put(required.id(), required);
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>(state.credentials());
+        credentials.remove(required.id());
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(requiredAudit);
+        persist(new LocalApplicationState(accounts, credentials, state.incidents(), state.comments(), audits,
+                state.sloTargetVersions()));
     }
 
     @Override
@@ -399,16 +451,9 @@ public final class LocalApplicationStore
                 Map<AttachmentId, IncidentAttachment> next = new LinkedHashMap<>(state.attachments());
                 next.put(attachment.id(), attachment);
                 List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
-                if (state.schemaVersion() == 1) {
-                    rejectDuplicateAudit(migrationAudit);
-                    if (migrationAudit.action() != AuditAction.DATA_MIGRATED) {
-                        throw new IllegalArgumentException("Migration audit required");
-                    }
-                    audits.add(migrationAudit);
-                }
                 audits.add(audit);
                 commitFiles(attachment, content, new LocalApplicationState(state.accounts(), state.credentials(),
-                        state.incidents(), state.comments(), audits, state.sloTargetVersions(), next, 2));
+                        state.incidents(), state.comments(), audits, state.sloTargetVersions(), next, 1));
             }
         }
 

@@ -86,6 +86,12 @@
 .button.primary { -fx-background-color: #4169D8; -fx-border-color: #4169D8; -fx-text-fill: #FFFFFF; }
 .button.primary:hover { -fx-background-color: #345BC4; -fx-border-color: #345BC4; }
 .button.danger { -fx-background-color: #FCE4E4; -fx-border-color: #E5B1B1; -fx-text-fill: #B33A3A; }
+.button.danger,
+.button.danger:hover,
+.button.danger:focused,
+.button.danger:pressed,
+.button.danger:armed,
+.button.danger:disabled { -fx-text-fill: #B33A3A; }
 .button.ghost { -fx-background-color: transparent; -fx-border-color: transparent; }
 .button.small { -fx-min-height: 40px; -fx-pref-height: 40px; -fx-padding: 6px 10px; -fx-font-size: 13px; }
 .button:disabled { -fx-opacity: 0.55; -fx-cursor: default; }
@@ -103,10 +109,11 @@
     -fx-border-color: #4169D8;
     -fx-text-fill: #FFFFFF;
 }
-.shell-identity {
-    -fx-padding: 16px 8px 0 8px;
+.shell-account-controls {
+    -fx-padding: 16px 0 0 0;
     -fx-border-color: #596579 transparent transparent transparent;
 }
+.shell-account-identity { -fx-padding: 8px 8px; }
 .shell-user-name { -fx-text-fill: #FFFFFF; -fx-font-weight: 700; }
 .shell-user-role { -fx-text-fill: #D8E1F6; -fx-font-size: 12px; }
 .shell-navigation .avatar { -fx-background-color: #FFFFFF; -fx-text-fill: #17233F; }
@@ -172,7 +179,7 @@
 .table-row-cell:focused:selected .table-cell {
     -fx-border-color: transparent #DCE2EC transparent transparent;
 }
-.table-row-cell:selected .text { -fx-fill: #18243A; }
+.table-row-cell:selected .table-cell { -fx-text-fill: #18243A; }
 .table-row-cell:empty, .table-row-cell:empty:hover {
     -fx-background-color: transparent;
     -fx-table-cell-border-color: transparent;

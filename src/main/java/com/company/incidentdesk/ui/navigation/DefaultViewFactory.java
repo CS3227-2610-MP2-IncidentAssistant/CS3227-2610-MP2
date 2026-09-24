@@ -4,6 +4,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import com.company.incidentdesk.application.account.AccountDirectoryService;
+import com.company.incidentdesk.application.account.AccountDeletionService;
+import com.company.incidentdesk.application.account.AccountPasswordResetService;
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.comment.IncidentCommentService;
 import com.company.incidentdesk.application.incident.IncidentDetailService;
@@ -33,6 +35,8 @@ public final class DefaultViewFactory implements ViewFactory {
     private final IncidentPresentationMapper mapper;
     private final SessionProvider sessions;
     private final AccountDirectoryService accounts;
+    private final AccountDeletionService accountDeletion;
+    private final AccountPasswordResetService passwordResets;
     private final SloConfigurationService sloConfigurations;
     private final IncidentDetailService incidentDetails;
     private final IncidentCommentService comments;
@@ -43,6 +47,8 @@ public final class DefaultViewFactory implements ViewFactory {
             IncidentPresentationMapper mapper,
             SessionProvider sessions,
             AccountDirectoryService accounts,
+            AccountDeletionService accountDeletion,
+            AccountPasswordResetService passwordResets,
             SloConfigurationService sloConfigurations,
             IncidentDetailService incidentDetails,
             IncidentCommentService comments,
@@ -51,6 +57,8 @@ public final class DefaultViewFactory implements ViewFactory {
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
+        this.accountDeletion = Objects.requireNonNull(accountDeletion, "accountDeletion");
+        this.passwordResets = Objects.requireNonNull(passwordResets, "passwordResets");
         this.sloConfigurations = Objects.requireNonNull(sloConfigurations, "sloConfigurations");
         this.incidentDetails = Objects.requireNonNull(incidentDetails, "incidentDetails");
         this.comments = Objects.requireNonNull(comments, "comments");
@@ -65,7 +73,7 @@ public final class DefaultViewFactory implements ViewFactory {
         }
         if (route.isAdministratorOnly()) {
             return switch (route) {
-            case ADMIN_ACCOUNTS -> new AdminAccountsPage(accounts);
+            case ADMIN_ACCOUNTS -> new AdminAccountsPage(accounts, accountDeletion, passwordResets);
             case ADMIN_SLO -> new AdminSloPage(sloConfigurations);
             case DASHBOARD -> throw new IllegalStateException("Dashboard handled below");
             };

@@ -39,7 +39,7 @@ import com.company.incidentdesk.persistence.SloConfigurationStore;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Administers per-category SLO targets as versioned, audited configuration changes. */
-public final class SloConfigurationService {
+public final class SloConfigurationService implements SloConfigurationGateway {
     private static final ValidationField TIME_TO_CLAIM_TARGET = new ValidationField("slo.timeToClaimTarget");
     private static final ValidationField TIME_IN_PROGRESS_TARGET = new ValidationField("slo.timeInProgressTarget");
     private static final ValidationField REOPEN_RATE_TARGET = new ValidationField("slo.reopenRateTarget");
@@ -67,6 +67,7 @@ public final class SloConfigurationService {
     }
 
     /** Appends a new, immediately effective SLO target version for a category. */
+    @Override
     public ApplicationResult<SloTargetVersion> configure(
             IncidentCategory category,
             Duration timeToClaimTarget,
@@ -109,6 +110,7 @@ public final class SloConfigurationService {
     }
 
     /** Returns the latest configured version for every category that has one. */
+    @Override
     public ApplicationResult<List<SloTargetVersion>> currentTargets() {
         if (currentAdministrator().isEmpty()) {
             return unavailable();
@@ -122,6 +124,7 @@ public final class SloConfigurationService {
     }
 
     /** Returns one category's full version history in chronological order. */
+    @Override
     public ApplicationResult<List<SloTargetVersion>> history(IncidentCategory category) {
         Objects.requireNonNull(category, "category");
         if (currentAdministrator().isEmpty()) {

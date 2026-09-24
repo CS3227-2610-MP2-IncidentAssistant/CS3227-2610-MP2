@@ -20,8 +20,11 @@
   only by letter case.
 - Login success/failure, logout, and session replacement.
 - Password hashes are salted and plaintext is absent from stored files/logs.
+- Self-service password replacement requires the current password, atomically stores a new salted hash with its
+  audit event, rejects mismatched confirmation, and leaves the previous credential usable after persistence failure.
 - Promotion approval/rejection and category-access changes.
-- Password reset invalidates reset credentials after one use.
+- Password reset credentials expire after 24 hours, are superseded by later resets, and are invalidated
+  after the mandatory password replacement succeeds.
 - Account deletion disables login while preserving tombstoned history.
 
 ### Authorization
