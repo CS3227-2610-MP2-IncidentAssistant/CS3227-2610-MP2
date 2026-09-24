@@ -8,28 +8,21 @@ import com.company.incidentdesk.application.attachment.AttachmentRead;
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.domain.attachment.AttachmentId;
-import com.company.incidentdesk.domain.attachment.AttachmentType;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.concurrent.Task;
-import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
-import javafx.scene.media.MediaView;
 import javafx.util.Duration;
 
-/** In-app viewer. Access expiry and detachment discard image pixels and dispose native playback. */
+/** In-app image viewer. Access expiry and detachment discard image pixels. */
 public final class AttachmentViewer extends VBox implements AutoCloseable {
     private static final Duration ACCESS_CHECK_INTERVAL = Duration.millis(250);
     private final AttachmentService service;
     private final Timeline accessChecks;
     private AttachmentRead activeRead;
-    private MediaPlayer player;
     private Task<ApplicationResult<AttachmentRead>> load;
     private long revision;
 
@@ -71,11 +64,11 @@ public final class AttachmentViewer extends VBox implements AutoCloseable {
         try {
             activeRead = read;
             AttachmentContent content = read.content();
-            if (content.type() == AttachmentType.MP4) {
-                renderVideo(read);
-            } else {
-                renderImage(content);
+            if (!content.type().isSupported()) {
+                unavailable();
+                return;
             }
+            renderImage(content);
             if (activeRead != null) {
                 accessChecks.playFromStart();
             }
@@ -98,38 +91,10 @@ public final class AttachmentViewer extends VBox implements AutoCloseable {
         getChildren().setAll(view);
     }
 
-    private void renderVideo(AttachmentRead read) {
-        Media media = new Media(read.mediaSource());
-        media.setOnError(this::unavailable);
-        player = new MediaPlayer(media);
-        player.setOnError(this::unavailable);
-        if (media.getError() != null || player.getError() != null) {
-            unavailable();
-            return;
-        }
-        MediaView view = new MediaView(player);
-        view.setOnError(event -> unavailable());
-        view.setPreserveRatio(true);
-        view.fitWidthProperty().bind(widthProperty());
-        view.setFitHeight(600);
-        view.setAccessibleText("Attached video");
-        Button play = UiComponents.action("Play", ActionStyle.PRIMARY);
-        play.setOnAction(event -> {
-            if (activeRead != null && activeRead.isAvailable() && player != null) {
-                player.play();
-            } else {
-                unavailable();
-            }
-        });
-        Button pause = UiComponents.action("Pause", ActionStyle.SECONDARY);
-        pause.setOnAction(event -> { if (player != null) player.pause(); });
-        getChildren().setAll(view, new FlowPane(8, 8, play, pause));
-    }
-
     private void unavailable() {
         close();
         getChildren().setAll(UiComponents.feedback("Attachment unavailable",
-                "This attachment cannot be displayed. Check access and supported media formats.", FeedbackType.ERROR));
+                "This attachment cannot be displayed. Only PNG and JPEG images are supported; check your access.", FeedbackType.ERROR));
     }
 
     @Override
@@ -141,10 +106,6 @@ public final class AttachmentViewer extends VBox implements AutoCloseable {
         }
         accessChecks.stop();
         activeRead = null;
-        if (player != null) {
-            player.dispose();
-            player = null;
-        }
         getChildren().clear();
     }
 }

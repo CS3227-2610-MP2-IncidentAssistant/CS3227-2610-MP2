@@ -85,15 +85,6 @@ final class AttachmentFiles {
         }
     }
 
-    String mediaSource(IncidentAttachment attachment) throws IOException {
-        requireDirectory();
-        Path path = directory.resolve(attachment.storageName());
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) != attachment.sizeBytes()) {
-            throw new IOException("Attachment unavailable");
-        }
-        return path.toUri().toString();
-    }
-
     void finish(AttachmentId id, boolean committed) throws IOException {
         requireDirectory();
         // The marker proves ownership of these two generated paths, never of arbitrary directory contents.

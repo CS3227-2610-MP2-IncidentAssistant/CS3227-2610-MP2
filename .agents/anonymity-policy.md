@@ -22,8 +22,9 @@ copy must not promise stronger anonymity than the implementation provides.
   not duplicated across derived indexes or display models without need.
 - Generate stored attachment names; never embed usernames or original local
   paths.
-- For anonymous incidents, use generic image/video display names for every
-  role. Sanitized original names remain protected storage metadata only.
+- For anonymous incidents, use generic image display names for every role
+  (and generic video names for any retained, unsupported legacy metadata).
+  Sanitized original names remain protected storage metadata only.
 - Warn uploaders that media contents and embedded metadata may reveal their
   identity. Uploads preserve original bytes; generic naming is not metadata
   stripping or content anonymization.

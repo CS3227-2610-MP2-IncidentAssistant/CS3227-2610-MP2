@@ -27,12 +27,12 @@ public final class AttachmentValidator {
 
     public byte[] readSource(Path path) throws IOException {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
-                || Files.size(path) > limits.maximumFileBytes()) {
+                || Files.size(path) > limits.imageBytes()) {
             throw new AttachmentValidationException();
         }
         try (InputStream input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
-            byte[] bytes = input.readNBytes((int) limits.maximumFileBytes() + 1);
-            if (bytes.length == 0 || bytes.length > limits.maximumFileBytes()) {
+            byte[] bytes = input.readNBytes((int) limits.imageBytes() + 1);
+            if (bytes.length == 0 || bytes.length > limits.imageBytes()) {
                 throw new AttachmentValidationException();
             }
             return bytes;
@@ -48,20 +48,15 @@ public final class AttachmentValidator {
                 && bytes[1] == (byte) 0xd8 && bytes[2] == (byte) 0xff) {
             type = AttachmentType.JPEG;
         } else {
-            type = AttachmentType.MP4;
-        }
-        long maximum = type == AttachmentType.MP4 ? limits.videoBytes() : limits.imageBytes();
-        if (bytes.length == 0 || bytes.length > maximum || !matchesExtension(name, type)) {
             throw new AttachmentValidationException();
         }
-        if (type == AttachmentType.MP4) {
-            Mp4Validator.validate(bytes);
-        } else {
-            try {
-                validateImage(bytes, type);
-            } catch (IOException exception) {
-                throw new AttachmentValidationException();
-            }
+        if (bytes.length == 0 || bytes.length > limits.imageBytes() || !matchesExtension(name, type)) {
+            throw new AttachmentValidationException();
+        }
+        try {
+            validateImage(bytes, type);
+        } catch (IOException exception) {
+            throw new AttachmentValidationException();
         }
         return type;
     }

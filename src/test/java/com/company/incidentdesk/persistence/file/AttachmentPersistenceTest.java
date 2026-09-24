@@ -23,6 +23,31 @@ class AttachmentPersistenceTest {
     @TempDir Path temporary;
 
     @Test
+    void legacyVideoMetadataSurvivesRestartButCannotBeOpened() throws Exception {
+        Path directory = temporary.resolve("store");
+        IncidentAttachment video;
+        AttachmentId id = new AttachmentId(UUID.randomUUID());
+        try (AttachmentFixture fixture = new AttachmentFixture(directory)) {
+            video = new IncidentAttachment(id, fixture.incident.id(), AttachmentType.MP4,
+                    3, "old-private-video.mp4", AttachmentFixture.NOW);
+        }
+        Path canonical = directory.resolve("incident-desk.dat");
+        LocalApplicationStateCodec codec = new LocalApplicationStateCodec();
+        LocalApplicationState state = codec.decode(Files.readAllBytes(canonical));
+        byte[] legacy = codec.encode(new LocalApplicationState(state.accounts(), state.credentials(),
+                state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions(), Map.of(id, video), 2));
+        Files.write(canonical, legacy);
+        Path blob = Files.write(directory.resolve("attachments/" + video.storageName()), new byte[] {1, 2, 3});
+        try (AttachmentFixture fixture = new AttachmentFixture(directory)) {
+            assertEquals(video, fixture.store.attachmentStore().find(id).orElseThrow());
+            assertFalse(fixture.service.open(id).isSuccess());
+            assertEquals("Video.mp4", fixture.service.list(fixture.incident.id()).value().orElseThrow().getFirst().displayName());
+            assertArrayEquals(legacy, Files.readAllBytes(canonical));
+            assertArrayEquals(new byte[] {1, 2, 3}, Files.readAllBytes(blob));
+        }
+    }
+
+    @Test
     void firstAttachmentUpgradesVersionOneWithBackupAndAudit() throws Exception {
         Path directory = temporary.resolve("store");
         try (AttachmentFixture fixture = new AttachmentFixture(directory)) {

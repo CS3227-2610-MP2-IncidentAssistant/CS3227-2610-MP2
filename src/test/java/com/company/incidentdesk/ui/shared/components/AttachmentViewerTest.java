@@ -22,8 +22,6 @@ import javafx.collections.ListChangeListener;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.image.ImageView;
-import javafx.scene.media.MediaPlayer;
-import javafx.scene.media.MediaView;
 
 class AttachmentViewerTest {
     @TempDir Path temporary;
@@ -72,43 +70,25 @@ class AttachmentViewerTest {
     }
 
     @Test
-    void nativeH264VideoAdvancesAndPlayerIsDisposedOnClose() throws Exception {
-        Path source = temporary.resolve("video.mp4");
-        try (var input = getClass().getResourceAsStream("/attachments/black-white-h264.mp4")) {
-            assertNotNull(input);
-            Files.copy(input, source);
-        }
+    void unavailableAttachmentShowsSafeFeedback() throws Exception {
         try (AttachmentFixture fixture = new AttachmentFixture(temporary.resolve("store"))) {
-            var addition = fixture.service.add(fixture.incident.id(), source);
-            assertTrue(addition.isSuccess(), "Generated H.264 fixture should validate");
-            AttachmentId id = new AttachmentId(UUID.fromString(addition.value().orElseThrow().id()));
             AttachmentViewer viewer = onFx(() -> new AttachmentViewer(fixture.service));
-            MediaPlayer[] player = new MediaPlayer[1];
-            CountDownLatch playing = new CountDownLatch(1);
+            CountDownLatch unavailable = new CountDownLatch(1);
             try {
                 onFx(() -> {
                     new Scene(viewer, 640, 480);
                     viewer.getChildren().addListener((ListChangeListener<Node>) change -> {
-                        viewer.getChildren().stream().filter(MediaView.class::isInstance).map(MediaView.class::cast)
-                                .findFirst().ifPresent(view -> {
-                                    player[0] = view.getMediaPlayer();
-                                    player[0].currentTimeProperty().addListener((observable, previous, current) -> {
-                                        if (current.toMillis() > 0) playing.countDown();
-                                    });
-                                    player[0].play();
-                                });
+                        if (viewer.getChildren().stream().anyMatch(node -> node.getStyleClass().contains(FeedbackType.ERROR.styleClass()))) {
+                            unavailable.countDown();
+                        }
                     });
-                    viewer.show(id);
+                    viewer.show(new AttachmentId(UUID.randomUUID()));
                     return null;
                 });
-                boolean advanced = playing.await(20, TimeUnit.SECONDS);
-                String status = onFx(() -> player[0] == null ? "No player created"
-                        : player[0].getStatus() + "; error=" + player[0].getError());
-                assertTrue(advanced, "Native H.264 playback must advance: " + status);
+                assertTrue(unavailable.await(10, TimeUnit.SECONDS));
             } finally {
                 onFx(() -> { viewer.close(); return null; });
             }
-            assertEquals(MediaPlayer.Status.DISPOSED, onFx(() -> player[0].getStatus()));
         }
     }
 

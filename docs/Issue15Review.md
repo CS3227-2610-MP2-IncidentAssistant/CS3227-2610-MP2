@@ -1,5 +1,68 @@
 # Issue #15 implementation review
 
+## Current scope: image-only attachments
+
+The user explicitly removed video support after the platform investigation.
+This supersedes all video-support and pending-codec-fix discussion in the
+historical sections below. New uploads accept only PNG/JPEG; videos renamed
+as images are rejected without persisted changes. The shared viewer uses
+in-memory images only, with no JavaFX media dependency, native decoder, or
+external viewer. Image limits, authorization, privacy, audit and recovery
+safeguards remain unchanged.
+
+Existing schema-2 MP4 metadata and files remain intact; opening them is denied.
+The MP4 enum value is retained solely for decoding old metadata. No migration
+or deletion of user data is performed. Anonymous legacy names remain generic.
+
+### Files and methods to review in this follow-up
+
+Under `src/main/java/com/company/incidentdesk/`:
+
+- `application/attachment/AttachmentLimits`: remove the obsolete video limit;
+  the constructor retains image/count/total/pixel bounds.
+- `AttachmentValidator.readSource/validate`: image-only byte limits and
+  signature checks; non-image content is rejected before any storage write.
+- `AttachmentService.uploadLimitSummary/open`: image-only help and deny
+  unsupported legacy types before reading content.
+- `AttachmentRead`: remove the URI field/accessor; retain session-bound bytes.
+- `domain/attachment/AttachmentType.isSupported`: explicit PNG/JPEG allowlist
+  with MP4 retained only for persisted-format compatibility.
+- `persistence/AttachmentStore`, `file/AttachmentFiles`, and
+  `file/LocalApplicationStore`: remove URI APIs; `validateAddition` also denies
+  unsupported types. Existing aggregate and recovery formats are unchanged.
+- `ui/shared/components/AttachmentPane`: image-only picker/privacy wording;
+  existing shared controls are reused.
+- `AttachmentViewer.render/close`: image rendering and safe error feedback;
+  remove all native player construction, playback and disposal code.
+- Delete `application/attachment/Mp4Validator` and its structural acceptance
+  tests because accepting video is no longer a product requirement.
+
+Other changed artifacts: `build.gradle` removes JavaFX media and its diagnostic
+flag; `.github/workflows/ci.yml` retains all three OS jobs and saved reports,
+removes media diagnostics, and drops the uncommitted Linux codec installation.
+`.agents/requirements.md`, `persistence.md`, `anonymity-policy.md`, and
+`testing.md`, plus `docs/DeveloperGuide.md`, reflect the approved policy.
+The test-resource README now describes the retained MP4 as rejection-only.
+
+New/updated tests: `AttachmentServiceTest` rejects a real MP4 both normally and
+renamed as PNG/JPEG, verifying unchanged canonical state, no blobs/audits, and
+preserved source files; `AttachmentPersistenceTest` preserves legacy videos
+but denies reads; `AttachmentValidatorTest` covers PNG/JPEG and revised limits;
+`AttachmentViewerTest` retains logout-clearing and replaces playback with
+unavailable-content feedback. This is an approved requirement change, not a
+skip or relaxation of the remaining image/privacy/persistence guarantees.
+
+Verification and review: `./gradlew clean build` passes locally with 311 tests,
+zero failures/errors/skips; workflow YAML parsing and `git diff --check` pass.
+Java 25.0.4.1 / JavaFX 25 / Gradle 9.1.0 on macOS 15.2 arm64, with only
+graphics native-access warnings. No further code-quality findings. No new commit
+has been made for this follow-up. Windows/Linux CI must rerun after approval
+to commit/push; PR #68 and issue #15 descriptions also need the approved
+image-only scope before closing. Previous native-media failures are no longer
+applicable to the feature, but this does not certify all-platform image support.
+
+## Historical implementation and investigation record
+
 Branch: `codex/issue-15-attachments`, based on `c40a9b7`.
 Changes are unstaged; no commit, push, pull request, or issue closure has been
 performed. No real application data was migrated or modified.
@@ -175,3 +238,40 @@ The local Docker daemon is unavailable, and no local Windows host is available.
 This diagnostic follow-up is unstaged and uncommitted; approval to commit and
 push it is needed to obtain the missing platform evidence. PR #68 is unmerged
 and issue #15 remains open.
+
+### Diagnostic results and proposed platform corrections
+
+Diagnostic commit `a55de0b` was pushed with approval. Run `35981406898`
+passed macOS and reproduced both failures with detailed reports:
+
+- Linux: `ERROR_MEDIA_AUDIO_FORMAT_UNSUPPORTED` during pipeline creation,
+  followed by `No player created`. The library inventory contains ALSA and
+  GStreamer but neither libavcodec nor libavformat. The pending CI correction
+  pins the existing Ubuntu 24.04 runner family and installs its `libavcodec60`
+  and `libavformat60` packages before testing. This installs runtime codecs on
+  the ephemeral CI host, not a new Java dependency or libraries on user machines.
+- Windows: playback and disposal assertions pass; JUnit then fails deleting
+  the stored temporary MP4. JavaFX 25's `Locator.getInputStream` opens one
+  connection for content length and another stream for reading, closing only
+  the latter. JDK 25's file-connection content-length implementation opens an
+  input stream. This provides a source-level explanation for a residual handle
+  beyond player disposal; a timing-only workaround is not proven sufficient.
+
+Primary source references:
+
+- [JavaFX 25 Locator](https://github.com/openjdk/jfx/blob/jfx25/modules/javafx.media/src/main/java/com/sun/media/jfxmedia/locator/Locator.java)
+- [JDK 25 file URL connection](https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/sun/net/www/protocol/file/FileURLConnection.java)
+
+The proposed Windows test-harness change is a separate JVM for native playback,
+preserving playback-advancement and disposal assertions and requiring temporary
+file deletion after worker exit. It would isolate the native library lifetime,
+not fix an upstream file-handle lifetime in production. Immediate attachment
+deletion is not a product feature, but this limitation must remain documented.
+This change is awaiting approval because it changes the test cleanup boundary;
+no cleanup assertion has been removed and no production workaround added.
+
+Only `.github/workflows/ci.yml` and this guide have changed since the diagnostic
+commit. The CI dependency correction is uncommitted and not yet exercised on
+Linux. Local tests last passed all 310 cases with diagnostics before this CI-only
+edit. Workflow YAML parsing and `git diff --check` pass. No new review findings.
+Issue #15 and PR #68 remain open pending fixes and passing platform checks.

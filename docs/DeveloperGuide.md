@@ -117,15 +117,15 @@ incident is editable. An upload does not change lifecycle or SLO timestamps.
 Successful additions commit metadata and `ATTACHMENT_ADDED` evidence together.
 Anonymous display models use generic names and do not contain local paths.
 The internal `AttachmentRead` capability rechecks authorization before exposing
-bytes or its native-media URI; never log or display that URI.
+image bytes; it does not expose a storage URI.
 
-Defaults are PNG/JPEG ≤10 MiB, MP4 H.264 with optional AAC ≤50 MiB,
+Attachments are image-only: PNG/JPEG ≤10 MiB,
 5 files/100 MiB per incident, and 40 million decoded image pixels. Inject an
 `AttachmentLimits` value when constructing the service to change the limits.
 The UI help text comes from `AttachmentService.uploadLimitSummary()` and
-reflects those configured limits without rounding byte bounds. MP4 validation checks
-bounded container/sample-entry structure, not every encoded frame; the viewer
-also handles native decoding failures without launching an external application.
+reflects those configured limits without rounding byte bounds. Videos and audio
+are rejected even if renamed as an image. Images are decoded from memory;
+the app does not use JavaFX media or launch an external viewer.
 Original content and embedded metadata are preserved, so the uploader warns
 that media can disclose identity despite generic anonymous filenames.
 
@@ -138,13 +138,13 @@ Pending-upload markers support restart cleanup without sweeping unrelated
 files. See `.agents/persistence.md` for the write/recovery protocol. Development
 tests use temporary directories and do not migrate real application data.
 
-JavaFX media uses the same pinned version 25 as the existing modules, with
-platform binaries resolved by Gradle. Run `./gradlew test --tests '*Attachment*Test'
---tests '*Mp4ValidatorTest'` on macOS/Linux (one line), or the equivalent
-`gradlew.bat` command on Windows. The tests include original, tiny H.264 media
-and require native media support. CI keeps the Linux full build and adds
-Windows/macOS attachment tests. Passing source tests is not a clean-machine
-packaging certificate; multi-platform Shadow JAR packaging remains #63.
+Run `./gradlew test --tests '*Attachment*Test'` on macOS/Linux, or the equivalent
+`gradlew.bat` command on Windows. The tiny original H.264 fixture is retained
+only for rejection tests, never played. CI keeps the Linux full build and
+Windows/macOS attachment tests, with no native media codec requirement.
+Any legacy schema-2 MP4 metadata/blobs are preserved but cannot be opened.
+No data migration is needed for this policy change. Passing source tests is
+not a clean-machine packaging certificate; packaging remains #63.
 
 ## Adding dependencies
 

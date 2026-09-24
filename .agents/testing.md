@@ -64,8 +64,10 @@
   limits, symlink rejection, failed-upload rollback, and pending-upload
   recovery without deleting unrelated files.
 - Test version-1 attachment migration with a pre-upgrade backup and migration
-  audit. Verify image rendering, logout invalidation, and real H.264 playback
-  on each target OS; container-validation tests alone do not certify playback.
+  audit. Verify image rendering and logout invalidation on each target OS.
+- Reject video uploads, including video renamed as PNG/JPEG, without writing
+  blobs, metadata or success audits. Preserve any legacy video metadata/files
+  on restart but deny their opening; video playback is not a supported feature.
 
 ### Persistence and recovery
 

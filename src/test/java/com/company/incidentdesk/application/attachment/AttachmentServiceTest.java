@@ -25,9 +25,32 @@ class AttachmentServiceTest {
     @TempDir Path temporary;
 
     @Test
+    void rejectsRealVideoAndVideoRenamedAsImageWithoutWritingData() throws Exception {
+        byte[] video;
+        try (var input = getClass().getResourceAsStream("/attachments/black-white-h264.mp4")) {
+            video = input.readAllBytes();
+        }
+        try (AttachmentFixture fixture = new AttachmentFixture(temporary.resolve("store"))) {
+            byte[] before = Files.readAllBytes(temporary.resolve("store/incident-desk.dat"));
+            for (String name : List.of("video.mp4", "disguised.png", "disguised.jpg")) {
+                Path source = Files.write(temporary.resolve(name), video);
+                assertEquals(ApplicationErrorCode.VALIDATION,
+                        fixture.service.add(fixture.incident.id(), source).error().orElseThrow().code());
+                assertArrayEquals(video, Files.readAllBytes(source));
+            }
+            assertArrayEquals(before, Files.readAllBytes(temporary.resolve("store/incident-desk.dat")));
+            assertTrue(fixture.service.list(fixture.incident.id()).value().orElseThrow().isEmpty());
+            assertTrue(fixture.store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).isEmpty());
+            try (var files = Files.list(temporary.resolve("store/attachments"))) {
+                assertEquals(0, files.count());
+            }
+        }
+    }
+
+    @Test
     void uploadGuidanceUsesDefaultLimits() {
         try (AttachmentFixture fixture = new AttachmentFixture(temporary.resolve("store"))) {
-            assertEquals("PNG/JPEG 10 MiB, MP4 50 MiB; 5 files and 100 MiB per incident; "
+            assertEquals("PNG/JPEG 10 MiB; 5 files and 100 MiB per incident; "
                     + "images up to 40000000 pixels.", fixture.service.uploadLimitSummary());
         }
     }
@@ -35,8 +58,8 @@ class AttachmentServiceTest {
     @Test
     void uploadGuidanceUsesCustomLimitsWithoutRounding() {
         try (AttachmentFixture fixture = new AttachmentFixture(temporary.resolve("store"))) {
-            AttachmentService service = fixture.serviceWith(new AttachmentLimits(1, 1048577, 1, 3145728, 123));
-            assertEquals("PNG/JPEG 1 byte, MP4 1048577 bytes; 1 file and 3 MiB per incident; "
+            AttachmentService service = fixture.serviceWith(new AttachmentLimits(1048577, 1, 3145728, 123));
+            assertEquals("PNG/JPEG 1048577 bytes; 1 file and 3 MiB per incident; "
                     + "images up to 123 pixels.", service.uploadLimitSummary());
         }
     }
@@ -112,7 +135,7 @@ class AttachmentServiceTest {
         byte[] bytes = AttachmentFixture.png(1, 1);
         Path original = Files.write(temporary.resolve("image.png"), bytes);
         try (AttachmentFixture fixture = new AttachmentFixture(temporary.resolve("store"))) {
-            AttachmentService limited = fixture.serviceWith(new AttachmentLimits(bytes.length, bytes.length, 1, bytes.length, 1));
+            AttachmentService limited = fixture.serviceWith(new AttachmentLimits(bytes.length, 1, bytes.length, 1));
             assertTrue(limited.add(fixture.incident.id(), original).isSuccess());
             byte[] before = Files.readAllBytes(temporary.resolve("store/incident-desk.dat"));
             assertEquals(ApplicationErrorCode.VALIDATION,

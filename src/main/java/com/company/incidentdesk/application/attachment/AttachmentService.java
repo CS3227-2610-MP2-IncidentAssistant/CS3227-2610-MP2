@@ -70,7 +70,7 @@ public final class AttachmentService {
     /** Presentation-safe guidance derived from the same limits used for validation. */
     public String uploadLimitSummary() {
         String files = limits.count() == 1 ? "file" : "files";
-        return "PNG/JPEG " + formatBytes(limits.imageBytes()) + ", MP4 " + formatBytes(limits.videoBytes())
+        return "PNG/JPEG " + formatBytes(limits.imageBytes())
                 + "; " + limits.count() + " " + files + " and " + formatBytes(limits.totalBytes())
                 + " per incident; images up to " + limits.imagePixels() + " pixels.";
     }
@@ -127,13 +127,12 @@ public final class AttachmentService {
         try {
             IncidentAttachment attachment = attachments.find(id).orElseThrow(AttachmentService::denied);
             Context context = requireContext(attachment.incidentId());
-            if (attachment.sizeBytes() > limits.maximumFileBytes()) {
+            if (!attachment.type().isSupported() || attachment.sizeBytes() > limits.imageBytes()) {
                 return unavailable();
             }
             byte[] bytes = attachments.read(attachment);
-            String source = attachments.mediaSource(attachment);
             requireCurrent(context);
-            AttachmentRead read = new AttachmentRead(new AttachmentContent(attachment.type(), bytes), source,
+            AttachmentRead read = new AttachmentRead(new AttachmentContent(attachment.type(), bytes),
                     () -> isCurrent(context));
             return ApplicationResult.success(read);
         } catch (SecurityException exception) {

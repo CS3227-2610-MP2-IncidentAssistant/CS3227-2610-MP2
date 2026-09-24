@@ -42,7 +42,7 @@ public final class AttachmentPane extends VBox implements AutoCloseable {
         this.service = Objects.requireNonNull(service, "service");
         this.incidentId = Objects.requireNonNull(incidentId, "incidentId");
         viewer = new AttachmentViewer(service);
-        Label privacy = new Label("Images and videos may reveal your identity through their content or embedded metadata.");
+        Label privacy = new Label("Images may reveal your identity through their content or embedded metadata.");
         privacy.setWrapText(true);
         add.setOnAction(event -> chooseAttachment());
         getChildren().setAll(UiComponents.panel("Attachments", privacy, add, feedback, entries, viewer));
@@ -144,9 +144,9 @@ public final class AttachmentPane extends VBox implements AutoCloseable {
 
     private void chooseAttachment() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Choose an image or video");
+        chooser.setTitle("Choose a PNG or JPEG image");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                "Supported images and videos", "*.png", "*.jpg", "*.jpeg", "*.mp4"));
+                "Supported images", "*.png", "*.jpg", "*.jpeg"));
         File selected = chooser.showOpenDialog(getScene().getWindow());
         if (selected != null) {
             addFile(selected.toPath());

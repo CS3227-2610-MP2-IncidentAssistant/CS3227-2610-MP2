@@ -37,11 +37,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run tests and build
-        run: xvfb-run --auto-servernum ./gradlew build -PmediaDiagnostics
-
-      - name: Report Linux media libraries on failure
-        if: failure()
-        run: ldconfig -p | awk '/lib(avcodec|avformat|asound|gstreamer)/'
+        run: xvfb-run --auto-servernum ./gradlew build
 
       - name: Preserve Linux test reports
         if: always()
@@ -67,9 +63,9 @@ jobs:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Verify attachment storage and native playback
+      - name: Verify image attachments and storage
         shell: bash
-        run: ./gradlew test --tests '*Attachment*Test' --tests '*Mp4ValidatorTest' -PmediaDiagnostics
+        run: ./gradlew test --tests '*Attachment*Test'
 
       - name: Preserve attachment test reports
         if: always()

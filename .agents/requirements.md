@@ -29,9 +29,8 @@ accounts may exist, but only one user can operate the application at a time.
   as its stable tie-breaker.
 - A shared incident-detail view.
 - Incident comment threads.
-- Image and video attachment upload and rendering.
-- Attachments support PNG/JPEG up to 10 MiB and MP4 with H.264 video and
-  optional AAC audio up to 50 MiB. An incident permits at most 5 attachments
+- Image-only attachment upload and rendering; video and audio are unsupported.
+- Attachments support PNG/JPEG up to 10 MiB. An incident permits at most 5 attachments
   and 100 MiB total. Limits are centrally configurable; image decoding is
   limited to 40 million pixels. Unsupported media fails safely in the viewer.
 - Only the owning reporter can add attachments to a persisted `DRAFT` or
@@ -51,7 +50,7 @@ A reporter can:
   resolution remarks retain entered whitespace after non-blank validation. No
   arbitrary text-length limits are imposed.
 - Save an incomplete report as a draft and submit it later.
-- Upload supported images and videos and view them in the application.
+- Upload supported images and view them in the application.
 - View, search, and filter their own incidents and their statuses.
 - View incident details and resolution remarks for their own incidents.
 - Edit or withdraw an incident while it is submitted and unassigned.

@@ -3,15 +3,13 @@ package com.company.incidentdesk.application.attachment;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
-/** Session-bound media capability. The URI is for the native player only, never for display or logging. */
+/** Session-bound image content without a storage URI. */
 public final class AttachmentRead {
     private final AttachmentContent content;
-    private final String mediaSource;
     private final BooleanSupplier authorization;
 
-    AttachmentRead(AttachmentContent content, String mediaSource, BooleanSupplier authorization) {
+    AttachmentRead(AttachmentContent content, BooleanSupplier authorization) {
         this.content = Objects.requireNonNull(content, "content");
-        this.mediaSource = Objects.requireNonNull(mediaSource, "mediaSource");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
     }
 
@@ -20,11 +18,6 @@ public final class AttachmentRead {
     public AttachmentContent content() {
         requireAccess();
         return content;
-    }
-
-    public String mediaSource() {
-        requireAccess();
-        return mediaSource;
     }
 
     private void requireAccess() {

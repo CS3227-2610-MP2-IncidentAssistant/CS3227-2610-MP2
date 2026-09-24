@@ -361,20 +361,6 @@ public final class LocalApplicationStore
 
     private final class AttachmentStoreFacet implements AttachmentStore {
         @Override
-        public String mediaSource(IncidentAttachment attachment) {
-            synchronized (LocalApplicationStore.this) {
-                if (!attachment.equals(state.attachments().get(attachment.id()))) {
-                    throw new RepositoryException(StorageFailureCode.NOT_FOUND, "Attachment unavailable");
-                }
-                try {
-                    return attachmentFiles.mediaSource(attachment);
-                } catch (IOException exception) {
-                    throw new RepositoryException(StorageFailureCode.STORAGE_UNAVAILABLE, "Attachment unavailable", exception);
-                }
-            }
-        }
-
-        @Override
         public List<IncidentAttachment> list(IncidentId id) {
             synchronized (LocalApplicationStore.this) {
                 return state.attachments().values().stream().filter(value -> value.incidentId().equals(id))
@@ -437,7 +423,7 @@ public final class LocalApplicationStore
             }
             List<IncidentAttachment> existing = list(attachment.incidentId());
             long used = existing.stream().mapToLong(IncidentAttachment::sizeBytes).sum();
-            if (content.length != attachment.sizeBytes() || existing.size() >= limits.count()
+            if (!attachment.type().isSupported() || content.length != attachment.sizeBytes() || existing.size() >= limits.count()
                     || attachment.sizeBytes() > limits.totalBytes() - used) {
                 throw new AttachmentValidationException();
             }

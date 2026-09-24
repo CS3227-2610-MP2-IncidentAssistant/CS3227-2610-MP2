@@ -16,7 +16,6 @@ public interface AttachmentStore {
     List<IncidentAttachment> list(IncidentId incidentId);
     Optional<IncidentAttachment> find(AttachmentId id);
     byte[] read(IncidentAttachment attachment);
-    String mediaSource(IncidentAttachment attachment);
     void add(IncidentAttachment attachment, byte[] content, Incident expectedIncident, Account expectedActor,
             AttachmentLimits limits, AuditEvent audit, AuditEvent migrationAudit);
 }

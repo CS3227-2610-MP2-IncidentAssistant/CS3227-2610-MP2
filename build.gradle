@@ -15,7 +15,7 @@ java {
 
 javafx {
     version = '25'
-    modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.media' ]
+    modules = [ 'javafx.controls', 'javafx.fxml' ]
 }
 
 application {
@@ -36,11 +36,6 @@ tasks.named('test') {
     useJUnitPlatform()
     testLogging {
         exceptionFormat = 'full'
-    }
-    if (providers.gradleProperty('mediaDiagnostics').isPresent()) {
-        // Test fixtures use temporary storage; never enable URI tracing in production.
-        systemProperty 'jfxmedia.loglevel', 'DEBUG'
-        testLogging.showStandardStreams = true
     }
 }
 

@@ -97,7 +97,7 @@ authorization between sequentially logged-in accounts.
   The pre-upgrade file becomes the bounded backup; later writes rotate it as
   usual. New empty stores use version 2. Older app versions cannot read v2.
 - Immutable blobs live in `attachments/<generated-UUID>.<validated-extension>`.
-  The extension is retained for native media compatibility. A flushed
+  The extension reflects the validated file type. A flushed
   `.pending-<UUID>` marker is created before staging and moving a blob. Only
   after the blob is ready are its metadata and audit committed together.
 - On failure, only the new marked upload is removed. On restart, marked blobs
@@ -108,3 +108,6 @@ authorization between sequentially logged-in accounts.
   links. Reads are bounded by metadata/configured limits. File fsync is used;
   directory fsync is best effort where the OS does not support it. The
   application does not defend against a local filesystem owner racing writes.
+- Video support has been removed. Schema 2 can still decode legacy MP4
+  metadata, but application reads and new video additions are denied. Existing
+  metadata and blobs are not deleted or migrated by this policy change.
