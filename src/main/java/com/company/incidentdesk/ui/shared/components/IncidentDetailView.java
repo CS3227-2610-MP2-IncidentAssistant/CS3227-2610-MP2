@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.comment.IncidentCommentService;
@@ -16,6 +17,9 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 
 import javafx.concurrent.Task;
 import javafx.application.Platform;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -28,6 +32,7 @@ import javafx.scene.layout.VBox;
 
 /** Shared role-independent incident detail renderer; all actions remain application-authorized. */
 public final class IncidentDetailView extends VBox implements AutoCloseable {
+    private static final Duration ACCESS_CHECK_INTERVAL = Duration.millis(250);
     private final IncidentDetailService details;
     private final IncidentCommentService comments;
     private final AttachmentPane attachments;
@@ -38,6 +43,12 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
     private Task<ApplicationResult<IncidentDetailModel>> activeLoad;
     private IncidentDetailState state = IncidentDetailState.loading();
     private boolean closed;
+    private BooleanSupplier authorized = () -> false;
+    private final Timeline accessChecks = new Timeline(new KeyFrame(ACCESS_CHECK_INTERVAL, event -> {
+        if (state instanceof IncidentDetailState.Ready && !authorized.getAsBoolean()) {
+            showUnavailable();
+        }
+    }));
 
     public IncidentDetailView(IncidentDetailService details, IncidentCommentService comments,
             AttachmentService attachments, IncidentId incidentId, Runnable onBack,
@@ -51,12 +62,15 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
         this.attachments = new AttachmentPane(Objects.requireNonNull(attachments, "attachments"), incidentId);
         getStyleClass().add("incident-detail-view");
         setFillWidth(true);
+        accessChecks.setCycleCount(Timeline.INDEFINITE);
         sceneProperty().addListener((observable, previous, current) -> {
             if (current == null) {
                 close();
-            } else if (closed) {
-                closed = false;
-                load();
+            } else {
+                if (closed) {
+                    load();
+                }
+                accessChecks.playFromStart();
             }
         });
         render();
@@ -72,11 +86,25 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
         return state;
     }
 
+    /** Discards stale display data and pending reads after an access or session change. */
+    public void showUnavailable() {
+        cancelLoad();
+        accessChecks.stop();
+        attachments.close();
+        authorized = () -> false;
+        state = IncidentDetailState.unavailable();
+        render();
+    }
+
     private void load() {
         cancelLoad();
         closed = false;
+        authorized = details.viewGuard(incidentId);
         state = IncidentDetailState.loading();
         render();
+        if (getScene() != null) {
+            accessChecks.playFromStart();
+        }
         long request = revision.incrementAndGet();
         Task<ApplicationResult<IncidentDetailModel>> task = new Task<>() {
             @Override protected ApplicationResult<IncidentDetailModel> call() {
@@ -90,7 +118,7 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
             }
             activeLoad = null;
             ApplicationResult<IncidentDetailModel> result = task.getValue();
-            state = result.isSuccess()
+            state = result.isSuccess() && authorized.getAsBoolean()
                     ? IncidentDetailState.ready(result.value().orElseThrow())
                     : IncidentDetailState.unavailable();
             render();
@@ -280,7 +308,6 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
     @Override
     public void close() {
         closed = true;
-        cancelLoad();
-        attachments.close();
+        showUnavailable();
     }
 }

@@ -108,6 +108,32 @@ class IncidentDetailServiceTest {
     }
 
     @Test
+    void viewGuardRejectsRevokedPermissionsLogoutAndNewSession() {
+        var original = sessions.actor.orElseThrow();
+        var guard = details.viewGuard(INCIDENT_ID);
+        assertTrue(guard.getAsBoolean());
+        sessions.signIn(account(RESPONDER_ID, "responder", Role.RESPONDER, ResponderAccess.NONE));
+        assertFalse(guard.getAsBoolean());
+        sessions.actor = Optional.empty();
+        assertFalse(guard.getAsBoolean());
+        sessions.signIn(original);
+        sessions.authenticatedAt = NOW;
+        assertFalse(guard.getAsBoolean());
+        assertTrue(details.viewGuard(INCIDENT_ID).getAsBoolean());
+    }
+
+    @Test
+    void viewGuardRejectsIncidentClaimedByAnotherResponder() {
+        var guard = details.viewGuard(INCIDENT_ID);
+        assertTrue(guard.getAsBoolean());
+        incidents.update(new IncidentLifecycle(clock).claim(incidents.findById(INCIDENT_ID).orElseThrow(),
+                accountId("00000000-0000-0000-0000-000000000003")));
+        assertFalse(guard.getAsBoolean());
+        assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
+                details.detail(INCIDENT_ID).error().orElseThrow().code());
+    }
+
+    @Test
     void inaccessibleIncidentUsesNeutralUnavailableResult() {
         sessions.signIn(account(accountId("00000000-0000-0000-0000-000000000003"), "other",
                 Role.REPORTER, ResponderAccess.NONE));
@@ -142,11 +168,12 @@ class IncidentDetailServiceTest {
 
     private static final class MutableSession implements SessionProvider {
         private Optional<Account> actor = Optional.empty();
+        private Instant authenticatedAt = SUBMITTED_AT;
 
         void signIn(Account account) { actor = Optional.of(account); }
 
         @Override public Optional<AuthenticatedSession> currentSession() {
-            return actor.map(account -> new AuthenticatedSession(account.id(), SUBMITTED_AT));
+            return actor.map(account -> new AuthenticatedSession(account.id(), authenticatedAt));
         }
 
         @Override public Optional<Account> currentAccount() { return actor; }

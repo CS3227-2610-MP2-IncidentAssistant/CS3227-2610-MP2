@@ -146,6 +146,62 @@ class IncidentServiceTest {
     }
 
     @Test
+    void claimRejectsSignedOutWrongRoleRevokedCategoryAndRepeatedAssignmentWithoutWrites() {
+        createSubmittedIncident(true);
+        Incident before = incidents.findById(INCIDENT_ID).orElseThrow();
+        sessions.current = Optional.empty();
+        assertFalse(service.claim(INCIDENT_ID).isSuccess());
+        for (Account actor : List.of(reporter(REPORTER_ID), administrator(), responder(RESPONDER_ID),
+                responder(RESPONDER_ID, IncidentCategory.FACILITIES))) {
+            sessions.signIn(actor);
+            assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
+                    service.claim(INCIDENT_ID).error().orElseThrow().code());
+        }
+        assertEquals(before, incidents.findById(INCIDENT_ID).orElseThrow());
+        assertEquals(1, incidents.auditEvents().size());
+        assertEquals(1, events.size());
+
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertTrue(service.claim(INCIDENT_ID).isSuccess());
+        Incident claimed = incidents.findById(INCIDENT_ID).orElseThrow();
+        assertFalse(service.claim(INCIDENT_ID).isSuccess());
+        sessions.signIn(accounts.findById(SECOND_RESPONDER_ID).orElseThrow());
+        assertFalse(service.claim(INCIDENT_ID).isSuccess());
+        assertEquals(claimed, incidents.findById(INCIDENT_ID).orElseThrow());
+        assertEquals(2, incidents.auditEvents().size());
+        assertEquals(2, events.size());
+    }
+
+    @Test
+    void withdrawnIncidentCannotBeClaimed() {
+        createSubmittedIncident(false);
+        assertTrue(service.withdraw(INCIDENT_ID).isSuccess());
+        Incident before = incidents.findById(INCIDENT_ID).orElseThrow();
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+
+        assertFalse(service.claim(INCIDENT_ID).isSuccess());
+
+        assertEquals(before, incidents.findById(INCIDENT_ID).orElseThrow());
+        assertEquals(2, incidents.auditEvents().size());
+        assertEquals(2, events.size());
+    }
+
+    @Test
+    void failedClaimCommitLeavesIncidentAuditAndNotificationsUnchanged() {
+        createSubmittedIncident(false);
+        InMemoryIncidentRepository failingStore = copyIntoFailingStore();
+        Incident before = failingStore.findById(INCIDENT_ID).orElseThrow();
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+
+        var result = serviceUsing(failingStore).claim(INCIDENT_ID);
+
+        assertEquals(ApplicationErrorCode.PERSISTENCE_FAILURE, result.error().orElseThrow().code());
+        assertEquals(before, failingStore.findById(INCIDENT_ID).orElseThrow());
+        assertTrue(failingStore.auditEvents().isEmpty());
+        assertEquals(1, events.size());
+    }
+
+    @Test
     void responderCanClaimAndResolveEligibleIncident() {
         createSubmittedIncident(false);
         sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());

@@ -18,6 +18,8 @@ import com.company.incidentdesk.ui.admin.AdminAccountsPage;
 import com.company.incidentdesk.ui.admin.AdminSloPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.responder.ResponderPage;
+import com.company.incidentdesk.ui.responder.ResponderIncidentPage;
+import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.ui.shared.components.IncidentDetailActions;
 import com.company.incidentdesk.ui.shared.components.IncidentDetailView;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
@@ -79,6 +81,9 @@ public final class DefaultViewFactory implements ViewFactory {
     @Override
     public Node createIncidentDetail(Account account, IncidentId incidentId, Runnable onBack) {
         Objects.requireNonNull(account, "account");
+        if (account.role() == Role.RESPONDER) {
+            return new ResponderIncidentPage(incidents, incidentDetails, comments, attachments, incidentId, onBack);
+        }
         IncidentDetailView detail = new IncidentDetailView(
                 incidentDetails, comments, attachments, incidentId, onBack, IncidentDetailActions.none());
         detail.setAccessibleText("Incident detail for " + incidentId.value());
