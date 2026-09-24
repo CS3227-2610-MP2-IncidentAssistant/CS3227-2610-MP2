@@ -37,13 +37,13 @@ class LocalApplicationStateCodecTest {
         Map<SloTargetVersionId, SloTargetVersion> versions = new LinkedHashMap<>();
         versions.put(version.id(), version);
         LocalApplicationState withAccount = new LocalApplicationState(
-                Map.of(ADMIN_ID, admin), Map.of(), java.util.List.of(), java.util.List.of(), versions);
+                Map.of(ADMIN_ID, admin), Map.of(), Map.of(), java.util.List.of(), java.util.List.of(), versions);
 
         LocalApplicationState decoded = codec.decode(codec.encode(withAccount));
         assertEquals(versions, decoded.sloTargetVersions());
 
         LocalApplicationState withoutAccount = new LocalApplicationState(
-                Map.of(), Map.of(), java.util.List.of(), java.util.List.of(), versions);
+                Map.of(), Map.of(), Map.of(), java.util.List.of(), java.util.List.of(), versions);
         assertThrows(IOException.class, () -> codec.decode(codec.encode(withoutAccount)));
     }
 
@@ -53,4 +53,5 @@ class LocalApplicationStateCodecTest {
         LocalApplicationState decoded = codec.decode(codec.encode(LocalApplicationState.empty()));
         assertEquals(Map.of(), decoded.sloTargetVersions());
     }
+
 }

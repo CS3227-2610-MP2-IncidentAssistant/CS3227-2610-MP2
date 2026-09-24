@@ -20,7 +20,7 @@ public final class IncidentDeskApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        applicationContext = ApplicationContext.openDefault((accountId, candidatePassword) -> false);
+        applicationContext = ApplicationContext.openDefault();
         scene = new Scene(new StackPane(), INITIAL_WIDTH, INITIAL_HEIGHT);
         ApplicationTheme.applyTo(scene);
         navigator = new ApplicationNavigator(
@@ -31,7 +31,7 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.incidents(),
                         applicationContext.presentationMapper(),
                         applicationContext.sessions()),
-                this::showRegistrationUnavailable);
+                applicationContext.registrations());
         navigator.start();
         primaryStage.setTitle("Incident Desk");
         primaryStage.setScene(scene);
@@ -48,7 +48,4 @@ public final class IncidentDeskApplication extends Application {
         }
     }
 
-    private void showRegistrationUnavailable() {
-        // Registration credentials are intentionally deferred until the account service owns hashing and storage.
-    }
 }

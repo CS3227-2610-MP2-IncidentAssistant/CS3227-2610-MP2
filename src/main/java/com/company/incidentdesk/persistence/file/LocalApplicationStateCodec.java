@@ -21,6 +21,7 @@ import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
 import com.company.incidentdesk.domain.account.ResponderAccess;
 import com.company.incidentdesk.domain.account.Role;
+import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.audit.AuditAction;
 import com.company.incidentdesk.domain.audit.AuditActor;
 import com.company.incidentdesk.domain.audit.AuditActorVisibility;
@@ -63,6 +64,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             output.writeInt(MAGIC);
             output.writeInt(SCHEMA_VERSION);
             writeAccounts(output, state.accounts());
+            writeCredentials(output, state.credentials());
             writeIncidents(output, state.incidents());
             writeComments(output, state.comments());
             writeAudits(output, state.auditEvents());
@@ -88,6 +90,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
                 throw new IOException("unsupported legacy schema");
             }
             Map<AccountId, Account> accounts = readAccounts(input);
+            Map<AccountId, PasswordCredential> credentials = readCredentials(input);
             Map<IncidentId, Incident> incidents = readIncidents(input);
             List<IncidentComment> comments = readComments(input);
             List<AuditEvent> auditEvents = readAudits(input);
@@ -95,7 +98,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             readReservedSection(input, "promotions");
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = readSloTargetVersions(input);
             LocalApplicationState state = new LocalApplicationState(
-                    accounts, incidents, comments, auditEvents, sloTargetVersions);
+                    accounts, credentials, incidents, comments, auditEvents, sloTargetVersions);
             if (input.read() != -1) {
                 throw new IOException("unexpected trailing application data");
             }
@@ -106,6 +109,47 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw new IOException("invalid domain data", exception);
         }
+    }
+
+    private static void writeCredentials(DataOutputStream output, Map<AccountId, PasswordCredential> credentials)
+            throws IOException {
+        output.writeInt(credentials.size());
+        for (var entry : credentials.entrySet().stream()
+                .sorted((left, right) -> left.getKey().value().compareTo(right.getKey().value())).toList()) {
+            writeUuid(output, entry.getKey().value());
+            PasswordCredential credential = entry.getValue();
+            output.writeUTF(credential.algorithm());
+            output.writeInt(credential.iterations());
+            byte[] salt = credential.salt();
+            output.writeInt(salt.length);
+            output.write(salt);
+            byte[] hash = credential.hash();
+            output.writeInt(hash.length);
+            output.write(hash);
+        }
+    }
+
+    private static Map<AccountId, PasswordCredential> readCredentials(DataInputStream input) throws IOException {
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>();
+        int count = readCount(input);
+        for (int index = 0; index < count; index++) {
+            AccountId id = new AccountId(readUuid(input));
+            String algorithm = input.readUTF();
+            int iterations = input.readInt();
+            byte[] salt = input.readNBytes(readByteArrayLength(input));
+            byte[] hash = input.readNBytes(readByteArrayLength(input));
+            requireUnique(credentials.put(id, new PasswordCredential(algorithm, iterations, salt, hash)),
+                    "account credential");
+        }
+        return credentials;
+    }
+
+    private static int readByteArrayLength(DataInputStream input) throws IOException {
+        int length = input.readInt();
+        if (length < 1 || length > 4096) {
+            throw new IOException("invalid byte array length");
+        }
+        return length;
     }
 
     private static void writeAccounts(DataOutputStream output, Map<AccountId, Account> accounts) throws IOException {
@@ -345,6 +389,9 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
     }
 
     private static void validateReferences(LocalApplicationState state) throws IOException {
+        for (AccountId accountId : state.credentials().keySet()) {
+            requireAccount(state, accountId, "credential");
+        }
         for (Incident incident : state.incidents().values()) {
             requireAccount(state, incident.reporterId(), "incident reporter");
             incident.assigneeId().ifPresent(id -> requireAccountUnchecked(state, id, "incident assignee"));

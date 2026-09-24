@@ -55,7 +55,7 @@ class ApplicationNavigatorTest {
                 MutableSessions sessions = new MutableSessions(account(role));
                 Scene scene = new Scene(new VBox());
                 ApplicationNavigator navigator = new ApplicationNavigator(
-                        scene, sessions, new NotificationInbox(), new RecordingViews(), () -> { });
+                        scene, sessions, new NotificationInbox(), new RecordingViews(), (name, password, selectedRole) -> null);
                 navigator.start();
                 assertInstanceOf(AuthenticatedShell.class, scene.getRoot());
                 assertEquals(role.name(), ((Label) scene.lookup("#dashboard-view")).getText());
@@ -71,7 +71,7 @@ class ApplicationNavigatorTest {
             MutableSessions sessions = new MutableSessions(account(Role.REPORTER));
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
-                    scene, sessions, new NotificationInbox(), new RecordingViews(), () -> { });
+                    scene, sessions, new NotificationInbox(), new RecordingViews(), (name, password, role) -> null);
             navigator.start();
             navigator.logout();
             assertTrue(sessions.logoutCalled);
@@ -87,7 +87,7 @@ class ApplicationNavigatorTest {
             MutableSessions sessions = new MutableSessions(account(Role.ADMINISTRATOR));
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
-                    scene, sessions, new NotificationInbox(), new RecordingViews(), () -> { });
+                    scene, sessions, new NotificationInbox(), new RecordingViews(), (name, password, role) -> null);
             navigator.start();
 
             AuthenticatedShell shell = assertInstanceOf(AuthenticatedShell.class, scene.getRoot());
@@ -107,7 +107,7 @@ class ApplicationNavigatorTest {
             RecordingViews views = new RecordingViews();
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
-                    scene, sessions, new NotificationInbox(), views, () -> { });
+                    scene, sessions, new NotificationInbox(), views, (name, password, role) -> null);
             navigator.start();
             Node dashboard = scene.lookup("#dashboard-view");
             navigator.openIncident(new IncidentId(UUID.randomUUID()));
@@ -125,7 +125,7 @@ class ApplicationNavigatorTest {
             MutableSessions sessions = new MutableSessions(null);
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
-                    scene, sessions, new NotificationInbox(), new RecordingViews(), () -> { });
+                    scene, sessions, new NotificationInbox(), new RecordingViews(), (name, password, role) -> null);
             navigator.navigate(ApplicationRoute.DASHBOARD);
             assertInstanceOf(AuthenticationPage.class, scene.getRoot());
             navigator.close();
@@ -139,7 +139,7 @@ class ApplicationNavigatorTest {
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
                     scene, new MutableSessions(null), new NotificationInbox(),
-                    new RecordingViews(), () -> { });
+                    new RecordingViews(), (name, password, role) -> null);
             navigator.start();
 
             ((Button) scene.lookup("#sample-ui")).fire();

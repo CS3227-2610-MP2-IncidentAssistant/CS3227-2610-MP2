@@ -12,6 +12,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.company.incidentdesk.application.incident.IncidentMutation;
+import com.company.incidentdesk.application.account.AccountRegistration;
+import com.company.incidentdesk.application.account.AccountRegistrationStore;
+import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.audit.AuditEvent;
@@ -41,7 +44,7 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
 public final class LocalApplicationStore
-        implements AccountRepository, IncidentStore, AuditRepository, AutoCloseable {
+        implements AccountRepository, AccountRegistrationStore, IncidentStore, AuditRepository, AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
     private final ApplicationProcessLock processLock;
@@ -90,7 +93,7 @@ public final class LocalApplicationStore
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account already exists");
         }
         persist(new LocalApplicationState(
-                accounts, state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
+                accounts, state.credentials(), state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
     @Override
@@ -107,7 +110,30 @@ public final class LocalApplicationStore
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account login already exists");
         }
         persist(new LocalApplicationState(
-                accounts, state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
+                accounts, state.credentials(), state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
+    }
+
+    @Override
+    public synchronized void register(AccountRegistration registration) {
+        AccountRegistration required = Objects.requireNonNull(registration, "registration");
+        if (state.accounts().containsKey(required.account().id()) || state.accounts().values().stream()
+                .anyMatch(account -> account.loginName().equals(required.account().loginName()))) {
+            throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account already exists");
+        }
+        rejectDuplicateAudit(required.auditEvent());
+        Map<AccountId, Account> accounts = new LinkedHashMap<>(state.accounts());
+        accounts.put(required.account().id(), required.account());
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>(state.credentials());
+        credentials.put(required.account().id(), required.credential());
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(required.auditEvent());
+        persist(new LocalApplicationState(accounts, credentials, state.incidents(), state.comments(), audits,
+                state.sloTargetVersions()));
+    }
+
+    @Override
+    public synchronized Optional<PasswordCredential> findCredential(AccountId accountId) {
+        return Optional.ofNullable(state.credentials().get(Objects.requireNonNull(accountId, "accountId")));
     }
 
     @Override
@@ -167,7 +193,7 @@ public final class LocalApplicationStore
         apply(required.nextState(), incidents, comments);
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required.auditEvent());
-        persist(new LocalApplicationState(state.accounts(), incidents, comments, audits, state.sloTargetVersions()));
+        persist(new LocalApplicationState(state.accounts(), state.credentials(), incidents, comments, audits, state.sloTargetVersions()));
     }
 
     @Override
@@ -183,7 +209,7 @@ public final class LocalApplicationStore
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required);
         persist(new LocalApplicationState(
-                state.accounts(), state.incidents(), state.comments(), audits, state.sloTargetVersions()));
+                state.accounts(), state.credentials(), state.incidents(), state.comments(), audits, state.sloTargetVersions()));
     }
 
     /** Returns the SLO configuration facet of this aggregate store. */
@@ -227,7 +253,7 @@ public final class LocalApplicationStore
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "incident already exists");
         }
         persist(new LocalApplicationState(
-                state.accounts(), incidents, state.comments(), state.auditEvents(), state.sloTargetVersions()));
+                state.accounts(), state.credentials(), incidents, state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
     private void persist(LocalApplicationState nextState) {
@@ -321,7 +347,7 @@ public final class LocalApplicationStore
                             StorageFailureCode.ALREADY_EXISTS, "SLO target version already exists");
                 }
                 persist(new LocalApplicationState(
-                        state.accounts(), state.incidents(), state.comments(), state.auditEvents(),
+                        state.accounts(), state.credentials(), state.incidents(), state.comments(), state.auditEvents(),
                         sloTargetVersions));
             }
         }
@@ -363,7 +389,7 @@ public final class LocalApplicationStore
                 List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
                 audits.add(required.auditEvent());
                 persist(new LocalApplicationState(
-                        state.accounts(), state.incidents(), state.comments(), audits, sloTargetVersions));
+                        state.accounts(), state.credentials(), state.incidents(), state.comments(), audits, sloTargetVersions));
             }
         }
     }

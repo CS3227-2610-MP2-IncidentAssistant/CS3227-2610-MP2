@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.company.incidentdesk.application.account.PasswordVerifier;
+import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.event.InProcessApplicationEventBus;
@@ -29,6 +30,7 @@ public final class ApplicationContext implements AutoCloseable {
     private final IncidentService incidents;
     private final IncidentPresentationMapper presentationMapper;
     private final NotificationService notificationService;
+    private final AccountRegistrationService registrations;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -36,19 +38,23 @@ public final class ApplicationContext implements AutoCloseable {
             NotificationInbox notifications,
             IncidentService incidents,
             IncidentPresentationMapper presentationMapper,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            AccountRegistrationService registrations) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
         this.incidents = incidents;
         this.presentationMapper = presentationMapper;
         this.notificationService = notificationService;
+        this.registrations = registrations;
     }
 
-    public static ApplicationContext openDefault(PasswordVerifier passwordVerifier) {
+    public static ApplicationContext openDefault() {
         LocalApplicationStore store = LocalApplicationStore.openDefault();
         try {
-            return create(store, passwordVerifier, Clock.systemUTC());
+            Clock clock = Clock.systemUTC();
+            AccountRegistrationService registrations = new AccountRegistrationService(store, clock);
+            return create(store, registrations, registrations, clock);
         } catch (RuntimeException exception) {
             store.close();
             throw exception;
@@ -58,6 +64,7 @@ public final class ApplicationContext implements AutoCloseable {
     static ApplicationContext create(
             LocalApplicationStore store,
             PasswordVerifier passwordVerifier,
+            AccountRegistrationService registrations,
             Clock clock) {
         Objects.requireNonNull(store, "store");
         Objects.requireNonNull(passwordVerifier, "passwordVerifier");
@@ -80,7 +87,8 @@ public final class ApplicationContext implements AutoCloseable {
                 events::publish);
         IncidentPresentationMapper mapper = new IncidentPresentationMapper(
                 store, authorization, ZoneId.systemDefault(), DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm"));
-        return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService);
+        return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
+                Objects.requireNonNull(registrations, "registrations"));
     }
 
     public SessionService sessions() {
@@ -97,6 +105,10 @@ public final class ApplicationContext implements AutoCloseable {
 
     public IncidentPresentationMapper presentationMapper() {
         return presentationMapper;
+    }
+
+    public AccountRegistrationService registrations() {
+        return registrations;
     }
 
     private static void reportSubscriberFailure(RuntimeException exception) {

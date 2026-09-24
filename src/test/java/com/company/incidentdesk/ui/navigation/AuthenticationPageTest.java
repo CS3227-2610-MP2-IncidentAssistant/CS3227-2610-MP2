@@ -17,12 +17,12 @@ import com.company.incidentdesk.application.session.AuthenticatedSession;
 import com.company.incidentdesk.application.session.AuthenticationResult;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.domain.account.Account;
+import com.company.incidentdesk.application.account.RegistrationResult;
 
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
@@ -37,6 +37,7 @@ class AuthenticationPageTest {
             Platform.runLater(started::countDown);
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
+        Platform.setImplicitExit(false);
     }
 
     @Test
@@ -45,7 +46,8 @@ class AuthenticationPageTest {
             RecordingSessions sessions = new RecordingSessions();
             AtomicInteger authenticated = new AtomicInteger();
             AuthenticationPage page = new AuthenticationPage(
-                    sessions, authenticated::incrementAndGet, () -> { }, () -> { });
+                    sessions, (name, supplied, role) -> RegistrationResult.REGISTERED,
+                    authenticated::incrementAndGet, () -> { });
             new Scene(page);
             ((TextField) page.lookup("#login-name")).setText("CaseSensitiveUser");
             PasswordField password = (PasswordField) page.lookup("#password");
@@ -62,18 +64,29 @@ class AuthenticationPageTest {
     }
 
     @Test
-    void registrationEntryPointProvidesExplicitFeedback() throws Exception {
+    void registrationEntryPointOpensRoleSelectionPopup() throws Exception {
         onFx(() -> {
             AtomicInteger registrations = new AtomicInteger();
             AuthenticationPage page = new AuthenticationPage(
-                    new RecordingSessions(), () -> { }, registrations::incrementAndGet, () -> { });
+                    new RecordingSessions(), (name, supplied, role) -> {
+                        registrations.incrementAndGet(); return RegistrationResult.REGISTERED;
+                    }, () -> { }, () -> { });
             new Scene(page);
             ((Button) page.lookup("#register")).fire();
-            assertEquals(1, registrations.get());
-            assertTrue(page.lookupAll(".feedback-card").stream()
-                    .flatMap(node -> node.lookupAll(".label").stream())
-                    .map(node -> ((Label) node).getText())
-                    .anyMatch("Registration is not available yet"::equals));
+            javafx.stage.Window.getWindows().stream()
+                    .filter(javafx.stage.Window::isShowing)
+                    .filter(window -> window.getScene() != null
+                            && window.getScene().getRoot().lookup("#role-reporter") != null)
+                    .findFirst().ifPresent(window -> {
+                        try {
+                            javafx.scene.Parent root = window.getScene().getRoot();
+                            assertTrue(root.lookup("#role-responder") != null);
+                            assertTrue(root.lookup("#role-administrator") != null);
+                        } finally {
+                            window.hide();
+                        }
+                    });
+            assertEquals(0, registrations.get());
             return null;
         });
     }
@@ -82,7 +95,8 @@ class AuthenticationPageTest {
     void authenticationFormUsesCenteredPanelWithLeftAlignedFields() throws Exception {
         onFx(() -> {
             AuthenticationPage page = new AuthenticationPage(
-                    new RecordingSessions(), () -> { }, () -> { }, () -> { });
+                    new RecordingSessions(), (name, supplied, role) -> RegistrationResult.REGISTERED,
+                    () -> { }, () -> { });
             new Scene(page, 900, 700);
             page.applyCss();
             page.layout();
@@ -95,7 +109,7 @@ class AuthenticationPageTest {
             VBox form = (VBox) loginField.getParent();
 
             assertEquals(Pos.TOP_CENTER, panel.getAlignment());
-            assertEquals(Double.MAX_VALUE, panel.getMaxWidth());
+            assertEquals(600, panel.getMaxWidth());
             assertEquals(Double.MAX_VALUE, form.getMaxWidth());
             assertEquals(Pos.TOP_LEFT, loginField.getAlignment());
             assertEquals(Pos.TOP_LEFT, passwordField.getAlignment());
@@ -112,7 +126,8 @@ class AuthenticationPageTest {
         onFx(() -> {
             AtomicInteger sampleUiRequests = new AtomicInteger();
             AuthenticationPage page = new AuthenticationPage(
-                    new RecordingSessions(), () -> { }, () -> { }, sampleUiRequests::incrementAndGet);
+                    new RecordingSessions(), (name, supplied, role) -> RegistrationResult.REGISTERED,
+                    () -> { }, sampleUiRequests::incrementAndGet);
             new Scene(page);
 
             ((Button) page.lookup("#sample-ui")).fire();

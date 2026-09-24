@@ -54,7 +54,7 @@ public final class AuthenticatedShellPreview {
                 sessions,
                 new NotificationInbox(),
                 new PreviewViewFactory(),
-                () -> { });
+                (name, password, role) -> null);
         navigator.start();
         stage.setTitle("Incident Desk — Authenticated Shell Preview");
         stage.setScene(scene);

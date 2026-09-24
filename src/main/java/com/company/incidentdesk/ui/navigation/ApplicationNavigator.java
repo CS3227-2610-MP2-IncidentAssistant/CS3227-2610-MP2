@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.company.incidentdesk.application.notification.NotificationInbox;
+import com.company.incidentdesk.application.account.AccountRegistrar;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -19,7 +20,7 @@ public final class ApplicationNavigator implements AutoCloseable {
     private final SessionService sessions;
     private final NotificationInbox notifications;
     private final ViewFactory views;
-    private final Runnable onRegister;
+    private final AccountRegistrar registrations;
     private final Map<ApplicationRoute, Node> retainedViews = new EnumMap<>(ApplicationRoute.class);
     private AuthenticatedShell shell;
     private Account shellAccount;
@@ -29,12 +30,12 @@ public final class ApplicationNavigator implements AutoCloseable {
             SessionService sessions,
             NotificationInbox notifications,
             ViewFactory views,
-            Runnable onRegister) {
+            AccountRegistrar registrations) {
         this.scene = Objects.requireNonNull(scene, "scene");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.notifications = Objects.requireNonNull(notifications, "notifications");
         this.views = Objects.requireNonNull(views, "views");
-        this.onRegister = Objects.requireNonNull(onRegister, "onRegister");
+        this.registrations = Objects.requireNonNull(registrations, "registrations");
     }
 
     /** Shows the current account's shell, or authentication when no valid session exists. */
@@ -78,7 +79,7 @@ public final class ApplicationNavigator implements AutoCloseable {
 
     private void showAuthentication() {
         clearShell();
-        scene.setRoot(new AuthenticationPage(sessions, this::start, onRegister, this::showSampleUi));
+        scene.setRoot(new AuthenticationPage(sessions, registrations, this::start, this::showSampleUi));
     }
 
     private void showSampleUi() {
