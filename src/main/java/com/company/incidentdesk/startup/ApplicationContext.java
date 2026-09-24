@@ -11,6 +11,8 @@ import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.attachment.AttachmentLimits;
+import com.company.incidentdesk.application.comment.IncidentCommentService;
+import com.company.incidentdesk.application.incident.IncidentDetailService;
 import com.company.incidentdesk.domain.attachment.AttachmentId;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
@@ -24,6 +26,7 @@ import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.domain.audit.AuditEventId;
+import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentLifecycle;
 import com.company.incidentdesk.domain.slo.SloTargetVersionId;
@@ -41,6 +44,8 @@ public final class ApplicationContext implements AutoCloseable {
     private final AccountDirectoryService accountDirectory;
     private final SloConfigurationService sloConfigurations;
     private final AttachmentService attachments;
+    private final IncidentCommentService comments;
+    private final IncidentDetailService incidentDetails;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -51,7 +56,8 @@ public final class ApplicationContext implements AutoCloseable {
             NotificationService notificationService,
             AccountRegistrationService registrations,
             AccountDirectoryService accountDirectory,
-            SloConfigurationService sloConfigurations, AttachmentService attachments) {
+            SloConfigurationService sloConfigurations, AttachmentService attachments,
+            IncidentCommentService comments, IncidentDetailService incidentDetails) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -62,6 +68,8 @@ public final class ApplicationContext implements AutoCloseable {
         this.accountDirectory = accountDirectory;
         this.sloConfigurations = sloConfigurations;
         this.attachments = attachments;
+        this.comments = comments;
+        this.incidentDetails = incidentDetails;
     }
 
     public static ApplicationContext openDefault() {
@@ -111,8 +119,14 @@ public final class ApplicationContext implements AutoCloseable {
         AttachmentService attachments = new AttachmentService(sessions, store, store.attachmentStore(), authorization,
                 AttachmentLimits.DEFAULT, new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
                 clock, () -> new AttachmentId(UUID.randomUUID()));
+        IncidentCommentService comments = new IncidentCommentService(sessions, store, store,
+                authorization, new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
+                clock, () -> new CommentId(UUID.randomUUID()), events::publish);
+        IncidentDetailService incidentDetails = new IncidentDetailService(sessions, store, authorization, mapper,
+                comments, attachments, store.sloConfigurationStore(), clock);
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
-                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations, attachments);
+                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations,
+                attachments, comments, incidentDetails);
     }
 
     public SessionService sessions() {
@@ -120,6 +134,10 @@ public final class ApplicationContext implements AutoCloseable {
     }
 
     public AttachmentService attachments() { return attachments; }
+
+    public IncidentCommentService comments() { return comments; }
+
+    public IncidentDetailService incidentDetails() { return incidentDetails; }
 
     public NotificationInbox notifications() {
         return notifications;

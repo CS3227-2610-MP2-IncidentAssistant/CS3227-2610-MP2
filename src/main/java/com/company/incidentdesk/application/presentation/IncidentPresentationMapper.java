@@ -72,7 +72,7 @@ public final class IncidentPresentationMapper {
         List<AttachmentModel> safeAttachments = authorizationPolicy.authorizeAttachmentAccess(incident).isAllowed()
                 ? List.copyOf(attachments) : List.of();
         return new IncidentDetailModel(
-                toRow(incident),
+                toRow(incident, slo),
                 incident.description(),
                 incident.submittedAt().map(this::format).orElse(""),
                 incident.withdrawnAt().map(this::format).orElse(""),

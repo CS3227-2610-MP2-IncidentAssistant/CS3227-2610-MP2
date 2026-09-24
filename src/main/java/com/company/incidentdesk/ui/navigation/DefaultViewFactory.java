@@ -3,8 +3,11 @@ package com.company.incidentdesk.ui.navigation;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
+import com.company.incidentdesk.application.attachment.AttachmentService;
+import com.company.incidentdesk.application.comment.IncidentCommentService;
+import com.company.incidentdesk.application.incident.IncidentDetailService;
+import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.session.SessionProvider;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
@@ -15,13 +18,12 @@ import com.company.incidentdesk.ui.admin.AdminAccountsPage;
 import com.company.incidentdesk.ui.admin.AdminSloPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.responder.ResponderPage;
+import com.company.incidentdesk.ui.shared.components.IncidentDetailActions;
+import com.company.incidentdesk.ui.shared.components.IncidentDetailView;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
-import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
 import javafx.scene.Node;
-import javafx.scene.control.Button;
-import javafx.scene.layout.VBox;
 
 /** Default role-aware view factory backed by the shared application services. */
 public final class DefaultViewFactory implements ViewFactory {
@@ -30,18 +32,27 @@ public final class DefaultViewFactory implements ViewFactory {
     private final SessionProvider sessions;
     private final AccountDirectoryService accounts;
     private final SloConfigurationService sloConfigurations;
+    private final IncidentDetailService incidentDetails;
+    private final IncidentCommentService comments;
+    private final AttachmentService attachments;
 
     public DefaultViewFactory(
             IncidentService incidents,
             IncidentPresentationMapper mapper,
             SessionProvider sessions,
             AccountDirectoryService accounts,
-            SloConfigurationService sloConfigurations) {
+            SloConfigurationService sloConfigurations,
+            IncidentDetailService incidentDetails,
+            IncidentCommentService comments,
+            AttachmentService attachments) {
         this.incidents = Objects.requireNonNull(incidents, "incidents");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.sloConfigurations = Objects.requireNonNull(sloConfigurations, "sloConfigurations");
+        this.incidentDetails = Objects.requireNonNull(incidentDetails, "incidentDetails");
+        this.comments = Objects.requireNonNull(comments, "comments");
+        this.attachments = Objects.requireNonNull(attachments, "attachments");
     }
 
     @Override
@@ -67,12 +78,9 @@ public final class DefaultViewFactory implements ViewFactory {
 
     @Override
     public Node createIncidentDetail(Account account, IncidentId incidentId, Runnable onBack) {
-        Button back = UiComponents.action("Back to dashboard", ActionStyle.SECONDARY);
-        back.setOnAction(event -> onBack.run());
-        VBox detail = new VBox(16, UiComponents.feedback(
-                "Incident details are not available yet",
-                "Return to the dashboard while the shared detail workflow is completed.",
-                FeedbackType.EMPTY), back);
+        Objects.requireNonNull(account, "account");
+        IncidentDetailView detail = new IncidentDetailView(
+                incidentDetails, comments, attachments, incidentId, onBack, IncidentDetailActions.none());
         detail.setAccessibleText("Incident detail for " + incidentId.value());
         return detail;
     }
