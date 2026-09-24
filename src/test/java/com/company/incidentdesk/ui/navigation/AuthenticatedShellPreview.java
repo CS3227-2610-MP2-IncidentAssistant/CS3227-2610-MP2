@@ -18,7 +18,6 @@ import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.persistence.memory.InMemoryAccountRepository;
-import com.company.incidentdesk.ui.admin.AdminPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
@@ -83,14 +82,17 @@ public final class AuthenticatedShellPreview {
 
     private static final class PreviewViewFactory implements ViewFactory {
         @Override
-        public Node createDashboard(Account account, Consumer<IncidentId> onOpenIncident) {
+        public Node createView(Account account, ApplicationRoute route, Consumer<IncidentId> onOpenIncident) {
             return switch (account.role()) {
             case REPORTER -> new ReporterPage();
             case RESPONDER -> UiComponents.feedback(
                     "Responder",
                     "Review eligible incidents and manage incidents assigned to you.",
                     FeedbackType.EMPTY);
-            case ADMINISTRATOR -> new AdminPage();
+            case ADMINISTRATOR -> UiComponents.feedback(
+                    "Administrator dashboard",
+                    "Monitor SLO targets and incidents across the company.",
+                    FeedbackType.EMPTY);
             };
         }
 

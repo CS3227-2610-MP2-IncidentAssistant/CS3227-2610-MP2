@@ -9,7 +9,7 @@ import javafx.scene.Node;
 
 /** Creates application views from centrally assembled services. */
 public interface ViewFactory {
-    Node createDashboard(Account account, Consumer<IncidentId> onOpenIncident);
+    Node createView(Account account, ApplicationRoute route, Consumer<IncidentId> onOpenIncident);
 
     Node createIncidentDetail(Account account, IncidentId incidentId, Runnable onBack);
 }

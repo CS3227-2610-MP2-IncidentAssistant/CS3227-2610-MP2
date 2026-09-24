@@ -388,6 +388,33 @@ public final class IncidentService {
         }
     }
 
+    /** Reads the administrator incident view with authorization rechecked around mapping. */
+    public ApplicationResult<List<IncidentRowModel>> administratorIncidents(
+            IncidentSearchCriteria criteria, IncidentPresentationMapper mapper) {
+        Objects.requireNonNull(criteria, "criteria");
+        Objects.requireNonNull(mapper, "mapper");
+        try {
+            Optional<Account> actor = currentActor();
+            if (actor.isEmpty() || actor.orElseThrow().role() != Role.ADMINISTRATOR) {
+                return unavailable();
+            }
+            Account administrator = actor.orElseThrow();
+            List<IncidentRowModel> rows = queryFor(administrator, criteria).stream()
+                    .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
+                    .sorted(criteria.sort().comparator())
+                    .map(mapper::toRow)
+                    .toList();
+            if (!actor.equals(currentActor())) {
+                return unavailable();
+            }
+            return ApplicationResult.success(rows);
+        } catch (SecurityException exception) {
+            return unavailable();
+        } catch (RepositoryException exception) {
+            return storageFailure(exception);
+        }
+    }
+
     private List<IncidentRowModel> dashboardRows(
             List<Incident> incidents, IncidentStatus status, IncidentPresentationMapper mapper) {
         return incidents.stream().filter(incident -> incident.status() == status).map(mapper::toRow).toList();
