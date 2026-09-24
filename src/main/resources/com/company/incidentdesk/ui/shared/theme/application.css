@@ -91,6 +91,27 @@
 .button:disabled { -fx-opacity: 0.55; -fx-cursor: default; }
 .role-button { -fx-pref-width: 220px; }
 
+.shell-product { -fx-font-size: 19px; -fx-font-weight: 700; -fx-text-fill: #FFFFFF; }
+.shell-brand { -fx-padding: 0 4px 12px 4px; }
+.shell-navigation {
+    -fx-pref-width: 232px;
+    -fx-background-color: #17233F;
+}
+.shell-navigation .button { -fx-text-fill: #D8E1F6; -fx-alignment: CENTER_LEFT; }
+.shell-navigation .active-navigation {
+    -fx-background-color: #4169D8;
+    -fx-border-color: #4169D8;
+    -fx-text-fill: #FFFFFF;
+}
+.shell-identity {
+    -fx-padding: 16px 8px 0 8px;
+    -fx-border-color: #596579 transparent transparent transparent;
+}
+.shell-user-name { -fx-text-fill: #FFFFFF; -fx-font-weight: 700; }
+.shell-user-role { -fx-text-fill: #D8E1F6; -fx-font-size: 12px; }
+.shell-navigation .avatar { -fx-background-color: #FFFFFF; -fx-text-fill: #17233F; }
+.shell-content { -fx-padding: 24px; }
+
 .text-field, .password-field, .text-area, .combo-box, .date-picker, .menu-button {
     -fx-min-height: 40px;
     -fx-pref-height: 40px;
@@ -191,6 +212,35 @@
 .toast { -fx-background-color: #FFFFFF; -fx-border-color: transparent transparent transparent #1F7A55; -fx-border-width: 0 0 0 4px; -fx-effect: dropshadow(gaussian, rgba(23, 35, 63, 0.16), 16, 0, 0, 5); }
 
 .notification-center { -fx-alignment: TOP_RIGHT; }
+.notification-center .button {
+    -fx-min-width: 36px;
+    -fx-pref-width: 36px;
+    -fx-max-width: 36px;
+    -fx-min-height: 36px;
+    -fx-pref-height: 36px;
+    -fx-max-height: 36px;
+    -fx-padding: 7px;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+.notification-center .button:hover { -fx-background-color: #F9FAFC; }
+.notification-bell { -fx-fill: #18243A; -fx-scale-x: 0.75; -fx-scale-y: 0.75; }
+.shell-navigation .notification-center .button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+}
+.shell-navigation .notification-bell { -fx-fill: #D8E1F6; }
+#notification-unseen-count {
+    -fx-min-width: 9px;
+    -fx-pref-width: 9px;
+    -fx-max-width: 9px;
+    -fx-min-height: 9px;
+    -fx-pref-height: 9px;
+    -fx-max-height: 9px;
+    -fx-padding: 0;
+    -fx-background-color: #4169D8;
+    -fx-text-fill: transparent;
+    -fx-font-size: 1px;
+}
 .notification-popover {
     -fx-pref-width: 360px;
     -fx-padding: 1px;

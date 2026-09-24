@@ -95,7 +95,8 @@ public final class ComponentShowcasePage extends BorderPane {
         subtitle.getStyleClass().add("muted");
         subtitle.setWrapText(true);
 
-        Button back = UiComponents.action("Back to role selection", ActionStyle.SECONDARY);
+        Button back = UiComponents.action("Back to sign in", ActionStyle.SECONDARY);
+        back.setId("showcase-back");
         back.setOnAction(event -> onBack.run());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);

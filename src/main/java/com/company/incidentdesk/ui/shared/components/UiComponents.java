@@ -31,6 +31,13 @@ public final class UiComponents {
         return badge;
     }
 
+    public static Label avatar(String initials, String personLabel) {
+        Label avatar = new Label(Objects.requireNonNull(initials, "initials"));
+        avatar.getStyleClass().add("avatar");
+        avatar.setAccessibleText("Avatar for " + Objects.requireNonNull(personLabel, "personLabel"));
+        return avatar;
+    }
+
     public static Button action(String text, ActionStyle style) {
         Button button = new Button(text);
         button.getStyleClass().add(style.styleClass());
@@ -96,8 +103,7 @@ public final class UiComponents {
             Instant sentAt,
             Clock clock,
             String messageText) {
-        Label avatar = new Label(initials);
-        avatar.getStyleClass().add("avatar");
+        Label avatar = avatar(initials, authorName);
 
         Label author = new Label(authorName);
         author.getStyleClass().add("comment-author");

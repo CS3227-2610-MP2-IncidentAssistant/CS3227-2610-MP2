@@ -36,6 +36,15 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.register('previewAuthenticatedShell', JavaExec) {
+    group = 'application'
+    description = 'Launches the test-only administrator login and authenticated-shell preview.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.company.incidentdesk.ui.navigation.AuthenticatedShellPreview'
+    jvmArgs = ['--enable-native-access=javafx.graphics']
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

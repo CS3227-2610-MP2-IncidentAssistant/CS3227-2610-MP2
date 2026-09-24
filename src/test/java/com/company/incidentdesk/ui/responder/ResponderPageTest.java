@@ -162,11 +162,11 @@ class ResponderPageTest {
         private final TableView<IncidentRowModel> assigned;
 
         private Fixture(Supplier<ApplicationResult<ResponderDashboardModel>> load) {
-            page = new ResponderPage(sessions, load, opened::add, () -> { });
+            page = new ResponderPage(sessions, load, opened::add);
             VBox content = (VBox) ((ScrollPane) page.getCenter()).getContent();
             FlowPane actions = (FlowPane) content.getChildren().get(2);
-            refresh = (Button) actions.getChildren().get(1);
-            open = (Button) actions.getChildren().get(2);
+            refresh = (Button) actions.getChildren().get(0);
+            open = (Button) actions.getChildren().get(1);
             feedback = (VBox) content.getChildren().get(3);
             eligible = tableIn((VBox) content.getChildren().get(4));
             assigned = tableIn((VBox) content.getChildren().get(5));
