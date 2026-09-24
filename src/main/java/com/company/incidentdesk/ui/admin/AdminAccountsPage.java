@@ -3,17 +3,24 @@ package com.company.incidentdesk.ui.admin;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.audit.AuditActorLabelResolver;
 import com.company.incidentdesk.domain.account.Account;
+import com.company.incidentdesk.domain.account.AccountStatus;
+import com.company.incidentdesk.domain.account.Role;
+import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
+import com.company.incidentdesk.ui.shared.components.SemanticTone;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -22,6 +29,7 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
 /** Administrator account directory. */
@@ -58,14 +66,46 @@ public final class AdminAccountsPage extends BorderPane {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.getColumns().add(column("Login name", account -> account.isDeleted()
                 ? AuditActorLabelResolver.DELETED_ACCOUNT_LABEL : account.loginName()));
-        table.getColumns().add(column("Role", account -> account.role().name()));
-        table.getColumns().add(column("Status", account -> account.status().name()));
-        table.getColumns().add(column("Responder categories", account -> account.responderAccess().isEmpty()
-                ? "" : account.responderAccess().categories().toString()));
+        table.getColumns().add(nodeColumn("Role", account -> roleBadge(account.role())));
+        table.getColumns().add(nodeColumn("Status", account -> statusBadge(account.status())));
+        table.getColumns().add(nodeColumn("Responder categories", this::categoryBadges));
         table.getColumns().add(actionColumn());
         table.getItems().setAll(accounts);
         table.setPlaceholder(new Label("No user accounts found"));
         return table;
+    }
+
+    private Label roleBadge(Role role) {
+        return switch (role) {
+        case REPORTER -> UiComponents.badge("Reporter", SemanticTone.NEUTRAL);
+        case RESPONDER -> UiComponents.badge("Responder", SemanticTone.INFO);
+        case ADMINISTRATOR -> UiComponents.badge("Administrator", SemanticTone.WARNING);
+        };
+    }
+
+    private Label statusBadge(AccountStatus status) {
+        return switch (status) {
+        case ENABLED -> UiComponents.badge("Enabled", SemanticTone.SUCCESS);
+        case DISABLED -> UiComponents.badge("Disabled", SemanticTone.WARNING);
+        case DELETED -> UiComponents.badge("Deleted", SemanticTone.NEUTRAL);
+        };
+    }
+
+    private Node categoryBadges(Account account) {
+        if (account.responderAccess().isEmpty()) {
+            return new Label("—");
+        }
+        FlowPane badges = new FlowPane(6, 6);
+        for (IncidentCategory category : IncidentCategory.values()) {
+            if (account.responderAccess().permits(category)) {
+                badges.getChildren().add(UiComponents.badge(category.displayName(), SemanticTone.INFO));
+            }
+        }
+        badges.setAccessibleText("Responder categories: " + account.responderAccess().categories().stream()
+                .map(IncidentCategory::displayName)
+                .sorted()
+                .collect(Collectors.joining(", ")));
+        return badges;
     }
 
     private TableColumn<Account, Void> actionColumn() {
@@ -115,6 +155,20 @@ public final class AdminAccountsPage extends BorderPane {
     private TableColumn<Account, String> column(String title, Function<Account, String> value) {
         TableColumn<Account, String> column = new TableColumn<>(title);
         column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+        return column;
+    }
+
+    private TableColumn<Account, Account> nodeColumn(String title, Function<Account, Node> value) {
+        TableColumn<Account, Account> column = new TableColumn<>(title);
+        column.setCellValueFactory(cell -> new ReadOnlyObjectWrapper<>(cell.getValue()));
+        column.setCellFactory(ignored -> new TableCell<>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                setGraphic(empty || account == null ? null : value.apply(account));
+                setText(null);
+            }
+        });
         return column;
     }
 }
