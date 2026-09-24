@@ -26,33 +26,36 @@ public final class IncidentSubmissionForm extends VBox {
     static final ValidationField TITLE = new ValidationField("title");
     static final ValidationField DESCRIPTION = new ValidationField("description");
     static final ValidationField CATEGORY = new ValidationField("category");
+    private final TextField title = new TextField();
+    private final TextArea description = new TextArea();
+    private final ComboBox<IncidentCategory> category = new ComboBox<>(
+            FXCollections.observableArrayList(IncidentCategory.values()));
+    private final ValidatedField titleField;
+    private final ValidatedField descriptionField;
+    private final ValidatedField categoryField;
 
     /** Creates the MVP reporter submission form. */
     public IncidentSubmissionForm(Consumer<Submission> onSubmit) {
         super(14);
         Consumer<Submission> requiredOnSubmit = Objects.requireNonNull(onSubmit, "onSubmit");
 
-        TextField title = new TextField();
         title.setId("incident-title");
         title.setPromptText("Brief incident title");
         title.setAccessibleText("Incident title");
 
-        TextArea description = new TextArea();
         description.setId("incident-description");
         description.setPromptText("Describe what happened");
         description.setWrapText(true);
         description.setAccessibleText("Incident description");
 
-        ComboBox<IncidentCategory> category = new ComboBox<>(
-                FXCollections.observableArrayList(IncidentCategory.values()));
         category.setId("incident-category");
         category.setPromptText("Select a category");
         category.setAccessibleText("Incident category");
         category.setConverter(categoryConverter());
 
-        ValidatedField titleField = UiComponents.field("Title", title);
-        ValidatedField descriptionField = UiComponents.field("Description", description);
-        ValidatedField categoryField = UiComponents.field("Category", category);
+        titleField = UiComponents.field("Title", title);
+        descriptionField = UiComponents.field("Description", description);
+        categoryField = UiComponents.field("Category", category);
 
         Button submit = UiComponents.action("Submit incident", ActionStyle.PRIMARY);
         submit.setId("submit-incident");
@@ -70,6 +73,19 @@ public final class IncidentSubmissionForm extends VBox {
                 descriptionField,
                 categoryField,
                 submit);
+    }
+
+    void clearAfterSuccess() {
+        title.clear();
+        description.clear();
+        category.setValue(null);
+        showServiceValidation(ValidationResult.valid());
+    }
+
+    void showServiceValidation(ValidationResult validation) {
+        showValidation(titleField, validation, TITLE, "Title is required.");
+        showValidation(descriptionField, validation, DESCRIPTION, "Description is required.");
+        showValidation(categoryField, validation, CATEGORY, "Category is required.");
     }
 
     static ValidationResult validateAndSubmit(Submission submission, Consumer<Submission> onSubmit) {
