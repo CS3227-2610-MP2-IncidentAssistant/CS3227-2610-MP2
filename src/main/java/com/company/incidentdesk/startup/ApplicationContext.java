@@ -9,6 +9,9 @@ import java.util.UUID;
 import com.company.incidentdesk.application.account.PasswordVerifier;
 import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
+import com.company.incidentdesk.application.attachment.AttachmentService;
+import com.company.incidentdesk.application.attachment.AttachmentLimits;
+import com.company.incidentdesk.domain.attachment.AttachmentId;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
@@ -37,6 +40,7 @@ public final class ApplicationContext implements AutoCloseable {
     private final AccountRegistrationService registrations;
     private final AccountDirectoryService accountDirectory;
     private final SloConfigurationService sloConfigurations;
+    private final AttachmentService attachments;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -47,7 +51,7 @@ public final class ApplicationContext implements AutoCloseable {
             NotificationService notificationService,
             AccountRegistrationService registrations,
             AccountDirectoryService accountDirectory,
-            SloConfigurationService sloConfigurations) {
+            SloConfigurationService sloConfigurations, AttachmentService attachments) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -57,6 +61,7 @@ public final class ApplicationContext implements AutoCloseable {
         this.registrations = registrations;
         this.accountDirectory = accountDirectory;
         this.sloConfigurations = sloConfigurations;
+        this.attachments = attachments;
     }
 
     public static ApplicationContext openDefault() {
@@ -103,13 +108,18 @@ public final class ApplicationContext implements AutoCloseable {
                 sessions, accountAuthorization, store.sloConfigurationStore(),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
                 () -> new SloTargetVersionId(UUID.randomUUID()));
+        AttachmentService attachments = new AttachmentService(sessions, store, store.attachmentStore(), authorization,
+                AttachmentLimits.DEFAULT, new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
+                clock, () -> new AttachmentId(UUID.randomUUID()));
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
-                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations);
+                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations, attachments);
     }
 
     public SessionService sessions() {
         return sessions;
     }
+
+    public AttachmentService attachments() { return attachments; }
 
     public NotificationInbox notifications() {
         return notifications;

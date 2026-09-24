@@ -30,6 +30,12 @@ accounts may exist, but only one user can operate the application at a time.
 - A shared incident-detail view.
 - Incident comment threads.
 - Image and video attachment upload and rendering.
+- Attachments support PNG/JPEG up to 10 MiB and MP4 with H.264 video and
+  optional AAC audio up to 50 MiB. An incident permits at most 5 attachments
+  and 100 MiB total. Limits are centrally configurable; image decoding is
+  limited to 40 million pixels. Unsupported media fails safely in the viewer.
+- Only the owning reporter can add attachments to a persisted `DRAFT` or
+  unassigned `SUBMITTED` incident. Viewing follows incident-detail permissions.
 - In-process notifications/events; notifications do not need to survive an
   application restart unless a later requirement says otherwise.
 - SLO countdown or status badges.
@@ -102,7 +108,6 @@ counts/rates, and configured SLO performance.
 The following are deliberately not invented by this document:
 
 - Additional incident form fields beyond title, description, and category.
-- Supported attachment formats and maximum sizes.
 - Whether registration is open or requires admin activation.
 - Business-hours, weekend, holiday, and pause rules for SLOs.
 - Whether an admin can recover the identity of an anonymous reporter through a

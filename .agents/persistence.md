@@ -70,11 +70,11 @@ authorization between sequentially logged-in accounts.
 - The application resolves its data directory from the
   `incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, and
   otherwise uses `.incident-desk` under the current user's home directory.
-- `incident-desk.dat` is one versioned aggregate state file. Schema version 1
+- `incident-desk.dat` is one versioned aggregate state file. Schema version 2
   persists accounts, salted PBKDF2 password credentials, incidents, comments,
   audits, and SLO target configuration
-  history, and reserves empty placeholder sections for attachment metadata and
-  promotion requests. The whole file shares one schema version; there is no
+  history and attachment metadata, and reserves an empty promotion-request
+  section. The whole file shares one schema version; there is no
   independent per-section versioning.
 - Each successful replacement retains one bounded last-known-good copy at
   `incident-desk.dat.bak`. Unique unfinished temporary files are never treated
@@ -88,3 +88,23 @@ authorization between sequentially logged-in accounts.
   Each migration must decode the old version deterministically, retain the
   pre-migration file as the backup, validate the new representation, and record
   the required migration audit event before that version is declared supported.
+
+### Attachment writes and version-1 compatibility
+
+- Existing version-1 files (including the credentials section) stay version 1
+  until the first successful attachment addition. That transaction upgrades to
+  version 2 and includes `DATA_MIGRATED` and `ATTACHMENT_ADDED` audit events.
+  The pre-upgrade file becomes the bounded backup; later writes rotate it as
+  usual. New empty stores use version 2. Older app versions cannot read v2.
+- Immutable blobs live in `attachments/<generated-UUID>.<validated-extension>`.
+  The extension is retained for native media compatibility. A flushed
+  `.pending-<UUID>` marker is created before staging and moving a blob. Only
+  after the blob is ready are its metadata and audit committed together.
+- On failure, only the new marked upload is removed. On restart, marked blobs
+  referenced by the canonical state or backup are retained; other marked
+  uploads are cleaned up. Unmarked files are never swept. Cleanup failures
+  retain the marker for the next restart and emit only a neutral diagnostic.
+- The attachment directory, source file, and stored blobs reject symbolic
+  links. Reads are bounded by metadata/configured limits. File fsync is used;
+  directory fsync is best effort where the OS does not support it. The
+  application does not defend against a local filesystem owner racing writes.

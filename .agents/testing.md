@@ -60,6 +60,12 @@
 - Attachment size/type/path validation and traversal attempts.
 - Attachment reads require current incident authorization.
 - Stored filenames do not disclose usernames or original paths.
+- Verify spoofed extensions, image pixel bounds, per-file/count/aggregate
+  limits, symlink rejection, failed-upload rollback, and pending-upload
+  recovery without deleting unrelated files.
+- Test version-1 attachment migration with a pre-upgrade backup and migration
+  audit. Verify image rendering, logout invalidation, and real H.264 playback
+  on each target OS; container-validation tests alone do not certify playback.
 
 ### Persistence and recovery
 

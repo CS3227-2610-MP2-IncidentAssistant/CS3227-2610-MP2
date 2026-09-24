@@ -44,9 +44,14 @@ public final class IncidentAuthorizationPolicy {
         return authorizeViewIncident(incident);
     }
 
-    /** Authorizes reading or adding attachments associated with an incident. */
+    /** Authorizes reading attachments associated with an incident. */
     public AuthorizationDecision authorizeAttachmentAccess(Incident incident) {
         return authorizeViewIncident(incident);
+    }
+
+    /** Attachments may be added only by the owner while report content is editable. */
+    public AuthorizationDecision authorizeAttachmentAddition(Incident incident) {
+        return authorizeEdit(incident, incident.anonymous());
     }
 
     /** Authorizes creating or saving a report for the supplied owner. */
