@@ -37,6 +37,21 @@ class AccountDirectoryServiceTest {
     }
 
     @Test
+    void deletedAccountsAreExcludedFromDirectory() {
+        Account administrator = account("admin", Role.ADMINISTRATOR);
+        InMemoryAccountRepository accounts = new InMemoryAccountRepository();
+        Account deleted = account("former-user", Role.REPORTER).tombstone();
+        accounts.create(account("active-user", Role.REPORTER));
+        accounts.create(deleted);
+
+        var result = new AccountDirectoryService(
+                new AccountAuthorizationPolicy(new MutableSessions(administrator)), accounts).listAccounts();
+
+        assertEquals(List.of("active-user"), result.value().orElseThrow().stream()
+                .map(Account::loginName).toList());
+    }
+
+    @Test
     void reporterAndMissingSessionCannotListAccounts() {
         MutableSessions sessions = new MutableSessions(account("reporter", Role.REPORTER));
         AccountDirectoryService service = new AccountDirectoryService(

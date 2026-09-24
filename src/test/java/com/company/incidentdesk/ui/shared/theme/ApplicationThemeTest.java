@@ -23,6 +23,10 @@ class ApplicationThemeTest {
         String normalizedCss = css.replace("\r\n", "\n");
         assertTrue(css.contains(".button.primary"));
         assertTrue(css.contains(".button.danger"));
+        assertTrue(normalizedCss.matches("(?s).*\\.button\\.danger:disabled \\{[^}]*"
+                + "-fx-text-fill: #B33A3A;[^}]*}.*"));
+        assertTrue(css.contains(".table-row-cell:selected .table-cell { -fx-text-fill: #18243A; }"));
+        assertTrue(!css.contains(".table-row-cell:selected .text"));
         assertTrue(normalizedCss.matches("(?s).*\\.button \\{[^}]*-fx-padding: 8px 14px;"
                 + "[^}]*-fx-border-width: 2px;[^}]*}.*"));
         assertTrue(css.contains(".badge.success"));

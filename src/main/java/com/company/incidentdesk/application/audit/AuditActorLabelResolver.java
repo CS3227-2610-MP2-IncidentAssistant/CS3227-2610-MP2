@@ -23,7 +23,7 @@ public final class AuditActorLabelResolver {
             return ANONYMOUS_REPORTER_LABEL;
         }
         return accountLookup.findById(requiredActor.accountId())
-                .map(account -> account.loginName())
+                .map(account -> account.isDeleted() ? DELETED_ACCOUNT_LABEL : account.loginName())
                 .orElse(DELETED_ACCOUNT_LABEL);
     }
 }

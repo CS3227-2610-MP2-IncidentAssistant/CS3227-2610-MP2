@@ -53,11 +53,7 @@ public final class ApplicationNavigator implements AutoCloseable {
         Account account = sessions.currentAccount().orElse(null);
         AuthenticatedSession session = sessions.currentSession().orElse(null);
         if (account == null || session == null || !session.accountId().equals(account.id())) {
-            if (route.isAdministratorOnly()) {
-                showUnavailable();
-            } else {
-                showAuthentication();
-            }
+            showAuthentication();
             return;
         }
         ensureShell(account, session);
@@ -79,7 +75,7 @@ public final class ApplicationNavigator implements AutoCloseable {
         }
         AuthenticatedSession session = sessions.currentSession().orElse(null);
         if (session == null || !session.accountId().equals(account.id())) {
-            showUnavailable();
+            showAuthentication();
             return;
         }
         ensureShell(account, session);
@@ -125,11 +121,6 @@ public final class ApplicationNavigator implements AutoCloseable {
         shellAccount = null;
         shellSession = null;
         retainedViews.clear();
-    }
-
-    private void showUnavailable() {
-        clearShell();
-        scene.setRoot(unavailableView());
     }
 
     private VBox unavailableView() {

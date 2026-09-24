@@ -147,7 +147,7 @@ class ApplicationNavigatorTest {
                     missingScene, new MutableSessions(null), new NotificationInbox(),
                     new RecordingViews(), (name, password, role) -> null);
             missingNavigator.navigate(ApplicationRoute.ADMIN_ACCOUNTS);
-            assertTrue(missingScene.lookup(".feedback-card") != null);
+            assertInstanceOf(AuthenticationPage.class, missingScene.getRoot());
 
             Scene reporterScene = new Scene(new VBox());
             ApplicationNavigator reporterNavigator = new ApplicationNavigator(
@@ -207,10 +207,32 @@ class ApplicationNavigatorTest {
     void missingSessionRedirectsProtectedNavigationToAuthentication() throws Exception {
         onFx(() -> {
             MutableSessions sessions = new MutableSessions(null);
+            for (ApplicationRoute route : ApplicationRoute.values()) {
+                Scene scene = new Scene(new VBox());
+                ApplicationNavigator navigator = new ApplicationNavigator(
+                        scene, sessions, new NotificationInbox(), new RecordingViews(),
+                        (name, password, role) -> null);
+                navigator.navigate(route);
+                assertInstanceOf(AuthenticationPage.class, scene.getRoot());
+                navigator.close();
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void sessionLossFromDashboardAndIncidentDetailReturnsToAuthentication() throws Exception {
+        onFx(() -> {
+            MutableSessions sessions = new MutableSessions(account(Role.ADMINISTRATOR));
             Scene scene = new Scene(new VBox());
             ApplicationNavigator navigator = new ApplicationNavigator(
-                    scene, sessions, new NotificationInbox(), new RecordingViews(), (name, password, role) -> null);
-            navigator.navigate(ApplicationRoute.DASHBOARD);
+                    scene, sessions, new NotificationInbox(), new RecordingViews(),
+                    (name, password, role) -> null);
+            navigator.start();
+            sessions.account = null;
+
+            navigator.openIncident(new IncidentId(UUID.randomUUID()));
+
             assertInstanceOf(AuthenticationPage.class, scene.getRoot());
             navigator.close();
             return null;

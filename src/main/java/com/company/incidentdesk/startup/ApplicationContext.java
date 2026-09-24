@@ -9,6 +9,7 @@ import java.util.UUID;
 import com.company.incidentdesk.application.account.PasswordVerifier;
 import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
+import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
@@ -36,6 +37,7 @@ public final class ApplicationContext implements AutoCloseable {
     private final NotificationService notificationService;
     private final AccountRegistrationService registrations;
     private final AccountDirectoryService accountDirectory;
+    private final AccountDeletionService accountDeletion;
     private final SloConfigurationService sloConfigurations;
 
     private ApplicationContext(
@@ -47,6 +49,7 @@ public final class ApplicationContext implements AutoCloseable {
             NotificationService notificationService,
             AccountRegistrationService registrations,
             AccountDirectoryService accountDirectory,
+            AccountDeletionService accountDeletion,
             SloConfigurationService sloConfigurations) {
         this.store = store;
         this.sessions = sessions;
@@ -56,6 +59,7 @@ public final class ApplicationContext implements AutoCloseable {
         this.notificationService = notificationService;
         this.registrations = registrations;
         this.accountDirectory = accountDirectory;
+        this.accountDeletion = accountDeletion;
         this.sloConfigurations = sloConfigurations;
     }
 
@@ -99,12 +103,15 @@ public final class ApplicationContext implements AutoCloseable {
         IncidentPresentationMapper mapper = new IncidentPresentationMapper(
                 store, authorization, ZoneId.systemDefault(), DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm"));
         AccountDirectoryService accountDirectory = new AccountDirectoryService(accountAuthorization, store);
+        AccountDeletionService accountDeletion = new AccountDeletionService(sessions, accountAuthorization, store,
+                new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())));
         SloConfigurationService sloConfigurations = new SloConfigurationService(
                 sessions, accountAuthorization, store.sloConfigurationStore(),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
                 () -> new SloTargetVersionId(UUID.randomUUID()));
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
-                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations);
+                Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion,
+                sloConfigurations);
     }
 
     public SessionService sessions() {
@@ -129,6 +136,10 @@ public final class ApplicationContext implements AutoCloseable {
 
     public AccountDirectoryService accountDirectory() {
         return accountDirectory;
+    }
+
+    public AccountDeletionService accountDeletion() {
+        return accountDeletion;
     }
 
     public SloConfigurationService sloConfigurations() {
