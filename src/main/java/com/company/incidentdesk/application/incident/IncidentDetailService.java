@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
@@ -18,6 +19,7 @@ import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.application.session.SessionProvider;
+import com.company.incidentdesk.application.session.AuthenticatedSession;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -60,8 +62,8 @@ public final class IncidentDetailService {
     /** Loads one privacy-safe detail snapshot, rechecking the active account after related reads. */
     public ApplicationResult<IncidentDetailModel> detail(IncidentId id) {
         Objects.requireNonNull(id, "id");
-        Optional<Account> actor = sessions.currentAccount().filter(Account::isEnabled);
-        if (actor.isEmpty()) {
+        BooleanSupplier authorized = viewGuard(id);
+        if (!authorized.getAsBoolean()) {
             return unavailable();
         }
         try {
@@ -78,7 +80,7 @@ public final class IncidentDetailService {
             SloSummaryModel slo = sloSummary(incident);
             IncidentDetailModel detail = mapper.toDetail(incident,
                     commentResult.value().orElseThrow(), attachmentResult.value().orElseThrow(), slo);
-            if (!actor.equals(sessions.currentAccount().filter(Account::isEnabled))) {
+            if (!authorized.getAsBoolean()) {
                 return unavailable();
             }
             return ApplicationResult.success(detail);
@@ -90,6 +92,38 @@ public final class IncidentDetailService {
             return unavailable();
         }
     }
+
+    /** Pins the session and permissions for a view while checking current incident access. */
+    public BooleanSupplier viewGuard(IncidentId id) {
+        Objects.requireNonNull(id, "id");
+        Optional<ViewContext> context = currentContext();
+        return () -> {
+            try {
+                return context.isPresent() && context.equals(currentContext())
+                        && incidents.findById(id)
+                                .filter(incident -> authorization.authorizeViewIncident(incident).isAllowed())
+                                .isPresent();
+            } catch (RepositoryException exception) {
+                return false;
+            }
+        };
+    }
+
+    private Optional<ViewContext> currentContext() {
+        try {
+            Optional<AuthenticatedSession> session = sessions.currentSession();
+            Optional<Account> account = sessions.currentAccount().filter(Account::isEnabled);
+            if (session.isEmpty() || account.isEmpty()
+                    || !session.orElseThrow().accountId().equals(account.orElseThrow().id())) {
+                return Optional.empty();
+            }
+            return Optional.of(new ViewContext(session.orElseThrow(), account.orElseThrow()));
+        } catch (RepositoryException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private record ViewContext(AuthenticatedSession session, Account account) { }
 
     private SloSummaryModel sloSummary(Incident incident) {
         var now = clock.instant();
