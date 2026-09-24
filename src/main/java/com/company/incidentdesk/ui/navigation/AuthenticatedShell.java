@@ -1,7 +1,11 @@
 package com.company.incidentdesk.ui.navigation;
 
+import java.util.EnumMap;
 import java.util.Objects;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import com.company.incidentdesk.application.notification.NotificationInbox;
 import com.company.incidentdesk.domain.account.Account;
@@ -24,6 +28,7 @@ import javafx.scene.layout.VBox;
 public final class AuthenticatedShell extends BorderPane implements AutoCloseable {
     private final NotificationCenter notificationCenter;
     private final VBox content = new VBox();
+    private final Map<ApplicationRoute, Button> navigationButtons = new EnumMap<>(ApplicationRoute.class);
 
     public AuthenticatedShell(
             Account account,
@@ -43,9 +48,34 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
         getStyleClass().add("authenticated-shell");
     }
 
-    public void show(Node view) {
+    public void show(ApplicationRoute route, Node view) {
+        selectRoute(Objects.requireNonNull(route, "route"));
+        showContent(view);
+    }
+
+    public void showDetail(Node view) {
+        showContent(view);
+    }
+
+    public void showUnavailable(Node view) {
+        selectRoute(null);
+        showContent(view);
+    }
+
+    private void showContent(Node view) {
         content.getChildren().setAll(Objects.requireNonNull(view, "view"));
         VBox.setVgrow(view, Priority.ALWAYS);
+    }
+
+    private void selectRoute(ApplicationRoute selectedRoute) {
+        navigationButtons.forEach((route, button) -> {
+            boolean selected = route == selectedRoute;
+            if (selected && !button.getStyleClass().contains("active-navigation")) {
+                button.getStyleClass().add("active-navigation");
+            } else if (!selected) {
+                button.getStyleClass().remove("active-navigation");
+            }
+        });
     }
 
     private VBox createNavigation(
@@ -60,11 +90,11 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
         brand.setAlignment(Pos.CENTER_LEFT);
         brand.getStyleClass().add("shell-brand");
 
-        Button dashboard = UiComponents.action(ApplicationRoute.DASHBOARD.label(), ActionStyle.GHOST);
-        dashboard.setMaxWidth(Double.MAX_VALUE);
-        dashboard.setId("dashboard-navigation");
-        dashboard.getStyleClass().add("active-navigation");
-        dashboard.setOnAction(event -> onNavigate.accept(ApplicationRoute.DASHBOARD));
+        VBox destinations = new VBox(8);
+        Stream.of(ApplicationRoute.values())
+                .filter(route -> route.isAvailableTo(account.role()))
+                .map(route -> navigationButton(route, onNavigate))
+                .forEach(destinations.getChildren()::add);
         HBox identity = createIdentity(account);
         Button logout = UiComponents.action("Log out", ActionStyle.GHOST);
         logout.setId("logout-navigation");
@@ -74,10 +104,21 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
 
         Region navigationSpacer = new Region();
         VBox.setVgrow(navigationSpacer, Priority.ALWAYS);
-        VBox navigation = new VBox(16, brand, dashboard, navigationSpacer, identity, logout);
+        VBox navigation = new VBox(16, brand, destinations, navigationSpacer, identity, logout);
         navigation.setPadding(new Insets(20, 12, 20, 12));
         navigation.getStyleClass().add("shell-navigation");
         return navigation;
+    }
+
+    private Button navigationButton(
+            ApplicationRoute route,
+            Consumer<ApplicationRoute> onNavigate) {
+        Button button = UiComponents.action(route.label(), ActionStyle.GHOST);
+        button.setMaxWidth(Double.MAX_VALUE);
+        button.setId(route.name().toLowerCase(Locale.ROOT).replace('_', '-') + "-navigation");
+        button.setOnAction(event -> onNavigate.accept(route));
+        navigationButtons.put(route, button);
+        return button;
     }
 
     private static HBox createIdentity(Account account) {

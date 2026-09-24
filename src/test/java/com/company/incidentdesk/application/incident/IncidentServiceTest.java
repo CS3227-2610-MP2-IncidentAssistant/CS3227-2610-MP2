@@ -42,6 +42,7 @@ import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentLifecycle;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
 import com.company.incidentdesk.persistence.IncidentSort;
+import com.company.incidentdesk.persistence.IncidentSearchCriteria;
 import com.company.incidentdesk.persistence.RepositoryException;
 import com.company.incidentdesk.persistence.StorageFailureCode;
 import com.company.incidentdesk.persistence.memory.InMemoryAccountRepository;
@@ -334,6 +335,34 @@ class IncidentServiceTest {
             sessions.signIn(actor);
             assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
                     service.responderDashboard(dashboardMapper()).error().orElseThrow().code());
+        }
+    }
+
+    @Test
+    void administratorIncidentViewReturnsAuthorizedPrivacySafeRows() {
+        incidents.create(dashboardIncident(1, IncidentCategory.IT, false));
+        incidents.create(dashboardIncident(2, IncidentCategory.FACILITIES, true));
+        sessions.signIn(administrator());
+
+        ApplicationResult<List<IncidentRowModel>> result = service.administratorIncidents(
+                IncidentSearchCriteria.defaults(), dashboardMapper());
+
+        assertTrue(result.isSuccess());
+        assertEquals(2, result.value().orElseThrow().size());
+        assertEquals("Anonymous reporter", result.value().orElseThrow().stream()
+                .filter(IncidentRowModel::anonymous).findFirst().orElseThrow().reporterLabel());
+    }
+
+    @Test
+    void administratorIncidentViewDeniesMissingAndNonAdministratorSessions() {
+        assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
+                service.administratorIncidents(IncidentSearchCriteria.defaults(), dashboardMapper())
+                        .error().orElseThrow().code());
+        for (Account actor : List.of(reporter(REPORTER_ID), responder(RESPONDER_ID, IncidentCategory.IT))) {
+            sessions.signIn(actor);
+            assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
+                    service.administratorIncidents(IncidentSearchCriteria.defaults(), dashboardMapper())
+                            .error().orElseThrow().code());
         }
     }
 

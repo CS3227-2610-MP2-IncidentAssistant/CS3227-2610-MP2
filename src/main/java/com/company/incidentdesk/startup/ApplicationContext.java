@@ -8,8 +8,10 @@ import java.util.UUID;
 
 import com.company.incidentdesk.application.account.PasswordVerifier;
 import com.company.incidentdesk.application.account.AccountRegistrationService;
+import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
 import com.company.incidentdesk.application.event.InProcessApplicationEventBus;
 import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.notification.NotificationInbox;
@@ -17,9 +19,11 @@ import com.company.incidentdesk.application.notification.NotificationService;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.session.SessionService;
+import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentLifecycle;
+import com.company.incidentdesk.domain.slo.SloTargetVersionId;
 import com.company.incidentdesk.persistence.file.LocalApplicationStore;
 
 /** Centrally assembled, process-wide application services. */
@@ -31,6 +35,8 @@ public final class ApplicationContext implements AutoCloseable {
     private final IncidentPresentationMapper presentationMapper;
     private final NotificationService notificationService;
     private final AccountRegistrationService registrations;
+    private final AccountDirectoryService accountDirectory;
+    private final SloConfigurationService sloConfigurations;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -39,7 +45,9 @@ public final class ApplicationContext implements AutoCloseable {
             IncidentService incidents,
             IncidentPresentationMapper presentationMapper,
             NotificationService notificationService,
-            AccountRegistrationService registrations) {
+            AccountRegistrationService registrations,
+            AccountDirectoryService accountDirectory,
+            SloConfigurationService sloConfigurations) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -47,6 +55,8 @@ public final class ApplicationContext implements AutoCloseable {
         this.presentationMapper = presentationMapper;
         this.notificationService = notificationService;
         this.registrations = registrations;
+        this.accountDirectory = accountDirectory;
+        this.sloConfigurations = sloConfigurations;
     }
 
     public static ApplicationContext openDefault() {
@@ -71,6 +81,7 @@ public final class ApplicationContext implements AutoCloseable {
         Objects.requireNonNull(clock, "clock");
         SessionService sessions = new InMemorySessionService(store, passwordVerifier, clock);
         IncidentAuthorizationPolicy authorization = new IncidentAuthorizationPolicy(sessions);
+        AccountAuthorizationPolicy accountAuthorization = new AccountAuthorizationPolicy(sessions);
         InProcessApplicationEventBus events = InProcessApplicationEventBus.onJavaFxThread(
                 ApplicationContext::reportSubscriberFailure);
         NotificationInbox notifications = new NotificationInbox();
@@ -87,8 +98,13 @@ public final class ApplicationContext implements AutoCloseable {
                 events::publish);
         IncidentPresentationMapper mapper = new IncidentPresentationMapper(
                 store, authorization, ZoneId.systemDefault(), DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm"));
+        AccountDirectoryService accountDirectory = new AccountDirectoryService(accountAuthorization, store);
+        SloConfigurationService sloConfigurations = new SloConfigurationService(
+                sessions, accountAuthorization, store.sloConfigurationStore(),
+                new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
+                () -> new SloTargetVersionId(UUID.randomUUID()));
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
-                Objects.requireNonNull(registrations, "registrations"));
+                Objects.requireNonNull(registrations, "registrations"), accountDirectory, sloConfigurations);
     }
 
     public SessionService sessions() {
@@ -109,6 +125,14 @@ public final class ApplicationContext implements AutoCloseable {
 
     public AccountRegistrationService registrations() {
         return registrations;
+    }
+
+    public AccountDirectoryService accountDirectory() {
+        return accountDirectory;
+    }
+
+    public SloConfigurationService sloConfigurations() {
+        return sloConfigurations;
     }
 
     private static void reportSubscriberFailure(RuntimeException exception) {

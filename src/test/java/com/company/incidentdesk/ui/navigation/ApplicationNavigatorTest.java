@@ -93,8 +93,92 @@ class ApplicationNavigatorTest {
             AuthenticatedShell shell = assertInstanceOf(AuthenticatedShell.class, scene.getRoot());
             assertEquals(null, shell.getTop());
             assertEquals("A", ((Label) scene.lookup("#current-user-avatar")).getText());
+            assertTrue(scene.lookup("#dashboard-navigation").getStyleClass().contains("active-navigation"));
             ((Button) scene.lookup("#logout-navigation")).fire();
             assertTrue(sessions.logoutCalled);
+            navigator.close();
+            return null;
+        });
+    }
+
+    @Test
+    void selectedRouteReceivesActiveNavigationStyle() throws Exception {
+        onFx(() -> {
+            Scene scene = new Scene(new VBox());
+            ApplicationNavigator navigator = new ApplicationNavigator(
+                    scene, new MutableSessions(account(Role.ADMINISTRATOR)), new NotificationInbox(),
+                    new RecordingViews(), (name, password, role) -> null);
+            navigator.start();
+
+            Node dashboard = scene.lookup("#dashboard-navigation");
+            Node accounts = scene.lookup("#admin-accounts-navigation");
+            navigator.navigate(ApplicationRoute.ADMIN_ACCOUNTS);
+
+            assertTrue(!dashboard.getStyleClass().contains("active-navigation"));
+            assertTrue(accounts.getStyleClass().contains("active-navigation"));
+            navigator.close();
+            return null;
+        });
+    }
+
+    @Test
+    void administratorDestinationsAreVisibleOnlyToAdministrators() throws Exception {
+        for (Role role : Role.values()) {
+            onFx(() -> {
+                Scene scene = new Scene(new VBox());
+                ApplicationNavigator navigator = new ApplicationNavigator(
+                        scene, new MutableSessions(account(role)), new NotificationInbox(),
+                        new RecordingViews(), (name, password, selectedRole) -> null);
+                navigator.start();
+                boolean shouldBeVisible = role == Role.ADMINISTRATOR;
+                assertEquals(shouldBeVisible, scene.lookup("#admin-accounts-navigation") != null);
+                assertEquals(shouldBeVisible, scene.lookup("#admin-slo-navigation") != null);
+                navigator.close();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void directAdministratorNavigationFailsClosedForMissingAndReporterSessions() throws Exception {
+        onFx(() -> {
+            Scene missingScene = new Scene(new VBox());
+            ApplicationNavigator missingNavigator = new ApplicationNavigator(
+                    missingScene, new MutableSessions(null), new NotificationInbox(),
+                    new RecordingViews(), (name, password, role) -> null);
+            missingNavigator.navigate(ApplicationRoute.ADMIN_ACCOUNTS);
+            assertTrue(missingScene.lookup(".feedback-card") != null);
+
+            Scene reporterScene = new Scene(new VBox());
+            ApplicationNavigator reporterNavigator = new ApplicationNavigator(
+                    reporterScene, new MutableSessions(account(Role.REPORTER)), new NotificationInbox(),
+                    new RecordingViews(), (name, password, role) -> null);
+            reporterNavigator.start();
+            reporterNavigator.navigate(ApplicationRoute.ADMIN_ACCOUNTS);
+            assertInstanceOf(AuthenticatedShell.class, reporterScene.getRoot());
+            assertTrue(reporterScene.lookup(".feedback-card") != null);
+            missingNavigator.close();
+            reporterNavigator.close();
+            return null;
+        });
+    }
+
+    @Test
+    void replacementSessionRebuildsShellAndDropsRetainedViews() throws Exception {
+        onFx(() -> {
+            MutableSessions sessions = new MutableSessions(account(Role.ADMINISTRATOR));
+            RecordingViews views = new RecordingViews();
+            Scene scene = new Scene(new VBox());
+            ApplicationNavigator navigator = new ApplicationNavigator(
+                    scene, sessions, new NotificationInbox(), views, (name, password, role) -> null);
+            navigator.start();
+            Node firstDashboard = scene.lookup("#dashboard-view");
+
+            sessions.authenticatedAt = sessions.authenticatedAt.plusSeconds(1);
+            navigator.navigate(ApplicationRoute.DASHBOARD);
+
+            assertTrue(firstDashboard != scene.lookup("#dashboard-view"));
+            assertEquals(2, views.dashboardCreations);
             navigator.close();
             return null;
         });
@@ -172,7 +256,7 @@ class ApplicationNavigatorTest {
         private Runnable back;
 
         @Override
-        public Node createDashboard(Account account, Consumer<IncidentId> onOpenIncident) {
+        public Node createView(Account account, ApplicationRoute route, Consumer<IncidentId> onOpenIncident) {
             dashboardCreations++;
             Label dashboard = new Label(account.role().name());
             dashboard.setId("dashboard-view");
@@ -191,6 +275,7 @@ class ApplicationNavigatorTest {
     private static final class MutableSessions implements SessionService {
         private Account account;
         private boolean logoutCalled;
+        private Instant authenticatedAt = Instant.EPOCH;
 
         private MutableSessions(Account account) {
             this.account = account;
@@ -209,7 +294,7 @@ class ApplicationNavigatorTest {
 
         @Override
         public Optional<AuthenticatedSession> currentSession() {
-            return Optional.ofNullable(account).map(value -> new AuthenticatedSession(value.id(), Instant.EPOCH));
+            return Optional.ofNullable(account).map(value -> new AuthenticatedSession(value.id(), authenticatedAt));
         }
 
         @Override

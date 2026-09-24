@@ -30,7 +30,9 @@ public final class IncidentDeskApplication extends Application {
                 new DefaultViewFactory(
                         applicationContext.incidents(),
                         applicationContext.presentationMapper(),
-                        applicationContext.sessions()),
+                        applicationContext.sessions(),
+                        applicationContext.accountDirectory(),
+                        applicationContext.sloConfigurations()),
                 applicationContext.registrations());
         navigator.start();
         primaryStage.setTitle("Incident Desk");

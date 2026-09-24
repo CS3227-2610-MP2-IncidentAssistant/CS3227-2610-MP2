@@ -43,6 +43,11 @@ public final class AccountAuthorizationPolicy {
         return authorizeAdministrator();
     }
 
+    /** Authorizes viewing the administrator account directory. */
+    public AuthorizationDecision authorizeAccountDirectory() {
+        return authorizeAdministrator();
+    }
+
     /** Authorizes configuring category SLO targets. */
     public AuthorizationDecision authorizeSloConfiguration() {
         return authorizeAdministrator();
