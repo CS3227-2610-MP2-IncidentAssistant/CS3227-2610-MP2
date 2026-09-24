@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +71,38 @@ class IncidentCommentThreadTest {
             thread.setOnSubmit(text -> true);
             submit.fire();
             assertEquals("", composer.getText());
+        });
+    }
+
+    @Test
+    void asynchronousSubmissionKeepsDraftOnFailureAndClearsItOnSuccess() throws Exception {
+        CompletableFuture<Boolean> failed = new CompletableFuture<>();
+        CompletableFuture<Boolean> succeeded = new CompletableFuture<>();
+        IncidentCommentThread thread = new IncidentCommentThread();
+        runOnJavaFx(() -> {
+            TextArea composer = (TextArea) thread.getChildren().get(1);
+            Button submit = (Button) ((HBox) thread.getChildren().get(2)).getChildren().getFirst();
+            composer.setText("Keep until accepted");
+            thread.setOnSubmitAsync(ignored -> failed);
+            submit.fire();
+            assertTrue(submit.isDisabled());
+        });
+        failed.complete(false);
+        runOnJavaFx(() -> {
+            TextArea composer = (TextArea) thread.getChildren().get(1);
+            Button submit = (Button) ((HBox) thread.getChildren().get(2)).getChildren().getFirst();
+            assertEquals("Keep until accepted", composer.getText());
+            assertTrue(!submit.isDisabled());
+            thread.setOnSubmitAsync(ignored -> succeeded);
+            submit.fire();
+            assertTrue(submit.isDisabled());
+        });
+        succeeded.complete(true);
+        runOnJavaFx(() -> {
+            TextArea composer = (TextArea) thread.getChildren().get(1);
+            Button submit = (Button) ((HBox) thread.getChildren().get(2)).getChildren().getFirst();
+            assertEquals("", composer.getText());
+            assertTrue(!submit.isDisabled());
         });
     }
 
