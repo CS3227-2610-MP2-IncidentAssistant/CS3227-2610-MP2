@@ -14,6 +14,7 @@ import java.util.Optional;
 import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.application.account.AccountRegistration;
 import com.company.incidentdesk.application.account.AccountRegistrationStore;
+import com.company.incidentdesk.application.account.AccountDeletionStore;
 import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
@@ -44,7 +45,8 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
 public final class LocalApplicationStore
-        implements AccountRepository, AccountRegistrationStore, IncidentStore, AuditRepository, AutoCloseable {
+        implements AccountRepository, AccountRegistrationStore, AccountDeletionStore, IncidentStore, AuditRepository,
+        AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
     private final ApplicationProcessLock processLock;
@@ -134,6 +136,28 @@ public final class LocalApplicationStore
     @Override
     public synchronized Optional<PasswordCredential> findCredential(AccountId accountId) {
         return Optional.ofNullable(state.credentials().get(Objects.requireNonNull(accountId, "accountId")));
+    }
+
+    @Override
+    public synchronized void delete(Account tombstone, AuditEvent auditEvent) {
+        Account required = Objects.requireNonNull(tombstone, "tombstone");
+        AuditEvent requiredAudit = Objects.requireNonNull(auditEvent, "auditEvent");
+        if (!required.isDeleted()) {
+            throw new IllegalArgumentException("account deletion requires a tombstone");
+        }
+        rejectDuplicateAudit(requiredAudit);
+        Map<AccountId, Account> accounts = new LinkedHashMap<>(state.accounts());
+        Account existing = accounts.get(required.id());
+        if (existing == null || existing.isDeleted()) {
+            throw new RepositoryException(StorageFailureCode.NOT_FOUND, "active account does not exist");
+        }
+        accounts.put(required.id(), required);
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>(state.credentials());
+        credentials.remove(required.id());
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(requiredAudit);
+        persist(new LocalApplicationState(accounts, credentials, state.incidents(), state.comments(), audits,
+                state.sloTargetVersions()));
     }
 
     @Override

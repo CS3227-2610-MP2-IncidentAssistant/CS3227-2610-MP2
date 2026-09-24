@@ -28,6 +28,7 @@ public final class AccountDirectoryService {
         }
         try {
             List<Account> result = accounts.findAll().stream()
+                    .filter(account -> !account.isDeleted())
                     .sorted(Comparator.comparing(Account::loginName)).toList();
             if (!authorization.authorizeAccountDirectory().isAllowed()) {
                 return ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE));

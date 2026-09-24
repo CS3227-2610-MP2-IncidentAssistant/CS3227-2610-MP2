@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 
 import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
+import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.session.SessionProvider;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
@@ -29,6 +30,7 @@ public final class DefaultViewFactory implements ViewFactory {
     private final IncidentPresentationMapper mapper;
     private final SessionProvider sessions;
     private final AccountDirectoryService accounts;
+    private final AccountDeletionService accountDeletion;
     private final SloConfigurationService sloConfigurations;
 
     public DefaultViewFactory(
@@ -36,11 +38,13 @@ public final class DefaultViewFactory implements ViewFactory {
             IncidentPresentationMapper mapper,
             SessionProvider sessions,
             AccountDirectoryService accounts,
+            AccountDeletionService accountDeletion,
             SloConfigurationService sloConfigurations) {
         this.incidents = Objects.requireNonNull(incidents, "incidents");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
+        this.accountDeletion = Objects.requireNonNull(accountDeletion, "accountDeletion");
         this.sloConfigurations = Objects.requireNonNull(sloConfigurations, "sloConfigurations");
     }
 
@@ -52,7 +56,7 @@ public final class DefaultViewFactory implements ViewFactory {
         }
         if (route.isAdministratorOnly()) {
             return switch (route) {
-            case ADMIN_ACCOUNTS -> new AdminAccountsPage(accounts);
+            case ADMIN_ACCOUNTS -> new AdminAccountsPage(accounts, accountDeletion);
             case ADMIN_SLO -> new AdminSloPage(sloConfigurations);
             case DASHBOARD -> throw new IllegalStateException("Dashboard handled below");
             };

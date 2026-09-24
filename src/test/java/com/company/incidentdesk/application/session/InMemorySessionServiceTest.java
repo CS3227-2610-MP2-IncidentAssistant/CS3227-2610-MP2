@@ -116,6 +116,16 @@ class InMemorySessionServiceTest {
     }
 
     @Test
+    void deletedAccountCannotAuthenticateEvenWhenCredentialVerifierWouldAcceptIt() {
+        Account deleted = reporter(FIRST_ID, "deleted:" + FIRST_ID.value(), AccountStatus.DELETED);
+        addValidAccount(deleted);
+
+        assertEquals(AuthenticationResult.REJECTED,
+                sessionService.login(deleted.loginName(), VALID_PASSWORD));
+        assertTrue(sessionService.currentSession().isEmpty());
+    }
+
+    @Test
     void disablingCurrentAccountInvalidatesSession() {
         Account enabled = reporter(FIRST_ID, "reporter", AccountStatus.ENABLED);
         addValidAccount(enabled);

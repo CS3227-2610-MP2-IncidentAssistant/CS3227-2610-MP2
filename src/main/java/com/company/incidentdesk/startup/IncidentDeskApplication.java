@@ -32,6 +32,7 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.presentationMapper(),
                         applicationContext.sessions(),
                         applicationContext.accountDirectory(),
+                        applicationContext.accountDeletion(),
                         applicationContext.sloConfigurations()),
                 applicationContext.registrations());
         navigator.start();
