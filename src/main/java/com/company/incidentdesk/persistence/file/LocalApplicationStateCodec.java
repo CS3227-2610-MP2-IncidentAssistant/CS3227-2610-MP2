@@ -126,6 +126,8 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             byte[] hash = credential.hash();
             output.writeInt(hash.length);
             output.write(hash);
+            output.writeBoolean(credential.temporary());
+            writeOptionalInstant(output, credential.expiresAt());
         }
     }
 
@@ -138,7 +140,10 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             int iterations = input.readInt();
             byte[] salt = input.readNBytes(readByteArrayLength(input));
             byte[] hash = input.readNBytes(readByteArrayLength(input));
-            requireUnique(credentials.put(id, new PasswordCredential(algorithm, iterations, salt, hash)),
+            boolean temporary = input.readBoolean();
+            Optional<Instant> expiresAt = readOptionalInstant(input);
+            requireUnique(credentials.put(id,
+                    new PasswordCredential(algorithm, iterations, salt, hash, temporary, expiresAt)),
                     "account credential");
         }
         return credentials;

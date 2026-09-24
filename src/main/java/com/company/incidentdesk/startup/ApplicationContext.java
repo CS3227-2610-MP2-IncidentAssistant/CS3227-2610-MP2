@@ -10,6 +10,8 @@ import com.company.incidentdesk.application.account.PasswordVerifier;
 import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
+import com.company.incidentdesk.application.account.AccountPasswordService;
+import com.company.incidentdesk.application.account.AccountPasswordResetService;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
@@ -38,6 +40,8 @@ public final class ApplicationContext implements AutoCloseable {
     private final AccountRegistrationService registrations;
     private final AccountDirectoryService accountDirectory;
     private final AccountDeletionService accountDeletion;
+    private final AccountPasswordService passwords;
+    private final AccountPasswordResetService passwordResets;
     private final SloConfigurationService sloConfigurations;
 
     private ApplicationContext(
@@ -50,6 +54,8 @@ public final class ApplicationContext implements AutoCloseable {
             AccountRegistrationService registrations,
             AccountDirectoryService accountDirectory,
             AccountDeletionService accountDeletion,
+            AccountPasswordService passwords,
+            AccountPasswordResetService passwordResets,
             SloConfigurationService sloConfigurations) {
         this.store = store;
         this.sessions = sessions;
@@ -60,6 +66,8 @@ public final class ApplicationContext implements AutoCloseable {
         this.registrations = registrations;
         this.accountDirectory = accountDirectory;
         this.accountDeletion = accountDeletion;
+        this.passwords = passwords;
+        this.passwordResets = passwordResets;
         this.sloConfigurations = sloConfigurations;
     }
 
@@ -105,12 +113,18 @@ public final class ApplicationContext implements AutoCloseable {
         AccountDirectoryService accountDirectory = new AccountDirectoryService(accountAuthorization, store);
         AccountDeletionService accountDeletion = new AccountDeletionService(sessions, accountAuthorization, store,
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())));
+        AccountPasswordService passwords = new AccountPasswordService(sessions, registrations, store,
+                new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())));
+        AccountPasswordResetService passwordResets = new AccountPasswordResetService(sessions,
+                accountAuthorization, registrations, store,
+                new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock);
         SloConfigurationService sloConfigurations = new SloConfigurationService(
                 sessions, accountAuthorization, store.sloConfigurationStore(),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
                 () -> new SloTargetVersionId(UUID.randomUUID()));
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
-                Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion,
+                Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion, passwords,
+                passwordResets,
                 sloConfigurations);
     }
 
@@ -141,6 +155,12 @@ public final class ApplicationContext implements AutoCloseable {
     public AccountDeletionService accountDeletion() {
         return accountDeletion;
     }
+
+    public AccountPasswordService passwords() {
+        return passwords;
+    }
+
+    public AccountPasswordResetService passwordResets() { return passwordResets; }
 
     public SloConfigurationService sloConfigurations() {
         return sloConfigurations;

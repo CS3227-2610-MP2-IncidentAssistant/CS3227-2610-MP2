@@ -82,6 +82,9 @@ public final class AccountRegistrationService implements PasswordVerifier, Accou
     @Override
     public boolean verify(AccountId accountId, char[] candidatePassword) {
         return store.findCredential(accountId).map(credential -> {
+            if (credential.temporary() && !clock.instant().isBefore(credential.expiresAt().orElseThrow())) {
+                return false;
+            }
             byte[] candidate = derive(candidatePassword, credential.salt(), credential.iterations());
             try {
                 return MessageDigest.isEqual(candidate, credential.hash());
@@ -91,7 +94,12 @@ public final class AccountRegistrationService implements PasswordVerifier, Accou
         }).orElse(false);
     }
 
-    private PasswordCredential hash(char[] password) {
+    public boolean isTemporaryAndValid(AccountId accountId) {
+        return store.findCredential(accountId).filter(PasswordCredential::temporary)
+                .filter(value -> clock.instant().isBefore(value.expiresAt().orElseThrow())).isPresent();
+    }
+
+    PasswordCredential hash(char[] password) {
         byte[] salt = new byte[SALT_BYTES];
         random.nextBytes(salt);
         return new PasswordCredential(ALGORITHM, ITERATIONS, salt, derive(password, salt, ITERATIONS));

@@ -33,8 +33,10 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.sessions(),
                         applicationContext.accountDirectory(),
                         applicationContext.accountDeletion(),
+                        applicationContext.passwordResets(),
                         applicationContext.sloConfigurations()),
-                applicationContext.registrations());
+                applicationContext.registrations(),
+                applicationContext.passwords());
         navigator.start();
         primaryStage.setTitle("Incident Desk");
         primaryStage.setScene(scene);

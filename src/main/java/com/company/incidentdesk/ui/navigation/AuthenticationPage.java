@@ -168,7 +168,7 @@ public final class AuthenticationPage extends VBox {
         char[] candidate = password.getText().toCharArray();
         password.clear();
         try {
-            if (sessions.login(loginName.getText(), candidate) == AuthenticationResult.AUTHENTICATED) {
+            if (sessions.login(loginName.getText(), candidate) != AuthenticationResult.REJECTED) {
                 feedback.getChildren().clear();
                 onAuthenticated.run();
                 return;

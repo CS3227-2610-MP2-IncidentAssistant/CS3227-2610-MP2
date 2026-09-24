@@ -74,7 +74,8 @@ authorization between sequentially logged-in accounts.
   persists accounts, salted PBKDF2 password credentials, incidents, comments,
   audits, and SLO target configuration
   history, and reserves empty placeholder sections for attachment metadata and
-  promotion requests. The whole file shares one schema version; there is no
+  promotion requests. Password credentials include temporary-credential state
+  and its UTC expiry. The whole file shares one schema version; there is no
   independent per-section versioning.
 - Each successful replacement retains one bounded last-known-good copy at
   `incident-desk.dat.bak`. Unique unfinished temporary files are never treated

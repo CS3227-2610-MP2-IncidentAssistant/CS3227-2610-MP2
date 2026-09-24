@@ -37,10 +37,11 @@ unnecessary incident content, or an anonymous reporter's display identity.
 
 ## Application events
 
-- Registration and authentication-relevant events without secret material.
+- Registration, self-service password changes, and authentication-relevant events without secret material.
 - Responder-promotion request, approval, and rejection.
 - Responder-category access changes.
-- Account disabling/deletion and password-reset initiation/completion.
+- Account disabling/deletion and password-reset initiation/completion. Reset audit records contain no
+  plaintext password, password hash, or reset credential.
 - SLO configuration changes.
 - Data migration, backup restoration, and detected storage corruption.
 

@@ -109,10 +109,11 @@
     -fx-border-color: #4169D8;
     -fx-text-fill: #FFFFFF;
 }
-.shell-identity {
-    -fx-padding: 16px 8px 0 8px;
+.shell-account-controls {
+    -fx-padding: 16px 0 0 0;
     -fx-border-color: #596579 transparent transparent transparent;
 }
+.shell-account-identity { -fx-padding: 8px 8px; }
 .shell-user-name { -fx-text-fill: #FFFFFF; -fx-font-weight: 700; }
 .shell-user-role { -fx-text-fill: #D8E1F6; -fx-font-size: 12px; }
 .shell-navigation .avatar { -fx-background-color: #FFFFFF; -fx-text-fill: #17233F; }

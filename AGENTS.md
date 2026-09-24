@@ -64,8 +64,14 @@ architecture.
 - Resolve application-data paths through one configurable storage abstraction.
 - Tests must use isolated temporary storage and must never read or modify real
   user data.
-- Preserve backward compatibility of persisted data or provide an explicit,
-  tested migration.
+- Before the application's first release, keep the persisted-data schema at
+  version 1 when its format changes; development data does not require backward
+  compatibility or migration unless the task explicitly says otherwise. Do not
+  increment the schema version for these pre-release changes.
+- After any pre-release persisted-schema change, end the completion report with
+  this disclaimer: `Schema version was not bumped because the app has not been released.`
+- After the application's first release, preserve backward compatibility of
+  persisted data or provide an explicit, tested migration.
 - Prefer deterministic Java code and tests for validation, authorization,
   transitions, audit creation, and SLO calculations.
 - Do not add production dependencies without approval.

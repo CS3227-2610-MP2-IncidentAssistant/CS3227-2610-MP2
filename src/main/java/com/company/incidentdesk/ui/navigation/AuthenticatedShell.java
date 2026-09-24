@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import com.company.incidentdesk.application.notification.NotificationInbox;
+import com.company.incidentdesk.application.account.PasswordChanger;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.NotificationCenter;
@@ -34,6 +35,7 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
             Account account,
             NotificationInbox notifications,
             Consumer<ApplicationRoute> onNavigate,
+            PasswordChanger passwords,
             Runnable onLogout) {
         Account currentAccount = Objects.requireNonNull(account, "account");
         Objects.requireNonNull(onNavigate, "onNavigate");
@@ -41,7 +43,7 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
 
         notificationCenter = new NotificationCenter(
                 Objects.requireNonNull(notifications, "notifications"), currentAccount.id());
-        setLeft(createNavigation(currentAccount, onNavigate, onLogout));
+        setLeft(createNavigation(currentAccount, onNavigate, Objects.requireNonNull(passwords, "passwords"), onLogout));
         content.getStyleClass().add("shell-content");
         content.setId("shell-content");
         setCenter(content);
@@ -81,6 +83,7 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
     private VBox createNavigation(
             Account account,
             Consumer<ApplicationRoute> onNavigate,
+            PasswordChanger passwords,
             Runnable onLogout) {
         Label product = new Label("Incident Desk");
         product.getStyleClass().add("shell-product");
@@ -95,16 +98,16 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
                 .filter(route -> route.isAvailableTo(account.role()))
                 .map(route -> navigationButton(route, onNavigate))
                 .forEach(destinations.getChildren()::add);
-        HBox identity = createIdentity(account);
         Button logout = UiComponents.action("Log out", ActionStyle.GHOST);
         logout.setId("logout-navigation");
         logout.setMaxWidth(Double.MAX_VALUE);
         logout.setAccessibleText("Log out " + account.loginName());
         logout.setOnAction(event -> onLogout.run());
+        VBox accountControls = createAccountControls(account, passwords, logout);
 
         Region navigationSpacer = new Region();
         VBox.setVgrow(navigationSpacer, Priority.ALWAYS);
-        VBox navigation = new VBox(16, brand, destinations, navigationSpacer, identity, logout);
+        VBox navigation = new VBox(16, brand, destinations, navigationSpacer, accountControls);
         navigation.setPadding(new Insets(20, 12, 20, 12));
         navigation.getStyleClass().add("shell-navigation");
         return navigation;
@@ -121,7 +124,7 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
         return button;
     }
 
-    private static HBox createIdentity(Account account) {
+    private static VBox createAccountControls(Account account, PasswordChanger passwords, Button logout) {
         Label avatar = UiComponents.avatar(initial(account.loginName()), account.loginName());
         avatar.setId("current-user-avatar");
         Label user = new Label(account.loginName());
@@ -131,9 +134,17 @@ public final class AuthenticatedShell extends BorderPane implements AutoCloseabl
         VBox labels = new VBox(2, user, role);
         HBox identity = new HBox(10, avatar, labels);
         identity.setAlignment(Pos.CENTER_LEFT);
+        identity.setId("current-user-account");
         identity.setAccessibleText("Signed in as " + account.loginName() + ", " + roleLabel(account));
-        identity.getStyleClass().add("shell-identity");
-        return identity;
+        identity.getStyleClass().add("shell-account-identity");
+        Button updatePassword = UiComponents.action("Update password", ActionStyle.GHOST);
+        updatePassword.setId("update-password-navigation");
+        updatePassword.setMaxWidth(Double.MAX_VALUE);
+        updatePassword.setAccessibleText("Update password for " + account.loginName());
+        updatePassword.setOnAction(event -> new PasswordChangeDialog(passwords).showAndWait());
+        VBox accountControls = new VBox(8, identity, updatePassword, logout);
+        accountControls.getStyleClass().add("shell-account-controls");
+        return accountControls;
     }
 
     private static String initial(String loginName) {

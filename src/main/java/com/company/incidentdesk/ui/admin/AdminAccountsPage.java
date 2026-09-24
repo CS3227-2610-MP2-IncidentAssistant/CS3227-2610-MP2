@@ -1,5 +1,6 @@
 package com.company.incidentdesk.ui.admin;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -7,6 +8,7 @@ import java.util.stream.Collectors;
 
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
+import com.company.incidentdesk.application.account.AccountPasswordResetService;
 import com.company.incidentdesk.application.audit.AuditActorLabelResolver;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountStatus;
@@ -28,19 +30,24 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /** Administrator account directory. */
 public final class AdminAccountsPage extends BorderPane {
     private final AccountDirectoryService directory;
     private final AccountDeletionService deletion;
+    private final AccountPasswordResetService passwordResets;
     private final VBox content = new VBox(16);
 
-    public AdminAccountsPage(AccountDirectoryService directory, AccountDeletionService deletion) {
+    public AdminAccountsPage(AccountDirectoryService directory, AccountDeletionService deletion,
+            AccountPasswordResetService passwordResets) {
         this.directory = Objects.requireNonNull(directory, "directory");
         this.deletion = Objects.requireNonNull(deletion, "deletion");
+        this.passwordResets = Objects.requireNonNull(passwordResets, "passwordResets");
         Label title = new Label("Accounts");
         title.getStyleClass().add("page-title");
         content.getChildren().add(title);
@@ -64,11 +71,16 @@ public final class AdminAccountsPage extends BorderPane {
         TableView<Account> table = new TableView<>();
         table.setAccessibleText("User accounts");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.getColumns().add(column("Login name", account -> account.isDeleted()
-                ? AuditActorLabelResolver.DELETED_ACCOUNT_LABEL : account.loginName()));
-        table.getColumns().add(nodeColumn("Role", account -> roleBadge(account.role())));
-        table.getColumns().add(nodeColumn("Status", account -> statusBadge(account.status())));
-        table.getColumns().add(nodeColumn("Responder categories", this::categoryBadges));
+        TableColumn<Account, String> login = column("Login name", account -> account.isDeleted()
+                ? AuditActorLabelResolver.DELETED_ACCOUNT_LABEL : account.loginName());
+        login.setPrefWidth(145);
+        TableColumn<Account, Account> role = nodeColumn("Role", account -> roleBadge(account.role()));
+        role.setPrefWidth(112);
+        TableColumn<Account, Account> status = nodeColumn("Status", account -> statusBadge(account.status()));
+        status.setPrefWidth(96);
+        TableColumn<Account, Account> categories = nodeColumn("Responder categories", this::categoryBadges);
+        categories.setPrefWidth(190);
+        table.getColumns().addAll(login, role, status, categories);
         table.getColumns().add(actionColumn());
         table.getItems().setAll(accounts);
         table.setPlaceholder(new Label("No user accounts found"));
@@ -112,9 +124,13 @@ public final class AdminAccountsPage extends BorderPane {
         TableColumn<Account, Void> column = new TableColumn<>("Actions");
         column.setCellFactory(ignored -> new TableCell<>() {
             private final Button delete = UiComponents.action("Delete", ActionStyle.DANGER);
+            private final Button reset = UiComponents.action("Reset password", ActionStyle.SECONDARY);
+            private final HBox actions = new HBox(8, reset, delete);
             {
                 delete.setAccessibleText("Delete account");
                 delete.setOnAction(event -> confirmDeletion(getTableView().getItems().get(getIndex())));
+                reset.setAccessibleText("Reset account password");
+                reset.setOnAction(event -> confirmPasswordReset(getTableView().getItems().get(getIndex())));
             }
 
             @Override
@@ -126,11 +142,50 @@ public final class AdminAccountsPage extends BorderPane {
                 }
                 Account account = getTableView().getItems().get(getIndex());
                 delete.setDisable(!deletion.canDelete(account.id()));
+                reset.setDisable(!passwordResets.canReset(account.id()));
                 delete.setAccessibleText("Delete account " + account.loginName());
-                setGraphic(delete);
+                reset.setAccessibleText("Reset password for " + account.loginName());
+                setGraphic(actions);
             }
         });
+        column.setPrefWidth(245);
+        column.setMinWidth(245);
         return column;
+    }
+
+    private void confirmPasswordReset(Account account) {
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION,
+                "Generate a one-time temporary password for " + account.loginName()
+                        + "? Any earlier password will stop working immediately.",
+                ButtonType.CANCEL, ButtonType.OK);
+        confirmation.setTitle("Reset password");
+        confirmation.setHeaderText("The temporary password expires in 24 hours");
+        if (confirmation.showAndWait().filter(ButtonType.OK::equals).isEmpty()) return;
+
+        var result = passwordResets.reset(account.id());
+        var secret = result.takeTemporaryPassword();
+        if (secret.isEmpty()) {
+            content.getChildren().add(UiComponents.feedback("Password was not reset",
+                    "The account may no longer be available. Refresh and try again.", FeedbackType.ERROR));
+            return;
+        }
+        char[] password = secret.orElseThrow();
+        try {
+            TextField value = new TextField(new String(password));
+            value.setEditable(false);
+            value.setId("temporary-password");
+            value.setAccessibleText("One-time temporary password for " + account.loginName());
+            Alert displayed = new Alert(Alert.AlertType.INFORMATION);
+            displayed.setTitle("Temporary password created");
+            displayed.setHeaderText("Copy this password now — it will not be shown again");
+            displayed.getDialogPane().setContent(new VBox(10,
+                    new Label("Deliver it securely to " + account.loginName()
+                            + ". They must replace it immediately after signing in."), value));
+            displayed.showAndWait();
+            value.clear();
+        } finally {
+            Arrays.fill(password, '\0');
+        }
     }
 
     private void confirmDeletion(Account account) {

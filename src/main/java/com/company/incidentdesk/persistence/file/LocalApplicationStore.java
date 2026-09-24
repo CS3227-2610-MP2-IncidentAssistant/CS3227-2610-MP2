@@ -15,6 +15,8 @@ import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.application.account.AccountRegistration;
 import com.company.incidentdesk.application.account.AccountRegistrationStore;
 import com.company.incidentdesk.application.account.AccountDeletionStore;
+import com.company.incidentdesk.application.account.PasswordChangeStore;
+import com.company.incidentdesk.application.account.PasswordResetStore;
 import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
@@ -45,7 +47,8 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 
 /** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
 public final class LocalApplicationStore
-        implements AccountRepository, AccountRegistrationStore, AccountDeletionStore, IncidentStore, AuditRepository,
+        implements AccountRepository, AccountRegistrationStore, AccountDeletionStore, PasswordChangeStore, PasswordResetStore,
+        IncidentStore, AuditRepository,
         AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
@@ -136,6 +139,31 @@ public final class LocalApplicationStore
     @Override
     public synchronized Optional<PasswordCredential> findCredential(AccountId accountId) {
         return Optional.ofNullable(state.credentials().get(Objects.requireNonNull(accountId, "accountId")));
+    }
+
+    @Override
+    public synchronized void changePassword(AccountId accountId, PasswordCredential credential, AuditEvent auditEvent) {
+        AccountId requiredId = Objects.requireNonNull(accountId, "accountId");
+        PasswordCredential requiredCredential = Objects.requireNonNull(credential, "credential");
+        AuditEvent requiredAudit = Objects.requireNonNull(auditEvent, "auditEvent");
+        if (!state.accounts().containsKey(requiredId) || !state.credentials().containsKey(requiredId)) {
+            throw new RepositoryException(StorageFailureCode.NOT_FOUND, "active account credential does not exist");
+        }
+        rejectDuplicateAudit(requiredAudit);
+        Map<AccountId, PasswordCredential> credentials = new LinkedHashMap<>(state.credentials());
+        credentials.put(requiredId, requiredCredential);
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(requiredAudit);
+        persist(new LocalApplicationState(state.accounts(), credentials, state.incidents(), state.comments(), audits,
+                state.sloTargetVersions()));
+    }
+
+    @Override
+    public synchronized void resetPassword(AccountId accountId, PasswordCredential credential, AuditEvent auditEvent) {
+        if (!Objects.requireNonNull(credential, "credential").temporary()) {
+            throw new IllegalArgumentException("password reset requires a temporary credential");
+        }
+        changePassword(accountId, credential, auditEvent);
     }
 
     @Override

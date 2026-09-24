@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import com.company.incidentdesk.application.notification.NotificationInbox;
 import com.company.incidentdesk.application.account.AccountRegistrar;
+import com.company.incidentdesk.application.account.PasswordChanger;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.session.AuthenticatedSession;
 import com.company.incidentdesk.domain.account.Account;
@@ -25,6 +26,7 @@ public final class ApplicationNavigator implements AutoCloseable {
     private final NotificationInbox notifications;
     private final ViewFactory views;
     private final AccountRegistrar registrations;
+    private final PasswordChanger passwords;
     private final Map<ApplicationRoute, Node> retainedViews = new EnumMap<>(ApplicationRoute.class);
     private AuthenticatedShell shell;
     private Account shellAccount;
@@ -36,16 +38,40 @@ public final class ApplicationNavigator implements AutoCloseable {
             NotificationInbox notifications,
             ViewFactory views,
             AccountRegistrar registrations) {
+        this(scene, sessions, notifications, views, registrations,
+                (currentPassword, newPassword, confirmation) ->
+                        com.company.incidentdesk.application.account.PasswordChangeResult.FAILED);
+    }
+
+    public ApplicationNavigator(
+            Scene scene,
+            SessionService sessions,
+            NotificationInbox notifications,
+            ViewFactory views,
+            AccountRegistrar registrations,
+            PasswordChanger passwords) {
         this.scene = Objects.requireNonNull(scene, "scene");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
         this.notifications = Objects.requireNonNull(notifications, "notifications");
         this.views = Objects.requireNonNull(views, "views");
         this.registrations = Objects.requireNonNull(registrations, "registrations");
+        this.passwords = Objects.requireNonNull(passwords, "passwords");
     }
 
     /** Shows the current account's shell, or authentication when no valid session exists. */
     public void start() {
-        sessions.currentAccount().ifPresentOrElse(this::showDashboard, this::showAuthentication);
+        sessions.currentAccount().ifPresentOrElse(account -> {
+            if (sessions.requiresPasswordChange()) {
+                PasswordChangeDialog dialog = new PasswordChangeDialog(passwords, true);
+                dialog.showAndWait();
+                if (sessions.requiresPasswordChange()) {
+                    sessions.logout();
+                    showAuthentication();
+                    return;
+                }
+            }
+            showDashboard(account);
+        }, this::showAuthentication);
     }
 
     public void navigate(ApplicationRoute route) {
@@ -54,6 +80,10 @@ public final class ApplicationNavigator implements AutoCloseable {
         AuthenticatedSession session = sessions.currentSession().orElse(null);
         if (account == null || session == null || !session.accountId().equals(account.id())) {
             showAuthentication();
+            return;
+        }
+        if (sessions.requiresPasswordChange()) {
+            start();
             return;
         }
         ensureShell(account, session);
@@ -109,7 +139,7 @@ public final class ApplicationNavigator implements AutoCloseable {
         clearShell();
         shellAccount = account;
         shellSession = session;
-        shell = new AuthenticatedShell(account, notifications, this::navigate, this::logout);
+        shell = new AuthenticatedShell(account, notifications, this::navigate, passwords, this::logout);
         scene.setRoot(shell);
     }
 

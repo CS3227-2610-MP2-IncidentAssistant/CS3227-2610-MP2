@@ -8,12 +8,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.company.incidentdesk.application.account.AccountLookup;
 import com.company.incidentdesk.application.account.PasswordVerifier;
+import com.company.incidentdesk.application.account.AccountRegistrationService;
 import com.company.incidentdesk.domain.account.Account;
 
 /** Maintains exactly one process-local authenticated session. */
 public final class InMemorySessionService implements SessionService {
     private final AccountLookup accountLookup;
     private final PasswordVerifier passwordVerifier;
+    private final AccountRegistrationService credentialState;
     private final Clock clock;
     private final AtomicReference<AuthenticatedSession> activeSession = new AtomicReference<>();
 
@@ -30,6 +32,7 @@ public final class InMemorySessionService implements SessionService {
             Clock clock) {
         this.accountLookup = Objects.requireNonNull(accountLookup, "accountLookup");
         this.passwordVerifier = Objects.requireNonNull(passwordVerifier, "passwordVerifier");
+        this.credentialState = passwordVerifier instanceof AccountRegistrationService service ? service : null;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -61,7 +64,8 @@ public final class InMemorySessionService implements SessionService {
 
         AuthenticatedSession newSession = new AuthenticatedSession(enabledAccount.id(), clock.instant());
         activeSession.set(newSession);
-        return AuthenticationResult.AUTHENTICATED;
+        return requiresPasswordChange()
+                ? AuthenticationResult.PASSWORD_CHANGE_REQUIRED : AuthenticationResult.AUTHENTICATED;
     }
 
     @Override
@@ -94,6 +98,12 @@ public final class InMemorySessionService implements SessionService {
             activeSession.compareAndSet(session, null);
         }
         return account;
+    }
+
+    @Override
+    public boolean requiresPasswordChange() {
+        AuthenticatedSession session = activeSession.get();
+        return session != null && credentialState != null && credentialState.isTemporaryAndValid(session.accountId());
     }
 
     private Optional<Account> loadEnabledAccount(AuthenticatedSession session) {
