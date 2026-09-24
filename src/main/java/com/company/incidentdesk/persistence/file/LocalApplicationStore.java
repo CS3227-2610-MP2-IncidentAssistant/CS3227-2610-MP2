@@ -1,6 +1,8 @@
 package com.company.incidentdesk.persistence.file;
 
 import java.nio.file.Path;
+import java.io.IOException;
+import java.util.HashSet;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,6 +17,12 @@ import com.company.incidentdesk.application.incident.IncidentMutation;
 import com.company.incidentdesk.application.account.AccountRegistration;
 import com.company.incidentdesk.application.account.AccountRegistrationStore;
 import com.company.incidentdesk.application.account.PasswordCredential;
+import com.company.incidentdesk.application.attachment.AttachmentLimits;
+import com.company.incidentdesk.application.attachment.AttachmentValidationException;
+import com.company.incidentdesk.domain.attachment.AttachmentId;
+import com.company.incidentdesk.domain.attachment.IncidentAttachment;
+import com.company.incidentdesk.domain.audit.AuditAction;
+import com.company.incidentdesk.persistence.AttachmentStore;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.audit.AuditEvent;
@@ -52,6 +60,8 @@ public final class LocalApplicationStore
     private final IncidentSloClassifier sloClassifier;
     private final SloConfigurationStore sloConfigurationStore = new SloConfigurationStoreFacet();
     private LocalApplicationState state;
+    private final AttachmentFiles attachmentFiles;
+    private final AttachmentStore attachments = new AttachmentStoreFacet();
 
     public LocalApplicationStore(Path dataDirectory) {
         this(dataDirectory, incident -> IncidentSloState.NOT_APPLICABLE);
@@ -64,6 +74,15 @@ public final class LocalApplicationStore
         file = new RecoverySafeFile<>(requiredDirectory, STATE_FILE_NAME, new LocalApplicationStateCodec());
         try {
             state = file.load().orElseGet(LocalApplicationState::empty);
+            attachmentFiles = new AttachmentFiles(requiredDirectory);
+            if (attachmentFiles.hasPending()) {
+                var referenced = new HashSet<>(state.attachments().keySet());
+                file.loadBackup().ifPresent(backup -> referenced.addAll(backup.attachments().keySet()));
+                attachmentFiles.recover(referenced);
+            }
+        } catch (IOException exception) {
+            processLock.close();
+            throw new RepositoryException(StorageFailureCode.STORAGE_UNAVAILABLE, "Attachment recovery unavailable", exception);
         } catch (RuntimeException exception) {
             processLock.close();
             throw exception;
@@ -92,7 +111,7 @@ public final class LocalApplicationStore
                         && existing.loginName().equals(required.loginName()))) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account already exists");
         }
-        persist(new LocalApplicationState(
+        persist(nextState(
                 accounts, state.credentials(), state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
@@ -109,7 +128,7 @@ public final class LocalApplicationStore
         if (duplicateLogin) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "account login already exists");
         }
-        persist(new LocalApplicationState(
+        persist(nextState(
                 accounts, state.credentials(), state.incidents(), state.comments(), state.auditEvents(), state.sloTargetVersions()));
     }
 
@@ -127,7 +146,7 @@ public final class LocalApplicationStore
         credentials.put(required.account().id(), required.credential());
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required.auditEvent());
-        persist(new LocalApplicationState(accounts, credentials, state.incidents(), state.comments(), audits,
+        persist(nextState(accounts, credentials, state.incidents(), state.comments(), audits,
                 state.sloTargetVersions()));
     }
 
@@ -193,7 +212,7 @@ public final class LocalApplicationStore
         apply(required.nextState(), incidents, comments);
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required.auditEvent());
-        persist(new LocalApplicationState(state.accounts(), state.credentials(), incidents, comments, audits, state.sloTargetVersions()));
+        persist(nextState(state.accounts(), state.credentials(), incidents, comments, audits, state.sloTargetVersions()));
     }
 
     @Override
@@ -208,7 +227,7 @@ public final class LocalApplicationStore
         rejectDuplicateAudit(required);
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(required);
-        persist(new LocalApplicationState(
+        persist(nextState(
                 state.accounts(), state.credentials(), state.incidents(), state.comments(), audits, state.sloTargetVersions()));
     }
 
@@ -216,6 +235,8 @@ public final class LocalApplicationStore
     public SloConfigurationStore sloConfigurationStore() {
         return sloConfigurationStore;
     }
+
+    public AttachmentStore attachmentStore() { return attachments; }
 
     @Override
     public synchronized Optional<AuditEvent> findById(AuditEventId eventId) {
@@ -252,8 +273,16 @@ public final class LocalApplicationStore
         if (!update && previous != null) {
             throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "incident already exists");
         }
-        persist(new LocalApplicationState(
+        persist(nextState(
                 state.accounts(), state.credentials(), incidents, state.comments(), state.auditEvents(), state.sloTargetVersions()));
+    }
+
+    private LocalApplicationState nextState(Map<AccountId, Account> accounts,
+            Map<AccountId, PasswordCredential> credentials, Map<IncidentId, Incident> incidents,
+            List<IncidentComment> comments, List<AuditEvent> audits,
+            Map<SloTargetVersionId, SloTargetVersion> targets) {
+        return new LocalApplicationState(accounts, credentials, incidents, comments, audits,
+                targets, state.attachments(), state.schemaVersion());
     }
 
     private void persist(LocalApplicationState nextState) {
@@ -330,6 +359,99 @@ public final class LocalApplicationStore
                 && query.target().map(event.target()::equals).orElse(true);
     }
 
+    private final class AttachmentStoreFacet implements AttachmentStore {
+        @Override
+        public List<IncidentAttachment> list(IncidentId id) {
+            synchronized (LocalApplicationStore.this) {
+                return state.attachments().values().stream().filter(value -> value.incidentId().equals(id))
+                        .sorted(Comparator.comparing(IncidentAttachment::createdAt)
+                                .thenComparing(value -> value.id().value())).toList();
+            }
+        }
+
+        @Override
+        public Optional<IncidentAttachment> find(AttachmentId id) {
+            synchronized (LocalApplicationStore.this) {
+                return Optional.ofNullable(state.attachments().get(id));
+            }
+        }
+
+        @Override
+        public byte[] read(IncidentAttachment attachment) {
+            synchronized (LocalApplicationStore.this) {
+                if (!attachment.equals(state.attachments().get(attachment.id()))) {
+                    throw new RepositoryException(StorageFailureCode.NOT_FOUND, "Attachment unavailable");
+                }
+                try {
+                    return attachmentFiles.read(attachment);
+                } catch (IOException exception) {
+                    throw new RepositoryException(StorageFailureCode.STORAGE_UNAVAILABLE, "Attachment unavailable", exception);
+                }
+            }
+        }
+
+        @Override
+        public void add(IncidentAttachment attachment, byte[] content, Incident expectedIncident, Account expectedActor,
+                AttachmentLimits limits, AuditEvent audit, AuditEvent migrationAudit) {
+            synchronized (LocalApplicationStore.this) {
+                validateAddition(attachment, content, expectedIncident, expectedActor, limits);
+                rejectDuplicateAudit(audit);
+                Map<AttachmentId, IncidentAttachment> next = new LinkedHashMap<>(state.attachments());
+                next.put(attachment.id(), attachment);
+                List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+                if (state.schemaVersion() == 1) {
+                    rejectDuplicateAudit(migrationAudit);
+                    if (migrationAudit.action() != AuditAction.DATA_MIGRATED) {
+                        throw new IllegalArgumentException("Migration audit required");
+                    }
+                    audits.add(migrationAudit);
+                }
+                audits.add(audit);
+                commitFiles(attachment, content, new LocalApplicationState(state.accounts(), state.credentials(),
+                        state.incidents(), state.comments(), audits, state.sloTargetVersions(), next, 2));
+            }
+        }
+
+        private void validateAddition(IncidentAttachment attachment, byte[] content, Incident incident, Account actor,
+                AttachmentLimits limits) {
+            if (!incident.equals(state.incidents().get(attachment.incidentId()))
+                    || !actor.equals(state.accounts().get(actor.id()))) {
+                throw new RepositoryException(StorageFailureCode.NOT_FOUND, "Attachment unavailable");
+            }
+            if (state.attachments().containsKey(attachment.id())) {
+                throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "Attachment already exists");
+            }
+            List<IncidentAttachment> existing = list(attachment.incidentId());
+            long used = existing.stream().mapToLong(IncidentAttachment::sizeBytes).sum();
+            if (!attachment.type().isSupported() || content.length != attachment.sizeBytes() || existing.size() >= limits.count()
+                    || attachment.sizeBytes() > limits.totalBytes() - used) {
+                throw new AttachmentValidationException();
+            }
+        }
+
+        private void commitFiles(IncidentAttachment attachment, byte[] content, LocalApplicationState next) {
+            boolean prepared = false;
+            boolean committed = false;
+            try {
+                attachmentFiles.prepare(attachment, content);
+                prepared = true;
+                persist(next);
+                committed = true;
+            } catch (IOException exception) {
+                throw new RepositoryException(StorageFailureCode.STORAGE_UNAVAILABLE, "Attachment could not be saved", exception);
+            } finally {
+                if (prepared) {
+                    try {
+                        attachmentFiles.finish(attachment.id(), committed);
+                    } catch (IOException exception) {
+                        // The durable marker allows startup recovery; never report a committed addition as failed.
+                        System.err.println("Attachment cleanup deferred until storage recovery");
+                    }
+                }
+            }
+        }
+    }
+
     /** SLO configuration facet sharing this aggregate's canonical state and safe-write protocol. */
     private final class SloConfigurationStoreFacet implements SloConfigurationStore {
         @Override
@@ -346,7 +468,7 @@ public final class LocalApplicationStore
                     throw new RepositoryException(
                             StorageFailureCode.ALREADY_EXISTS, "SLO target version already exists");
                 }
-                persist(new LocalApplicationState(
+                persist(nextState(
                         state.accounts(), state.credentials(), state.incidents(), state.comments(), state.auditEvents(),
                         sloTargetVersions));
             }
@@ -388,7 +510,7 @@ public final class LocalApplicationStore
                 }
                 List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
                 audits.add(required.auditEvent());
-                persist(new LocalApplicationState(
+                persist(nextState(
                         state.accounts(), state.credentials(), state.incidents(), state.comments(), audits, sloTargetVersions));
             }
         }

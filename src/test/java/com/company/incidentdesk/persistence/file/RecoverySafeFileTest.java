@@ -48,7 +48,8 @@ class RecoverySafeFileTest {
 
     @Test
     void unknownNewerAggregateSchemaIsRejected() throws IOException {
-        ByteBuffer bytes = ByteBuffer.allocate(8).putInt(0x49444B31).putInt(2);
+        ByteBuffer bytes = ByteBuffer.allocate(8).putInt(0x49444B31)
+                .putInt(LocalApplicationStateCodec.SCHEMA_VERSION + 1);
         Files.write(temporaryDirectory.resolve(LocalApplicationStore.STATE_FILE_NAME), bytes.array());
 
         RepositoryException failure = assertThrows(RepositoryException.class,

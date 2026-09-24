@@ -9,6 +9,7 @@ must hold. UI visibility must mirror, but never replace, domain authorization.
 | View incident list | Own incidents only | Assigned incidents and unassigned incidents in permitted categories | All incidents |
 | View incident details | Own incidents only | Incident is assigned to them, or is unassigned in a permitted category | All incidents |
 | View attachments/comments | Same permission as incident detail | Same permission as incident detail | Same permission as incident detail |
+| Add attachments | Own `DRAFT`, or own unassigned `SUBMITTED` incident | No | No |
 | Create/save draft | Allowed for self | Allowed only when acting as a reporter, if dual-role behaviour is supported | Not required |
 | Submit incident | Allowed for self | Same caveat as create | Not required |
 | Edit/withdraw | Own `DRAFT`, or own unassigned `SUBMITTED` incident | No | No current requirement |

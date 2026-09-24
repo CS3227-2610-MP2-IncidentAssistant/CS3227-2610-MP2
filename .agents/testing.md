@@ -60,6 +60,14 @@
 - Attachment size/type/path validation and traversal attempts.
 - Attachment reads require current incident authorization.
 - Stored filenames do not disclose usernames or original paths.
+- Verify spoofed extensions, image pixel bounds, per-file/count/aggregate
+  limits, symlink rejection, failed-upload rollback, and pending-upload
+  recovery without deleting unrelated files.
+- Test version-1 attachment migration with a pre-upgrade backup and migration
+  audit. Verify image rendering and logout invalidation on each target OS.
+- Reject video uploads, including video renamed as PNG/JPEG, without writing
+  blobs, metadata or success audits. Preserve any legacy video metadata/files
+  on restart but deny their opening; video playback is not a supported feature.
 
 ### Persistence and recovery
 
