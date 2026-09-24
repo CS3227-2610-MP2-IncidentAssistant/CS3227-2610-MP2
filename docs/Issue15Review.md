@@ -145,3 +145,33 @@ protocol flow. The approved CQ-1 follow-up was reviewed with no further findings
 
 The implementation remains available for review. Nothing is staged or committed;
 committing still requires explicit permission.
+
+## Cross-platform CI investigation after PR #68
+
+Run `35980438733` passed macOS attachment tests but failed the native video
+test on Linux and Windows. Linux reported a playback assertion failure;
+Windows reported a JUnit exception caused by an I/O exception, consistent
+with temporary-directory cleanup but not yet proven. The run retained no
+JUnit XML or HTML reports, and the abbreviated console output omitted the
+underlying messages. Do not interpret this as a confirmed codec or disposal bug.
+
+The diagnostic follow-up changes only:
+
+- `build.gradle`, `test` task: show full exception output; opt-in
+  `-PmediaDiagnostics` enables native-media debug messages in tests only.
+- `.github/workflows/ci.yml`: enable that test-only option, retain XML/HTML
+  test reports on success or failure for seven days, and print Linux media
+  library availability after failure. No tests are skipped or relaxed.
+- This review guide: record evidence and the remaining verification step.
+
+`./gradlew clean build -PmediaDiagnostics` passed locally with 310 tests and
+no failures/errors/skips on the same macOS/Java 25 environment. Native media
+debug output was verified. `git diff --check` passed. Review of the follow-up
+found no further code-quality findings. No production behavior, application
+data format, permissions, or production logging changed.
+
+Root causes and fixes remain unconfirmed pending a new Windows/Linux CI run.
+The local Docker daemon is unavailable, and no local Windows host is available.
+This diagnostic follow-up is unstaged and uncommitted; approval to commit and
+push it is needed to obtain the missing platform evidence. PR #68 is unmerged
+and issue #15 remains open.

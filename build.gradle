@@ -34,6 +34,14 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    testLogging {
+        exceptionFormat = 'full'
+    }
+    if (providers.gradleProperty('mediaDiagnostics').isPresent()) {
+        // Test fixtures use temporary storage; never enable URI tracing in production.
+        systemProperty 'jfxmedia.loglevel', 'DEBUG'
+        testLogging.showStandardStreams = true
+    }
 }
 
 tasks.register('previewAuthenticatedShell', JavaExec) {
