@@ -218,6 +218,58 @@ class IncidentServiceTest {
     }
 
     @Test
+    void resolutionValidationAndFailedCommitPreserveAssignmentAndAudit() {
+        createSubmittedIncident(false);
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertTrue(service.claim(INCIDENT_ID).isSuccess());
+        Incident before = incidents.findById(INCIDENT_ID).orElseThrow();
+        for (String remarks : List.of("", " \t\n ")) {
+            var result = service.resolve(INCIDENT_ID, remarks);
+            assertEquals(ApplicationErrorCode.VALIDATION, result.error().orElseThrow().code());
+            assertEquals("incident.resolutionRemarks",
+                    result.error().orElseThrow().validation().errors().getFirst().field().value());
+        }
+        assertEquals(before, incidents.findById(INCIDENT_ID).orElseThrow());
+        assertEquals(2, incidents.auditEvents().size());
+        InMemoryIncidentRepository failingStore = copyIntoFailingStore();
+
+        var failed = serviceUsing(failingStore).resolve(INCIDENT_ID, "Repaired");
+
+        assertEquals(ApplicationErrorCode.PERSISTENCE_FAILURE, failed.error().orElseThrow().code());
+        assertEquals(before, failingStore.findById(INCIDENT_ID).orElseThrow());
+        assertTrue(failingStore.auditEvents().isEmpty());
+        assertEquals(2, events.size());
+    }
+
+    @Test
+    void resolutionRechecksActorAssignmentAndStateWithoutDuplicateWrites() {
+        createSubmittedIncident(false);
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertFalse(service.resolve(INCIDENT_ID, "Not assigned").isSuccess());
+        assertTrue(service.claim(INCIDENT_ID).isSuccess());
+        Incident before = incidents.findById(INCIDENT_ID).orElseThrow();
+        sessions.current = Optional.empty();
+        assertFalse(service.resolve(INCIDENT_ID, "Signed out").isSuccess());
+        for (Account actor : List.of(reporter(REPORTER_ID), responder(SECOND_RESPONDER_ID, IncidentCategory.IT),
+                responder(RESPONDER_ID))) {
+            sessions.signIn(actor);
+            assertFalse(service.resolve(INCIDENT_ID, "Not authorized").isSuccess());
+        }
+        assertEquals(before, incidents.findById(INCIDENT_ID).orElseThrow());
+        assertEquals(2, incidents.auditEvents().size());
+        sessions.signIn(administrator());
+        assertTrue(service.reassign(INCIDENT_ID, SECOND_RESPONDER_ID).isSuccess());
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertFalse(service.resolve(INCIDENT_ID, "Stale assignment").isSuccess());
+        assertEquals(3, incidents.auditEvents().size());
+        sessions.signIn(accounts.findById(SECOND_RESPONDER_ID).orElseThrow());
+        assertTrue(service.resolve(INCIDENT_ID, "Done").isSuccess());
+        assertFalse(service.resolve(INCIDENT_ID, "Repeat").isSuccess());
+        assertEquals(4, incidents.auditEvents().size());
+        assertEquals(4, events.size());
+    }
+
+    @Test
     void responderLosingCategoryAccessCannotResolveExistingAssignment() {
         createSubmittedIncident(false);
         sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());

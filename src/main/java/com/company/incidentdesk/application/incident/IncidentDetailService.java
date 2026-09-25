@@ -96,10 +96,10 @@ public final class IncidentDetailService {
     /** Pins the session and permissions for a view while checking current incident access. */
     public BooleanSupplier viewGuard(IncidentId id) {
         Objects.requireNonNull(id, "id");
-        Optional<ViewContext> context = currentContext();
+        BooleanSupplier sessionMatches = sessionGuard();
         return () -> {
             try {
-                return context.isPresent() && context.equals(currentContext())
+                return sessionMatches.getAsBoolean()
                         && incidents.findById(id)
                                 .filter(incident -> authorization.authorizeViewIncident(incident).isAllowed())
                                 .isPresent();
@@ -107,6 +107,12 @@ public final class IncidentDetailService {
                 return false;
             }
         };
+    }
+
+    /** Keeps completion navigation bound to its actor even when a mutation removes detail access. */
+    public BooleanSupplier sessionGuard() {
+        Optional<ViewContext> context = currentContext();
+        return () -> context.isPresent() && context.equals(currentContext());
     }
 
     private Optional<ViewContext> currentContext() {
