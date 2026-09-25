@@ -6,7 +6,8 @@ import com.company.incidentdesk.domain.account.Role;
 public enum ApplicationRoute {
     DASHBOARD("Dashboard", false),
     ADMIN_ACCOUNTS("Accounts", true),
-    ADMIN_SLO("SLO configuration", true)
+    ADMIN_SLO("SLO configuration", true),
+    ADMIN_AUDIT_LOG("Audit log", true)
     ;
 
     private final String label;

@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.account.AccountPasswordResetService;
+import com.company.incidentdesk.application.audit.AuditLogService;
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.comment.IncidentCommentService;
 import com.company.incidentdesk.application.incident.IncidentDetailService;
@@ -17,6 +18,7 @@ import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.ui.admin.AdminIncidentPage;
 import com.company.incidentdesk.ui.admin.AdminAccountsPage;
+import com.company.incidentdesk.ui.admin.AdminAuditLogPage;
 import com.company.incidentdesk.ui.admin.AdminSloPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.responder.ResponderPage;
@@ -37,6 +39,7 @@ public final class DefaultViewFactory implements ViewFactory {
     private final AccountDirectoryService accounts;
     private final AccountDeletionService accountDeletion;
     private final AccountPasswordResetService passwordResets;
+    private final AuditLogService auditLog;
     private final SloConfigurationService sloConfigurations;
     private final IncidentDetailService incidentDetails;
     private final IncidentCommentService comments;
@@ -49,6 +52,7 @@ public final class DefaultViewFactory implements ViewFactory {
             AccountDirectoryService accounts,
             AccountDeletionService accountDeletion,
             AccountPasswordResetService passwordResets,
+            AuditLogService auditLog,
             SloConfigurationService sloConfigurations,
             IncidentDetailService incidentDetails,
             IncidentCommentService comments,
@@ -59,6 +63,7 @@ public final class DefaultViewFactory implements ViewFactory {
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.accountDeletion = Objects.requireNonNull(accountDeletion, "accountDeletion");
         this.passwordResets = Objects.requireNonNull(passwordResets, "passwordResets");
+        this.auditLog = Objects.requireNonNull(auditLog, "auditLog");
         this.sloConfigurations = Objects.requireNonNull(sloConfigurations, "sloConfigurations");
         this.incidentDetails = Objects.requireNonNull(incidentDetails, "incidentDetails");
         this.comments = Objects.requireNonNull(comments, "comments");
@@ -75,6 +80,7 @@ public final class DefaultViewFactory implements ViewFactory {
             return switch (route) {
             case ADMIN_ACCOUNTS -> new AdminAccountsPage(accounts, accountDeletion, passwordResets);
             case ADMIN_SLO -> new AdminSloPage(sloConfigurations);
+            case ADMIN_AUDIT_LOG -> new AdminAuditLogPage(auditLog);
             case DASHBOARD -> throw new IllegalStateException("Dashboard handled below");
             };
         }

@@ -184,6 +184,7 @@
     -fx-background-color: transparent;
     -fx-table-cell-border-color: transparent;
 }
+.audit-log-table .table-cell { -fx-padding: 6px 10px; }
 
 .badge {
     -fx-padding: 4px 9px;

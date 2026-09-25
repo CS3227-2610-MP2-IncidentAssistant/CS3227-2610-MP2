@@ -11,8 +11,8 @@ import com.company.incidentdesk.ui.shared.theme.ApplicationTheme;
 
 /** JavaFX application for Incident Desk. */
 public final class IncidentDeskApplication extends Application {
-    private static final double INITIAL_WIDTH = 720;
-    private static final double INITIAL_HEIGHT = 480;
+    static final double INITIAL_WINDOW_WIDTH = 1600;
+    static final double INITIAL_WINDOW_HEIGHT = 900;
 
     private Scene scene;
     private ApplicationContext applicationContext;
@@ -21,7 +21,7 @@ public final class IncidentDeskApplication extends Application {
     @Override
     public void start(Stage primaryStage) {
         applicationContext = ApplicationContext.openDefault();
-        scene = new Scene(new StackPane(), INITIAL_WIDTH, INITIAL_HEIGHT);
+        scene = new Scene(new StackPane());
         ApplicationTheme.applyTo(scene);
         navigator = new ApplicationNavigator(
                 scene,
@@ -34,6 +34,7 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.accountDirectory(),
                         applicationContext.accountDeletion(),
                         applicationContext.passwordResets(),
+                        applicationContext.auditLog(),
                         applicationContext.sloConfigurations(),
                         applicationContext.incidentDetails(),
                         applicationContext.comments(),
@@ -43,6 +44,7 @@ public final class IncidentDeskApplication extends Application {
         navigator.start();
         primaryStage.setTitle("Incident Desk");
         primaryStage.setScene(scene);
+        setInitialWindowSize(primaryStage);
         primaryStage.show();
     }
 
@@ -54,6 +56,11 @@ public final class IncidentDeskApplication extends Application {
         if (applicationContext != null) {
             applicationContext.close();
         }
+    }
+
+    static void setInitialWindowSize(Stage stage) {
+        stage.setWidth(INITIAL_WINDOW_WIDTH);
+        stage.setHeight(INITIAL_WINDOW_HEIGHT);
     }
 
 }

@@ -18,6 +18,8 @@ import com.company.incidentdesk.application.comment.IncidentCommentService;
 import com.company.incidentdesk.application.incident.IncidentDetailService;
 import com.company.incidentdesk.domain.attachment.AttachmentId;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
+import com.company.incidentdesk.application.audit.AuditActorLabelResolver;
+import com.company.incidentdesk.application.audit.AuditLogService;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.authorization.AccountAuthorizationPolicy;
 import com.company.incidentdesk.application.event.InProcessApplicationEventBus;
@@ -48,6 +50,7 @@ public final class ApplicationContext implements AutoCloseable {
     private final AccountDeletionService accountDeletion;
     private final AccountPasswordService passwords;
     private final AccountPasswordResetService passwordResets;
+    private final AuditLogService auditLog;
     private final SloConfigurationService sloConfigurations;
     private final AttachmentService attachments;
     private final IncidentCommentService comments;
@@ -65,6 +68,7 @@ public final class ApplicationContext implements AutoCloseable {
             AccountDeletionService accountDeletion,
             AccountPasswordService passwords,
             AccountPasswordResetService passwordResets,
+            AuditLogService auditLog,
             SloConfigurationService sloConfigurations, AttachmentService attachments,
             IncidentCommentService comments, IncidentDetailService incidentDetails) {
         this.store = store;
@@ -78,6 +82,7 @@ public final class ApplicationContext implements AutoCloseable {
         this.accountDeletion = accountDeletion;
         this.passwords = passwords;
         this.passwordResets = passwordResets;
+        this.auditLog = auditLog;
         this.sloConfigurations = sloConfigurations;
         this.attachments = attachments;
         this.comments = comments;
@@ -131,6 +136,8 @@ public final class ApplicationContext implements AutoCloseable {
         AccountPasswordResetService passwordResets = new AccountPasswordResetService(sessions,
                 accountAuthorization, registrations, store,
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock);
+        AuditLogService auditLog = new AuditLogService(
+                accountAuthorization, store, new AuditActorLabelResolver(store), store);
         SloConfigurationService sloConfigurations = new SloConfigurationService(
                 sessions, accountAuthorization, store.sloConfigurationStore(),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())), clock,
@@ -145,7 +152,7 @@ public final class ApplicationContext implements AutoCloseable {
                 comments, attachments, store.sloConfigurationStore(), clock);
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
                 Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion, passwords,
-                passwordResets, sloConfigurations,
+                passwordResets, auditLog, sloConfigurations,
                 attachments, comments, incidentDetails);
     }
 
@@ -188,6 +195,10 @@ public final class ApplicationContext implements AutoCloseable {
     }
 
     public AccountPasswordResetService passwordResets() { return passwordResets; }
+
+    public AuditLogService auditLog() {
+        return auditLog;
+    }
 
     public SloConfigurationService sloConfigurations() {
         return sloConfigurations;
