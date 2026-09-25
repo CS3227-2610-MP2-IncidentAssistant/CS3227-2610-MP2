@@ -94,6 +94,9 @@ public final class ApplicationNavigator implements AutoCloseable {
         Node destination = retainedViews.computeIfAbsent(
                 route,
                 selected -> views.createView(account, selected, this::openIncident));
+        if (destination instanceof NavigableView navigableView) {
+            navigableView.onShown();
+        }
         shell.show(route, destination);
     }
 

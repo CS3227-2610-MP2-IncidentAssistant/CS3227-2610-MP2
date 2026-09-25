@@ -139,6 +139,7 @@ class ApplicationNavigatorTest {
                 boolean shouldBeVisible = role == Role.ADMINISTRATOR;
                 assertEquals(shouldBeVisible, scene.lookup("#admin-accounts-navigation") != null);
                 assertEquals(shouldBeVisible, scene.lookup("#admin-slo-navigation") != null);
+                assertEquals(shouldBeVisible, scene.lookup("#admin-audit-log-navigation") != null);
                 navigator.close();
                 return null;
             });
@@ -204,6 +205,29 @@ class ApplicationNavigatorTest {
             views.back.run();
             assertSame(dashboard, scene.lookup("#dashboard-view"));
             assertEquals(1, views.dashboardCreations);
+            navigator.close();
+            return null;
+        });
+    }
+
+    @Test
+    void returningToAuditLogRefreshesRetainedView() throws Exception {
+        onFx(() -> {
+            RecordingViews views = new RecordingViews();
+            Scene scene = new Scene(new VBox());
+            ApplicationNavigator navigator = new ApplicationNavigator(
+                    scene, new MutableSessions(account(Role.ADMINISTRATOR)), new NotificationInbox(),
+                    views, (name, password, role) -> null);
+            navigator.start();
+
+            navigator.navigate(ApplicationRoute.ADMIN_AUDIT_LOG);
+            Node firstAuditLog = scene.lookup("#dashboard-view");
+            navigator.navigate(ApplicationRoute.DASHBOARD);
+            navigator.navigate(ApplicationRoute.ADMIN_AUDIT_LOG);
+
+            assertSame(firstAuditLog, scene.lookup("#dashboard-view"));
+            assertEquals(2, views.dashboardCreations);
+            assertEquals(2, views.auditLogShows);
             navigator.close();
             return null;
         });
@@ -281,12 +305,15 @@ class ApplicationNavigatorTest {
 
     private static final class RecordingViews implements ViewFactory {
         private int dashboardCreations;
+        private int auditLogShows;
         private Runnable back;
 
         @Override
         public Node createView(Account account, ApplicationRoute route, Consumer<IncidentId> onOpenIncident) {
             dashboardCreations++;
-            Label dashboard = new Label(account.role().name());
+            Label dashboard = route == ApplicationRoute.ADMIN_AUDIT_LOG
+                    ? new RefreshableLabel(account.role().name(), () -> auditLogShows++)
+                    : new Label(account.role().name());
             dashboard.setId("dashboard-view");
             return dashboard;
         }
@@ -297,6 +324,20 @@ class ApplicationNavigatorTest {
             Label detail = new Label(incidentId.value().toString());
             detail.setId("incident-detail");
             return detail;
+        }
+    }
+
+    private static final class RefreshableLabel extends Label implements NavigableView {
+        private final Runnable onShown;
+
+        private RefreshableLabel(String text, Runnable onShown) {
+            super(text);
+            this.onShown = onShown;
+        }
+
+        @Override
+        public void onShown() {
+            onShown.run();
         }
     }
 
