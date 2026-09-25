@@ -1,7 +1,7 @@
 plugins {
     id 'application'
     id 'java'
-    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'com.gradleup.shadow' version '9.5.1'
 }
 
 group = 'com.cs3227'
@@ -13,20 +13,33 @@ java {
     }
 }
 
-javafx {
-    version = '25'
-    modules = [ 'javafx.controls', 'javafx.fxml' ]
-}
-
 application {
     mainClass = 'com.company.incidentdesk.startup.IncidentDeskLauncher'
+    // JavaFX loads native graphics libraries from the classpath in the shadow jar.
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 run {
-    jvmArgs = ['--enable-native-access=javafx.graphics']
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 dependencies {
+    String javaFxVersion = '25.0.2'
+
+    // Include native libraries for all three platforms in the packaged application.
+    implementation("org.openjfx:javafx-base:${javaFxVersion}:win")
+    implementation("org.openjfx:javafx-base:${javaFxVersion}:mac")
+    implementation("org.openjfx:javafx-base:${javaFxVersion}:linux")
+    implementation("org.openjfx:javafx-controls:${javaFxVersion}:win")
+    implementation("org.openjfx:javafx-controls:${javaFxVersion}:mac")
+    implementation("org.openjfx:javafx-controls:${javaFxVersion}:linux")
+    implementation("org.openjfx:javafx-fxml:${javaFxVersion}:win")
+    implementation("org.openjfx:javafx-fxml:${javaFxVersion}:mac")
+    implementation("org.openjfx:javafx-fxml:${javaFxVersion}:linux")
+    implementation("org.openjfx:javafx-graphics:${javaFxVersion}:win")
+    implementation("org.openjfx:javafx-graphics:${javaFxVersion}:mac")
+    implementation("org.openjfx:javafx-graphics:${javaFxVersion}:linux")
+
     testImplementation platform('org.junit:junit-bom:5.11.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -45,17 +58,62 @@ tasks.register('previewAuthenticatedShell', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.company.incidentdesk.ui.navigation.AuthenticatedShellPreview'
-    jvmArgs = ['--enable-native-access=javafx.graphics']
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-tasks.named('jar') {
+jar {
+    // The shadow jar is the only executable artifact this project distributes.
+    enabled = false
+    // Rename its output anyway; Gradle forbids it clashing with the shadowJar output file, even for a disabled task.
+    archiveClassifier = 'without-dependencies'
+}
+
+shadowJar {
+    archiveFileName = 'incident-desk.jar'
     manifest {
-        attributes('Main-Class': application.mainClass.get())
+        attributes(
+            'Main-Class': application.mainClass.get(),
+            'Enable-Native-Access': 'ALL-UNNAMED'
+        )
     }
+}
+
+tasks.named('assemble') {
+    dependsOn shadowJar
+}
+
+def shadowJarOutputFile = layout.buildDirectory.file('libs/incident-desk.jar')
+
+tasks.register('verifyShadowJar') {
+    group = 'verification'
+    description = 'Verifies the packaged shadow jar exists and declares the expected main class.'
+    dependsOn shadowJar
+    inputs.file(shadowJarOutputFile)
+
+    doLast {
+        File jarFile = shadowJarOutputFile.get().asFile
+        if (!jarFile.exists()) {
+            throw new GradleException("Expected packaged jar not found at ${jarFile}")
+        }
+
+        new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+            String mainClass = jar.manifest?.mainAttributes?.getValue('Main-Class')
+            String expectedMainClass = application.mainClass.get()
+            if (mainClass != expectedMainClass) {
+                throw new GradleException(
+                    "Expected Main-Class '${expectedMainClass}' in ${jarFile} but found '${mainClass}'"
+                )
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyShadowJar
 }
 
 // The distribution tasks create archives for local testing.
