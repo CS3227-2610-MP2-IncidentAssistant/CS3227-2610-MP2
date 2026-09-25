@@ -250,8 +250,7 @@ class IncidentServiceTest {
         Incident before = incidents.findById(INCIDENT_ID).orElseThrow();
         sessions.current = Optional.empty();
         assertFalse(service.resolve(INCIDENT_ID, "Signed out").isSuccess());
-        for (Account actor : List.of(reporter(REPORTER_ID), responder(SECOND_RESPONDER_ID, IncidentCategory.IT),
-                responder(RESPONDER_ID))) {
+        for (Account actor : List.of(reporter(REPORTER_ID), responder(SECOND_RESPONDER_ID, IncidentCategory.IT))) {
             sessions.signIn(actor);
             assertFalse(service.resolve(INCIDENT_ID, "Not authorized").isSuccess());
         }
@@ -270,7 +269,7 @@ class IncidentServiceTest {
     }
 
     @Test
-    void responderLosingCategoryAccessCannotResolveExistingAssignment() {
+    void responderKeepsAbilityToResolveAfterLosingCategoryAccess() {
         createSubmittedIncident(false);
         sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
         assertTrue(service.claim(INCIDENT_ID).isSuccess());
@@ -280,8 +279,8 @@ class IncidentServiceTest {
 
         ApplicationResult<IncidentView> result = service.resolve(INCIDENT_ID, "Done");
 
-        assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE, result.error().orElseThrow().code());
-        assertEquals(IncidentStatus.ASSIGNED, incidents.findById(INCIDENT_ID).orElseThrow().status());
+        assertTrue(result.isSuccess());
+        assertEquals(IncidentStatus.RESOLVED, incidents.findById(INCIDENT_ID).orElseThrow().status());
     }
 
     @Test
@@ -382,11 +381,13 @@ class IncidentServiceTest {
         IncidentLifecycle lifecycle = new IncidentLifecycle(clock);
         Incident eligible = dashboardIncident(1, IncidentCategory.IT, true);
         Incident assigned = lifecycle.claim(dashboardIncident(2, IncidentCategory.IT, false), RESPONDER_ID);
+        Incident assignedOutsideCurrentAccess =
+                lifecycle.claim(dashboardIncident(5, IncidentCategory.FACILITIES, false), RESPONDER_ID);
         incidents.create(eligible);
         incidents.create(assigned);
         incidents.create(lifecycle.claim(dashboardIncident(3, IncidentCategory.IT, false), SECOND_RESPONDER_ID));
         incidents.create(dashboardIncident(4, IncidentCategory.FACILITIES, false));
-        incidents.create(lifecycle.claim(dashboardIncident(5, IncidentCategory.FACILITIES, false), RESPONDER_ID));
+        incidents.create(assignedOutsideCurrentAccess);
         incidents.create(lifecycle.withdraw(dashboardIncident(6, IncidentCategory.IT, false)));
         incidents.create(lifecycle.saveDraft(new IncidentId(new UUID(1, 7)), REPORTER_ID,
                 "Draft", "Private", IncidentCategory.IT, false));
@@ -398,7 +399,8 @@ class IncidentServiceTest {
         ResponderDashboardModel model = service.responderDashboard(dashboardMapper()).value().orElseThrow();
 
         assertEquals(List.of(eligible.id()), model.eligible().stream().map(IncidentRowModel::id).toList());
-        assertEquals(List.of(assigned.id()), model.assigned().stream().map(IncidentRowModel::id).toList());
+        assertEquals(List.of(assigned.id(), assignedOutsideCurrentAccess.id()),
+                model.assigned().stream().map(IncidentRowModel::id).toList());
         assertEquals("Anonymous reporter", model.eligible().getFirst().reporterLabel());
         assertFalse(model.eligible().toString().contains(REPORTER_ID.value().toString()));
         assertTrue(incidents.auditEvents().isEmpty());
@@ -423,15 +425,19 @@ class IncidentServiceTest {
     }
 
     @Test
-    void dashboardRechecksCategoryAccessForBothLists() {
+    void dashboardRechecksCategoryAccessForEligibleListButKeepsExistingAssignments() {
         incidents.create(dashboardIncident(1, IncidentCategory.IT, false));
         incidents.create(new IncidentLifecycle(clock).claim(dashboardIncident(2, IncidentCategory.IT, false), RESPONDER_ID));
         sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
-        assertEquals(1, service.responderDashboard(dashboardMapper()).value().orElseThrow().assigned().size());
+        ResponderDashboardModel withAccess = service.responderDashboard(dashboardMapper()).value().orElseThrow();
+        assertEquals(1, withAccess.eligible().size());
+        assertEquals(1, withAccess.assigned().size());
 
         sessions.signIn(responder(RESPONDER_ID));
 
-        assertEquals(ResponderDashboardModel.empty(), service.responderDashboard(dashboardMapper()).value().orElseThrow());
+        ResponderDashboardModel withoutAccess = service.responderDashboard(dashboardMapper()).value().orElseThrow();
+        assertTrue(withoutAccess.eligible().isEmpty());
+        assertEquals(1, withoutAccess.assigned().size());
     }
 
     @Test

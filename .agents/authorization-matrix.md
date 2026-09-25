@@ -7,8 +7,8 @@ must hold. UI visibility must mirror, but never replace, domain authorization.
 | --- | --- | --- | --- |
 | Register account | Allowed | Not applicable; responder is promoted | Admin account bootstrap is implementation-specific |
 | Change own password | Allowed after current-password verification | Allowed after current-password verification | Allowed after current-password verification |
-| View incident list | Own incidents only | Assigned incidents and unassigned incidents in permitted categories | All incidents |
-| View incident details | Own incidents only | Incident is assigned to them, or is unassigned in a permitted category | All incidents |
+| View incident list | Own incidents only | Incidents assigned to them (regardless of current category access), and unassigned incidents in permitted categories | All incidents |
+| View incident details | Own incidents only | Incident is assigned to them (regardless of current category access), or is unassigned in a permitted category | All incidents |
 | View attachments/comments | Same permission as incident detail | Same permission as incident detail | Same permission as incident detail |
 | Add attachments | Own `DRAFT`, or own unassigned `SUBMITTED` incident | No | No |
 | Create/save draft | Allowed for self | Allowed only when acting as a reporter, if dual-role behaviour is supported | Not required |
@@ -35,8 +35,11 @@ must hold. UI visibility must mirror, but never replace, domain authorization.
 - Re-evaluate authorization when an operation executes; do not rely on a list
   view checked earlier.
 - A responder losing category access immediately loses access to unassigned
-  incidents in that category. Existing assignments require an admin to reassign
-  or restore access; the responder must not continue viewing them.
+  incidents in that category, and can no longer claim new incidents in it.
+  Incidents already assigned to them remain visible and actionable (resolve,
+  hand off) regardless of that category change, until reassigned, handed off,
+  or resolved. New claims and admin reassignments still require permitted
+  category access.
 - Account deletion disables authentication but preserves tombstoned references
   required by incidents and audit records.
 - Statistics and exports must apply the same anonymity rules as detail views.

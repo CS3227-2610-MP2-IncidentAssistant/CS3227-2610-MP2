@@ -54,21 +54,17 @@ public final class ResponderAccessService {
             AccountId responderId, Set<IncidentCategory> categories) {
         Objects.requireNonNull(responderId, "responderId");
         Objects.requireNonNull(categories, "categories");
-        Optional<Account> actor = sessions.currentAccount();
-        if (actor.isEmpty() || !authorization.authorizeCategoryAccessChange().isAllowed()) {
-            return unavailable();
-        }
-        Optional<Account> located = accounts.findById(responderId)
-                .filter(Account::isEnabled).filter(account -> account.role() == Role.RESPONDER);
+        Optional<Account> located = authorizedResponder(responderId);
         if (located.isEmpty()) {
             return unavailable();
         }
+        Account actor = sessions.currentAccount().orElseThrow();
         Account current = located.orElseThrow();
         Account updated = new Account(current.id(), current.loginName(), current.role(), current.status(),
                 ResponderAccess.to(categories));
         String before = format(current.responderAccess().categories());
         String after = format(updated.responderAccess().categories());
-        var audit = auditEvents.create(actor.orElseThrow(), AuditActorVisibility.STANDARD,
+        var audit = auditEvents.create(actor, AuditActorVisibility.STANDARD,
                 AuditAction.RESPONDER_ACCESS_CHANGED,
                 new AuditTarget(AuditTargetType.ACCOUNT, responderId.value().toString()), AuditOutcome.SUCCESS,
                 List.of(AuditChange.changed(AuditChangeField.RESPONDER_CATEGORIES, before, after)), Optional.empty());
@@ -78,12 +74,22 @@ public final class ResponderAccessService {
         } catch (RepositoryException exception) {
             return ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.PERSISTENCE_FAILURE));
         }
-        eventPublisher.accept(new ResponderAccessChangedEvent(responderId, actor.orElseThrow().id()));
+        eventPublisher.accept(new ResponderAccessChangedEvent(responderId, actor.id()));
         return ApplicationResult.success(OperationCompleted.INSTANCE);
     }
 
+    private Optional<Account> authorizedResponder(AccountId responderId) {
+        if (sessions.currentAccount().isEmpty() || !authorization.authorizeCategoryAccessChange().isAllowed()) {
+            return Optional.empty();
+        }
+        return accounts.findById(responderId)
+                .filter(Account::isEnabled).filter(account -> account.role() == Role.RESPONDER);
+    }
+
     private static String format(Set<IncidentCategory> categories) {
-        return categories.stream().sorted().map(Enum::name).reduce((left, right) -> left + "," + right).orElse("");
+        return categories.isEmpty() ? "none"
+                : categories.stream().sorted().map(Enum::name).reduce((left, right) -> left + "," + right)
+                        .orElseThrow();
     }
 
     private static <T> ApplicationResult<T> unavailable() {

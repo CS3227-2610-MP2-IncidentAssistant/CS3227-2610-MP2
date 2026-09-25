@@ -34,6 +34,7 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.accountDirectory(),
                         applicationContext.accountDeletion(),
                         applicationContext.passwordResets(),
+                        applicationContext.responderAccess(),
                         applicationContext.auditLog(),
                         applicationContext.sloConfigurations(),
                         applicationContext.incidentDetails(),

@@ -96,7 +96,7 @@ public final class IncidentAuthorizationPolicy {
     /** Authorizes handing an assigned report back to its category queue. */
     public AuthorizationDecision authorizeHandoff(Incident incident) {
         Objects.requireNonNull(incident, "incident");
-        return decide(actor -> isAssignedEligibleResponder(actor, incident));
+        return decide(actor -> isAssignedResponder(actor, incident));
     }
 
     /** Authorizes reassigning an incident to an eligible responder. */
@@ -152,8 +152,8 @@ public final class IncidentAuthorizationPolicy {
         Objects.requireNonNull(incident, "incident");
         return switch (actor.role()) {
         case REPORTER -> actor.id().equals(incident.reporterId());
-        case RESPONDER -> isEligibleResponder(actor, incident)
-                && (isUnassignedSubmitted(incident) || isAssignedTo(actor, incident));
+        case RESPONDER -> isAssignedTo(actor, incident)
+                || (isEligibleResponder(actor, incident) && isUnassignedSubmitted(incident));
         case ADMINISTRATOR -> true;
         };
     }
@@ -176,7 +176,7 @@ public final class IncidentAuthorizationPolicy {
         }
         return switch (actor.role()) {
         case REPORTER -> false;
-        case RESPONDER -> isAssignedEligibleResponder(actor, incident);
+        case RESPONDER -> isAssignedResponder(actor, incident);
         case ADMINISTRATOR -> true;
         };
     }
@@ -209,8 +209,8 @@ public final class IncidentAuthorizationPolicy {
                 && actor.responderAccess().permits(incident.category());
     }
 
-    private static boolean isAssignedEligibleResponder(Account actor, Incident incident) {
-        return isEligibleResponder(actor, incident)
+    private static boolean isAssignedResponder(Account actor, Incident incident) {
+        return actor.role() == Role.RESPONDER
                 && incident.status() == IncidentStatus.ASSIGNED
                 && isAssignedTo(actor, incident);
     }

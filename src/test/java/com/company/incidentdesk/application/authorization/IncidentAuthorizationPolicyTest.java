@@ -62,7 +62,17 @@ class IncidentAuthorizationPolicyTest {
         sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.FACILITIES));
 
         assertEquals(DENIED, policy.authorizeViewIncident(submitted(false)));
-        assertEquals(DENIED, policy.authorizeViewIncident(assigned(false)));
+    }
+
+    @Test
+    void responderKeepsViewingAndActingOnAnIncidentAssignedBeforeLosingItsCategory() {
+        Incident incident = assigned(false);
+        sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.FACILITIES));
+
+        assertEquals(ALLOWED, policy.authorizeViewIncident(incident));
+        assertEquals(ALLOWED, policy.authorizeResolve(incident));
+        assertEquals(ALLOWED, policy.authorizeHandoff(incident));
+        assertEquals(DENIED, policy.authorizeClaim(incident));
     }
 
     @Test
@@ -145,7 +155,7 @@ class IncidentAuthorizationPolicyTest {
     }
 
     @Test
-    void resolveRequiresOwnEligibleAssignmentOrAdministrator() {
+    void resolveRequiresOwnAssignmentOrAdministrator() {
         Incident incident = assigned(false);
         sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.IT));
 
@@ -162,7 +172,7 @@ class IncidentAuthorizationPolicyTest {
     }
 
     @Test
-    void handoffRequiresAssignedEligibleResponder() {
+    void handoffRequiresAssignedResponder() {
         Incident incident = assigned(false);
         sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.IT));
 
