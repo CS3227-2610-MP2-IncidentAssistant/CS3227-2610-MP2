@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import com.company.incidentdesk.application.account.PromotionDecisionEvent;
+import com.company.incidentdesk.application.account.PromotionRequestedEvent;
 import com.company.incidentdesk.application.account.ResponderAccessChangedEvent;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
 import com.company.incidentdesk.application.comment.CommentAddedEvent;
@@ -17,6 +18,7 @@ import com.company.incidentdesk.application.event.Subscription;
 import com.company.incidentdesk.application.incident.IncidentChangedEvent;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.incident.Incident;
 import com.company.incidentdesk.domain.incident.IncidentAction;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -58,6 +60,7 @@ public final class NotificationService implements AutoCloseable {
         subscriptions.add(requiredBus.subscribe(IncidentChangedEvent.class, this::onIncidentChanged));
         subscriptions.add(requiredBus.subscribe(CommentAddedEvent.class, this::onCommentAdded));
         subscriptions.add(requiredBus.subscribe(PromotionDecisionEvent.class, this::onPromotionDecision));
+        subscriptions.add(requiredBus.subscribe(PromotionRequestedEvent.class, this::onPromotionRequested));
         subscriptions.add(requiredBus.subscribe(ResponderAccessChangedEvent.class, this::onAccessChanged));
     }
 
@@ -78,6 +81,14 @@ public final class NotificationService implements AutoCloseable {
                 account.id(), NotificationType.ACCOUNT, Optional.empty(),
                 event.approved() ? "Your responder request was approved."
                         : "Your responder request was not approved."));
+    }
+
+    private void onPromotionRequested(PromotionRequestedEvent event) {
+        accounts.findAll().stream().filter(Account::isEnabled)
+                .filter(account -> account.role() == Role.ADMINISTRATOR)
+                .filter(account -> !account.id().equals(event.requesterId()))
+                .forEach(account -> add(account.id(), NotificationType.ACCOUNT, Optional.empty(),
+                        "A responder-promotion request needs review."));
     }
 
     private void onAccessChanged(ResponderAccessChangedEvent event) {

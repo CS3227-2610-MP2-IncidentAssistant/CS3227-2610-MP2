@@ -6,6 +6,8 @@ import java.util.Map;
 
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.account.PromotionRequestId;
+import com.company.incidentdesk.domain.account.ResponderPromotionRequest;
 import com.company.incidentdesk.domain.audit.AuditEvent;
 import com.company.incidentdesk.domain.comment.IncidentComment;
 import com.company.incidentdesk.domain.incident.Incident;
@@ -23,6 +25,7 @@ record LocalApplicationState(
         Map<IncidentId, Incident> incidents,
         List<IncidentComment> comments,
         List<AuditEvent> auditEvents,
+        Map<PromotionRequestId, ResponderPromotionRequest> promotionRequests,
         Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions,
         Map<AttachmentId, IncidentAttachment> attachments,
         int schemaVersion) {
@@ -32,6 +35,7 @@ record LocalApplicationState(
         incidents = Map.copyOf(new LinkedHashMap<>(incidents));
         comments = List.copyOf(comments);
         auditEvents = List.copyOf(auditEvents);
+        promotionRequests = Map.copyOf(new LinkedHashMap<>(promotionRequests));
         sloTargetVersions = Map.copyOf(new LinkedHashMap<>(sloTargetVersions));
         attachments = Map.copyOf(new LinkedHashMap<>(attachments));
         if (schemaVersion != 1) {
@@ -42,7 +46,15 @@ record LocalApplicationState(
     LocalApplicationState(Map<AccountId, Account> accounts, Map<AccountId, PasswordCredential> credentials,
             Map<IncidentId, Incident> incidents, List<IncidentComment> comments, List<AuditEvent> auditEvents,
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions) {
-        this(accounts, credentials, incidents, comments, auditEvents, sloTargetVersions, Map.of(), 1);
+        this(accounts, credentials, incidents, comments, auditEvents, Map.of(), sloTargetVersions, Map.of(), 1);
+    }
+
+    LocalApplicationState(Map<AccountId, Account> accounts, Map<AccountId, PasswordCredential> credentials,
+            Map<IncidentId, Incident> incidents, List<IncidentComment> comments, List<AuditEvent> auditEvents,
+            Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions,
+            Map<AttachmentId, IncidentAttachment> attachments, int schemaVersion) {
+        this(accounts, credentials, incidents, comments, auditEvents, Map.of(), sloTargetVersions,
+                attachments, schemaVersion);
     }
 
     static LocalApplicationState empty() {

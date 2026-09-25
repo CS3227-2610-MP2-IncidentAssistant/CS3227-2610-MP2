@@ -12,6 +12,8 @@ import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.account.AccountPasswordService;
 import com.company.incidentdesk.application.account.AccountPasswordResetService;
+import com.company.incidentdesk.application.account.PromotionRequestService;
+import com.company.incidentdesk.application.account.ResponderAccessService;
 import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.attachment.AttachmentLimits;
 import com.company.incidentdesk.application.comment.IncidentCommentService;
@@ -35,6 +37,7 @@ import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.domain.incident.IncidentLifecycle;
+import com.company.incidentdesk.domain.account.PromotionRequestId;
 import com.company.incidentdesk.domain.slo.SloTargetVersionId;
 import com.company.incidentdesk.persistence.file.LocalApplicationStore;
 
@@ -56,6 +59,8 @@ public final class ApplicationContext implements AutoCloseable {
     private final AttachmentService attachments;
     private final IncidentCommentService comments;
     private final IncidentDetailService incidentDetails;
+    private final PromotionRequestService promotionRequests;
+    private final ResponderAccessService responderAccess;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -71,7 +76,8 @@ public final class ApplicationContext implements AutoCloseable {
             AccountPasswordResetService passwordResets,
             AuditLogService auditLog,
             SloConfigurationService sloConfigurations, AttachmentService attachments,
-            IncidentCommentService comments, IncidentDetailService incidentDetails) {
+            IncidentCommentService comments, IncidentDetailService incidentDetails,
+            PromotionRequestService promotionRequests, ResponderAccessService responderAccess) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -88,6 +94,8 @@ public final class ApplicationContext implements AutoCloseable {
         this.attachments = attachments;
         this.comments = comments;
         this.incidentDetails = incidentDetails;
+        this.promotionRequests = promotionRequests;
+        this.responderAccess = responderAccess;
     }
 
     public static ApplicationContext openDefault() {
@@ -154,10 +162,17 @@ public final class ApplicationContext implements AutoCloseable {
                 clock, () -> new CommentId(UUID.randomUUID()), events::publish);
         IncidentDetailService incidentDetails = new IncidentDetailService(sessions, store, authorization, mapper,
                 comments, attachments, store.sloConfigurationStore(), clock);
+        AuditEventFactory accountAuditEvents = new AuditEventFactory(clock,
+                () -> new AuditEventId(UUID.randomUUID()));
+        PromotionRequestService promotionRequests = new PromotionRequestService(sessions, accountAuthorization,
+                store, store, accountAuditEvents, clock,
+                () -> new PromotionRequestId(UUID.randomUUID()), events::publish);
+        ResponderAccessService responderAccess = new ResponderAccessService(sessions, accountAuthorization,
+                store, store, accountAuditEvents, events::publish);
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
                 Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion, passwords,
                 passwordResets, auditLog, sloConfigurations,
-                attachments, comments, incidentDetails);
+                attachments, comments, incidentDetails, promotionRequests, responderAccess);
     }
 
     public SessionService sessions() {
@@ -207,6 +222,10 @@ public final class ApplicationContext implements AutoCloseable {
     public SloConfigurationService sloConfigurations() {
         return sloConfigurations;
     }
+
+    public PromotionRequestService promotionRequests() { return promotionRequests; }
+
+    public ResponderAccessService responderAccess() { return responderAccess; }
 
     private static void reportSubscriberFailure(RuntimeException exception) {
         System.err.println("Application event subscriber failed: " + exception.getClass().getSimpleName());

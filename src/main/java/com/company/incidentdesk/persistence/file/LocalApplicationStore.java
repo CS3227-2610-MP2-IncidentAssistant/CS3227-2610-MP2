@@ -20,14 +20,18 @@ import com.company.incidentdesk.application.account.AccountDeletionStore;
 import com.company.incidentdesk.application.account.PasswordChangeStore;
 import com.company.incidentdesk.application.account.PasswordResetStore;
 import com.company.incidentdesk.application.account.PasswordCredential;
+import com.company.incidentdesk.application.account.PromotionWorkflowMutation;
+import com.company.incidentdesk.application.account.PromotionWorkflowStore;
 import com.company.incidentdesk.application.attachment.AttachmentLimits;
 import com.company.incidentdesk.application.attachment.AttachmentValidationException;
 import com.company.incidentdesk.domain.attachment.AttachmentId;
 import com.company.incidentdesk.domain.attachment.IncidentAttachment;
-import com.company.incidentdesk.domain.audit.AuditAction;
 import com.company.incidentdesk.persistence.AttachmentStore;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.account.PromotionRequestId;
+import com.company.incidentdesk.domain.account.PromotionRequestStatus;
+import com.company.incidentdesk.domain.account.ResponderPromotionRequest;
 import com.company.incidentdesk.domain.audit.AuditEvent;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.IncidentComment;
@@ -56,7 +60,7 @@ import com.company.incidentdesk.persistence.StorageFailureCode;
 /** Durable aggregate repository for accounts, incidents, comments, audits, and SLO configuration. */
 public final class LocalApplicationStore
         implements AccountRepository, AccountRegistrationStore, AccountDeletionStore, PasswordChangeStore, PasswordResetStore,
-        IncidentStore, AuditRepository,
+        IncidentStore, AuditRepository, PromotionWorkflowStore,
         AutoCloseable {
     public static final String STATE_FILE_NAME = "incident-desk.dat";
 
@@ -179,7 +183,7 @@ public final class LocalApplicationStore
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(requiredAudit);
         persist(new LocalApplicationState(state.accounts(), credentials, state.incidents(), state.comments(), audits,
-                state.sloTargetVersions()));
+                state.promotionRequests(), state.sloTargetVersions(), state.attachments(), state.schemaVersion()));
     }
 
     @Override
@@ -209,7 +213,7 @@ public final class LocalApplicationStore
         List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
         audits.add(requiredAudit);
         persist(new LocalApplicationState(accounts, credentials, state.incidents(), state.comments(), audits,
-                state.sloTargetVersions()));
+                state.promotionRequests(), state.sloTargetVersions(), state.attachments(), state.schemaVersion()));
     }
 
     @Override
@@ -227,6 +231,58 @@ public final class LocalApplicationStore
     public synchronized List<Account> findAll() {
         return state.accounts().values().stream()
                 .sorted(Comparator.comparing(account -> account.id().value())).toList();
+    }
+
+    @Override
+    public synchronized Optional<ResponderPromotionRequest> findPromotionRequest(PromotionRequestId requestId) {
+        return Optional.ofNullable(state.promotionRequests().get(Objects.requireNonNull(requestId, "requestId")));
+    }
+
+    @Override
+    public synchronized List<ResponderPromotionRequest> findPromotionRequests() {
+        return state.promotionRequests().values().stream()
+                .sorted(Comparator.comparing(ResponderPromotionRequest::requestedAt)
+                        .thenComparing(request -> request.id().value()))
+                .toList();
+    }
+
+    @Override
+    public synchronized boolean hasPendingPromotionRequest(AccountId requesterId) {
+        return state.promotionRequests().values().stream().anyMatch(request ->
+                request.requesterId().equals(Objects.requireNonNull(requesterId, "requesterId"))
+                        && request.status() == PromotionRequestStatus.PENDING);
+    }
+
+    @Override
+    public synchronized void commitPromotion(AuditedMutation<PromotionWorkflowMutation> auditedMutation) {
+        AuditedMutation<PromotionWorkflowMutation> required = Objects.requireNonNull(auditedMutation, "auditedMutation");
+        rejectDuplicateAudit(required.auditEvent());
+        Map<PromotionRequestId, ResponderPromotionRequest> requests = new LinkedHashMap<>(state.promotionRequests());
+        required.nextState().request().ifPresent(request -> {
+            ResponderPromotionRequest existing = requests.get(request.id());
+            if (existing == null) {
+                if (request.status() != PromotionRequestStatus.PENDING) {
+                    throw new RepositoryException(StorageFailureCode.NOT_FOUND, "promotion request does not exist");
+                }
+                requests.put(request.id(), request);
+            } else {
+                if (existing.status() != PromotionRequestStatus.PENDING
+                        || request.status() == PromotionRequestStatus.PENDING) {
+                    throw new RepositoryException(StorageFailureCode.ALREADY_EXISTS, "promotion request is not pending");
+                }
+                requests.put(request.id(), request);
+            }
+        });
+        Map<AccountId, Account> accounts = new LinkedHashMap<>(state.accounts());
+        required.nextState().updatedAccount().ifPresent(account -> {
+            if (accounts.replace(account.id(), account) == null) {
+                throw new RepositoryException(StorageFailureCode.NOT_FOUND, "account does not exist");
+            }
+        });
+        List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
+        audits.add(required.auditEvent());
+        persist(new LocalApplicationState(accounts, state.credentials(), state.incidents(), state.comments(), audits,
+                requests, state.sloTargetVersions(), state.attachments(), state.schemaVersion()));
     }
 
     @Override
@@ -339,7 +395,7 @@ public final class LocalApplicationStore
             List<IncidentComment> comments, List<AuditEvent> audits,
             Map<SloTargetVersionId, SloTargetVersion> targets) {
         return new LocalApplicationState(accounts, credentials, incidents, comments, audits,
-                targets, state.attachments(), state.schemaVersion());
+                state.promotionRequests(), targets, state.attachments(), state.schemaVersion());
     }
 
     private void persist(LocalApplicationState nextState) {
@@ -458,7 +514,8 @@ public final class LocalApplicationStore
                 List<AuditEvent> audits = new ArrayList<>(state.auditEvents());
                 audits.add(audit);
                 commitFiles(attachment, content, new LocalApplicationState(state.accounts(), state.credentials(),
-                        state.incidents(), state.comments(), audits, state.sloTargetVersions(), next, 1));
+                        state.incidents(), state.comments(), audits, state.promotionRequests(),
+                        state.sloTargetVersions(), next, 1));
             }
         }
 

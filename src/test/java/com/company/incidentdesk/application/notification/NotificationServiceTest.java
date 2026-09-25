@@ -15,12 +15,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.company.incidentdesk.application.comment.CommentAddedEvent;
+import com.company.incidentdesk.application.account.PromotionDecisionEvent;
+import com.company.incidentdesk.application.account.PromotionRequestedEvent;
+import com.company.incidentdesk.application.account.ResponderAccessChangedEvent;
 import com.company.incidentdesk.application.event.InProcessApplicationEventBus;
 import com.company.incidentdesk.application.incident.IncidentChangedEvent;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
 import com.company.incidentdesk.domain.account.ResponderAccess;
+import com.company.incidentdesk.domain.account.PromotionRequestId;
 import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.Incident;
@@ -92,6 +96,26 @@ class NotificationServiceTest {
         service.close();
         bus.publish(new IncidentChangedEvent(INCIDENT_ID, IncidentAction.SUBMIT, ADMIN));
         assertTrue(inbox.snapshot(REPORTER).notifications().isEmpty());
+    }
+
+    @Test
+    void promotionRequestNotifiesAdministratorsAndDecisionNotifiesRequester() {
+        PromotionRequestId requestId = new PromotionRequestId(new UUID(4, 1));
+
+        bus.publish(new PromotionRequestedEvent(requestId, REPORTER));
+        bus.publish(new PromotionDecisionEvent(REPORTER, ADMIN, true));
+
+        assertEquals(1, inbox.snapshot(ADMIN).notifications().size());
+        assertEquals(1, inbox.snapshot(REPORTER).notifications().size());
+        assertTrue(inbox.snapshot(IT_RESPONDER).notifications().isEmpty());
+    }
+
+    @Test
+    void categoryAccessChangeNotifiesAffectedResponder() {
+        bus.publish(new ResponderAccessChangedEvent(IT_RESPONDER, ADMIN));
+
+        assertEquals(1, inbox.snapshot(IT_RESPONDER).notifications().size());
+        assertTrue(inbox.snapshot(ADMIN).notifications().isEmpty());
     }
 
     private static Account account(AccountId id, Role role, Set<IncidentCategory> categories) {
