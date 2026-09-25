@@ -52,6 +52,22 @@ class IncidentActionBarTest {
     }
 
     @Test
+    void reassignActionReadsAsAssignForAnUnassignedIncident() throws Exception {
+        runOnJavaFx(() -> {
+            IncidentActionModel allowedReassign = new IncidentActionModel(
+                    false, false, false, false, false, true, false, false, false);
+
+            IncidentActionBar assigned = new IncidentActionBar(
+                    ID, allowedReassign, IncidentDetailActions.none(), false);
+            assertEquals("Reassign", ((Button) assigned.getChildren().getFirst()).getText());
+
+            IncidentActionBar unassigned = new IncidentActionBar(
+                    ID, allowedReassign, IncidentDetailActions.none(), true);
+            assertEquals("Assign", ((Button) unassigned.getChildren().getFirst()).getText());
+        });
+    }
+
+    @Test
     void showsAuthorizedActionsAsDisabledUntilAWorkflowHandlerIsConnected() throws Exception {
         runOnJavaFx(() -> {
             IncidentActionModel allAllowed = new IncidentActionModel(

@@ -13,6 +13,15 @@ import javafx.scene.layout.FlowPane;
 /** Renders available workflow actions from authorized presentation flags. */
 public final class IncidentActionBar extends FlowPane {
     public IncidentActionBar(IncidentId incidentId, IncidentActionModel available, IncidentDetailActions actions) {
+        this(incidentId, available, actions, false);
+    }
+
+    /**
+     * @param unassigned true when the incident currently has no assignee, so the reassign action
+     *     reads as "Assign" rather than "Reassign"
+     */
+    public IncidentActionBar(
+            IncidentId incidentId, IncidentActionModel available, IncidentDetailActions actions, boolean unassigned) {
         super(8, 8);
         Objects.requireNonNull(incidentId, "incidentId");
         Objects.requireNonNull(available, "available");
@@ -22,8 +31,9 @@ public final class IncidentActionBar extends FlowPane {
         add("Withdraw", available.withdraw(), actions.withdraw(), incidentId, ActionStyle.DANGER);
         add("Claim", available.claim(), actions.claim(), incidentId, ActionStyle.PRIMARY);
         add("Resolve", available.resolve(), actions.resolve(), incidentId, ActionStyle.PRIMARY);
-        add("Hand off", available.handoff(), actions.handoff(), incidentId, ActionStyle.SECONDARY);
-        add("Reassign", available.reassign(), actions.reassign(), incidentId, ActionStyle.SECONDARY);
+        add("Hand off", available.handoff(), actions.handoff(), incidentId, ActionStyle.DANGER);
+        add(unassigned ? "Assign" : "Reassign", available.reassign(), actions.reassign(), incidentId,
+                ActionStyle.SECONDARY);
         add("Reopen", available.reopen(), actions.reopen(), incidentId, ActionStyle.PRIMARY);
     }
 

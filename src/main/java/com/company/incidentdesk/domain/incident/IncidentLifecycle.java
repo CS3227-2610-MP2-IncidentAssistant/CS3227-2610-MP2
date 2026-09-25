@@ -134,15 +134,19 @@ public final class IncidentLifecycle {
         return assignSubmitted(incident, responderId, IncidentAction.ASSIGN);
     }
 
-    /** Replaces the current assignee while preserving the cycle's first assignment time. */
+    /**
+     * Assigns or replaces the current assignee, setting the first assignment time only when this is
+     * the incident's first assignment within its current cycle.
+     */
     public Incident reassign(Incident incident, AccountId responderId) {
-        requireStatus(incident, IncidentAction.REASSIGN, IncidentStatus.ASSIGNED);
+        requireStatus(incident, IncidentAction.REASSIGN, IncidentStatus.SUBMITTED, IncidentStatus.ASSIGNED);
         Objects.requireNonNull(responderId, "responderId");
         Instant reassignedAt = clock.instant();
         ResolutionCycle cycle = incident.currentCycle().orElseThrow();
+        Optional<Instant> firstAssignedAt = cycle.firstAssignedAt().or(() -> Optional.of(reassignedAt));
         ResolutionCycle reassignedCycle = new ResolutionCycle(
                 cycle.queueEnteredAt(),
-                cycle.firstAssignedAt(),
+                firstAssignedAt,
                 Optional.of(reassignedAt),
                 Optional.empty());
         return copyWithCurrentCycle(incident, IncidentStatus.ASSIGNED, Optional.of(responderId), reassignedCycle);

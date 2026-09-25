@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -75,6 +76,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.StackPane;
+import javafx.stage.Window;
 import javafx.util.Duration;
 
 class ResponderIncidentPageTest {
@@ -311,8 +313,14 @@ class ResponderIncidentPageTest {
 
     private void open(Function<IncidentId, ApplicationResult<IncidentView>> claim,
             BiFunction<IncidentId, String, ApplicationResult<IncidentView>> resolve, Runnable back) throws Exception {
+        open(claim, resolve, incidents::handoff, back);
+    }
+
+    private void open(Function<IncidentId, ApplicationResult<IncidentView>> claim,
+            BiFunction<IncidentId, String, ApplicationResult<IncidentView>> resolve,
+            Function<IncidentId, ApplicationResult<IncidentView>> handoff, Runnable back) throws Exception {
         onFx(() -> {
-            page = new ResponderIncidentPage(claim, resolve, details, comments, attachments, INCIDENT, back);
+            page = new ResponderIncidentPage(claim, resolve, handoff, details, comments, attachments, INCIDENT, back);
             root = new StackPane(page);
             new Scene(root);
             return null;
@@ -559,6 +567,89 @@ class ResponderIncidentPageTest {
         assertEquals(0, returned.get());
         assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
         assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    @Test
+    void handsOffAssignedIncidentBackToTheQueueAfterConfirmation() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        open(incidents::claim, () -> { });
+        Platform.runLater(() -> button("Hand off").fire());
+        Window confirmation = waitForWindowWithLookup("#handoff-confirmation");
+        Platform.runLater(() -> clickButtonByText(confirmation, "Hand off"));
+        awaitFx(() -> labels(page).contains("Incident handed off"));
+        var persisted = store.findById(INCIDENT).orElseThrow();
+        assertEquals(IncidentStatus.SUBMITTED, persisted.status());
+        assertTrue(persisted.assigneeId().isEmpty());
+        var audits = store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST);
+        assertEquals(2, audits.size());
+        assertEquals(AuditAction.INCIDENT_HANDED_OFF, audits.getLast().action());
+    }
+
+    @Test
+    void cancellingHandoffConfirmationLeavesIncidentAssigned() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        open(incidents::claim, () -> { });
+        Platform.runLater(() -> button("Hand off").fire());
+        Window confirmation = waitForWindowWithLookup("#handoff-confirmation");
+        onFx(() -> {
+            clickButtonByText(confirmation, "Cancel");
+            return null;
+        });
+        onFx(() -> {
+            assertFalse(labels(page).contains("Incident handed off"));
+            return null;
+        });
+        assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    @Test
+    void repeatedHandoffClicksSubmitOnlyOnce() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        AtomicInteger calls = new AtomicInteger();
+        CountDownLatch release = new CountDownLatch(1);
+        open(incidents::claim, incidents::resolve, id -> {
+            calls.incrementAndGet();
+            awaitRelease(release);
+            return incidents.handoff(id);
+        }, () -> { });
+        Platform.runLater(() -> button("Hand off").fire());
+        Window confirmation = waitForWindowWithLookup("#handoff-confirmation");
+        Platform.runLater(() -> clickButtonByText(confirmation, "Hand off"));
+        awaitFx(() -> detail().isDisabled());
+        try {
+            onFx(() -> {
+                button("Hand off").fire();
+                page.handoff(INCIDENT);
+                assertTrue(detail().isDisabled());
+                return null;
+            });
+        } finally {
+            release.countDown();
+        }
+        awaitFx(() -> labels(page).contains("Incident handed off"));
+        assertEquals(1, calls.get());
+    }
+
+    private static Window waitForWindowWithLookup(String selector) throws Exception {
+        long deadline = System.currentTimeMillis() + 10000;
+        while (System.currentTimeMillis() < deadline) {
+            Optional<Window> found = onFx(() -> Window.getWindows().stream()
+                    .filter(Window::isShowing)
+                    .filter(window -> window.getScene() != null && window.getScene().lookup(selector) != null)
+                    .findFirst());
+            if (found.isPresent()) {
+                return found.orElseThrow();
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("No showing window matched " + selector + " within timeout");
+    }
+
+    private static void clickButtonByText(Window window, String text) {
+        ((Button) window.getScene().getRoot().lookupAll(".button").stream()
+                .filter(node -> node instanceof Button button && text.equals(button.getText()))
+                .findFirst().orElseThrow()).fire();
     }
 
     private Button button(String text) {
