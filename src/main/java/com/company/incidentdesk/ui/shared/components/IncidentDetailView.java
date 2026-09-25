@@ -16,6 +16,8 @@ import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.domain.incident.IncidentId;
 
 import javafx.concurrent.Task;
+import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -41,11 +43,12 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
     private final IncidentDetailActions actions;
     private final AtomicLong revision = new AtomicLong();
     private Task<ApplicationResult<IncidentDetailModel>> activeLoad;
-    private IncidentDetailState state = IncidentDetailState.loading();
+    private final ReadOnlyObjectWrapper<IncidentDetailState> state =
+            new ReadOnlyObjectWrapper<>(this, "state", IncidentDetailState.loading());
     private boolean closed;
     private BooleanSupplier authorized = () -> false;
     private final Timeline accessChecks = new Timeline(new KeyFrame(ACCESS_CHECK_INTERVAL, event -> {
-        if (state instanceof IncidentDetailState.Ready && !authorized.getAsBoolean()) {
+        if (state() instanceof IncidentDetailState.Ready && !authorized.getAsBoolean()) {
             showUnavailable();
         }
     }));
@@ -83,7 +86,12 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
     }
 
     public IncidentDetailState state() {
-        return state;
+        return state.get();
+    }
+
+    /** Observes loading and access changes without depending on the rendered node structure. */
+    public ReadOnlyObjectProperty<IncidentDetailState> stateProperty() {
+        return state.getReadOnlyProperty();
     }
 
     /** Discards stale display data and pending reads after an access or session change. */
@@ -92,7 +100,7 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
         accessChecks.stop();
         attachments.close();
         authorized = () -> false;
-        state = IncidentDetailState.unavailable();
+        state.set(IncidentDetailState.unavailable());
         render();
     }
 
@@ -100,7 +108,7 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
         cancelLoad();
         closed = false;
         authorized = details.viewGuard(incidentId);
-        state = IncidentDetailState.loading();
+        state.set(IncidentDetailState.loading());
         render();
         if (getScene() != null) {
             accessChecks.playFromStart();
@@ -118,15 +126,15 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
             }
             activeLoad = null;
             ApplicationResult<IncidentDetailModel> result = task.getValue();
-            state = result.isSuccess() && authorized.getAsBoolean()
+            state.set(result.isSuccess() && authorized.getAsBoolean()
                     ? IncidentDetailState.ready(result.value().orElseThrow())
-                    : IncidentDetailState.unavailable();
+                    : IncidentDetailState.unavailable());
             render();
         });
         task.setOnFailed(event -> {
             if (request == revision.get() && !closed) {
                 activeLoad = null;
-                state = IncidentDetailState.unavailable();
+                state.set(IncidentDetailState.unavailable());
                 render();
             }
         });
@@ -135,15 +143,15 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
 
     private void render() {
         getChildren().clear();
-        if (state instanceof IncidentDetailState.Loading) {
+        if (state() instanceof IncidentDetailState.Loading) {
             getChildren().add(backButton());
             getChildren().add(UiComponents.feedback("Loading incident", "Reading the latest authorized details.",
                     FeedbackType.LOADING));
-        } else if (state instanceof IncidentDetailState.Unavailable) {
+        } else if (state() instanceof IncidentDetailState.Unavailable) {
             getChildren().add(backButton());
             getChildren().add(UiComponents.feedback("Incident unavailable",
                     "This incident cannot be displayed. Return to the dashboard and refresh.", FeedbackType.ERROR));
-        } else if (state instanceof IncidentDetailState.Ready ready) {
+        } else if (state() instanceof IncidentDetailState.Ready ready) {
             Node content = readyContent(ready.model());
             VBox.setVgrow(content, Priority.ALWAYS);
             getChildren().add(content);

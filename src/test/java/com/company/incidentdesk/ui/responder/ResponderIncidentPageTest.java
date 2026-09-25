@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +28,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.company.incidentdesk.application.attachment.AttachmentLimits;
 import com.company.incidentdesk.application.attachment.AttachmentService;
@@ -69,6 +73,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
 
@@ -149,7 +154,7 @@ class ResponderIncidentPageTest {
         awaitFx(() -> detail().state() instanceof IncidentDetailState.Ready ready
                 && !ready.model().summary().actions().claim());
         onFx(() -> {
-            assertTrue(button("Resolve").isDisabled()); // Resolution remains a separate workflow.
+            assertFalse(button("Resolve").isDisabled());
             assertTrue(labels(page).contains("Incident claimed"));
             button("Back to dashboard").fire();
             return null;
@@ -301,8 +306,13 @@ class ResponderIncidentPageTest {
     }
 
     private void open(Function<IncidentId, ApplicationResult<IncidentView>> claim, Runnable back) throws Exception {
+        open(claim, incidents::resolve, back);
+    }
+
+    private void open(Function<IncidentId, ApplicationResult<IncidentView>> claim,
+            BiFunction<IncidentId, String, ApplicationResult<IncidentView>> resolve, Runnable back) throws Exception {
         onFx(() -> {
-            page = new ResponderIncidentPage(claim, details, comments, attachments, INCIDENT, back);
+            page = new ResponderIncidentPage(claim, resolve, details, comments, attachments, INCIDENT, back);
             root = new StackPane(page);
             new Scene(root);
             return null;
@@ -311,6 +321,245 @@ class ResponderIncidentPageTest {
     }
 
     private IncidentDetailView detail() { return (IncidentDetailView) page.getCenter(); }
+
+    @Test
+    void detailStatePropertyReportsReloadAndAccessLoss() throws Exception {
+        open(incidents::claim, () -> { });
+        List<IncidentDetailState> observed = new ArrayList<>();
+        onFx(() -> {
+            assertEquals(detail().state(), detail().stateProperty().get());
+            detail().stateProperty().addListener((observable, previous, current) -> {
+                assertTrue(Platform.isFxApplicationThread());
+                assertEquals(current, detail().state());
+                observed.add(current);
+            });
+            detail().refresh();
+            assertTrue(detail().stateProperty().get() instanceof IncidentDetailState.Loading);
+            return null;
+        });
+        awaitFx(() -> detail().stateProperty().get() instanceof IncidentDetailState.Ready);
+        sessions.logout();
+        awaitFx(() -> detail().stateProperty().get() instanceof IncidentDetailState.Unavailable);
+        onFx(() -> {
+            assertEquals(3, observed.size());
+            assertTrue(observed.get(0) instanceof IncidentDetailState.Loading);
+            assertTrue(observed.get(1) instanceof IncidentDetailState.Ready);
+            assertTrue(observed.get(2) instanceof IncidentDetailState.Unavailable);
+            return null;
+        });
+    }
+
+    @Test
+    void resolutionPersistsEvidenceAndReturnsToRefreshedDashboard() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        ResponderPage dashboard = onFx(() -> new ResponderPage(incidents, mapper, sessions, id -> { }));
+        open(incidents::claim, () -> root.getChildren().setAll(dashboard));
+        String remarks = "  Replaced roller\nVerified printing.  ";
+        onFx(() -> {
+            button("Resolve").fire();
+            remarksInput().setText(remarks);
+            button("Confirm resolution").fire();
+            return null;
+        });
+        awaitFx(() -> root.getChildren().contains(dashboard)
+                && !nodes(dashboard).filter(Button.class::isInstance).map(Button.class::cast)
+                        .filter(button -> button.getText().equals("Refresh")).findFirst().orElseThrow().isDisabled());
+        onFx(() -> {
+            assertTrue(nodes(dashboard).filter(TableView.class::isInstance).map(TableView.class::cast)
+                    .allMatch(table -> table.getItems().isEmpty()));
+            assertTrue(detail().state() instanceof IncidentDetailState.Unavailable);
+            assertTrue(page.getBottom() == null);
+            root.getChildren().clear();
+            return null;
+        });
+        store.close();
+        store = new LocalApplicationStore(directory);
+        var saved = store.findById(INCIDENT).orElseThrow();
+        assertEquals(IncidentStatus.RESOLVED, saved.status());
+        assertTrue(saved.assigneeId().isEmpty());
+        var cycle = saved.currentCycle().orElseThrow();
+        var resolution = cycle.resolution().orElseThrow();
+        assertEquals(remarks, resolution.remarks());
+        assertEquals(RESPONDER, resolution.resolvedBy());
+        assertEquals(RESPONDER, resolution.responderAtResolution());
+        assertEquals(NOW, resolution.resolvedAt());
+        assertEquals(NOW, cycle.firstAssignedAt().orElseThrow());
+        var audits = store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST);
+        assertEquals(2, audits.size());
+        assertEquals(AuditAction.INCIDENT_RESOLVED, audits.getLast().action());
+        assertTrue(audits.getLast().evidenceReference().isPresent());
+        assertFalse(audits.toString().contains(remarks));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " \t\n "})
+    void blankResolutionShowsFieldFeedbackWithoutDiscardingInput(String remarks) throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        open(incidents::claim, () -> { });
+        onFx(() -> {
+            button("Resolve").fire();
+            remarksInput().setText(remarks);
+            button("Confirm resolution").fire();
+            return null;
+        });
+        awaitFx(() -> labels(page).contains("Resolution remarks are required."));
+        onFx(() -> {
+            assertEquals(remarks, remarksInput().getText());
+            assertFalse(button("Confirm resolution").isDisabled());
+            assertTrue(remarksInput().getAccessibleText().contains("required"));
+            return null;
+        });
+        assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    @Test
+    void failedResolutionPreservesRemarksAndCanBeRetried() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger returned = new AtomicInteger();
+        open(incidents::claim, (id, remarks) -> calls.incrementAndGet() == 1
+                ? ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.PERSISTENCE_FAILURE))
+                : incidents.resolve(id, remarks), returned::incrementAndGet);
+        onFx(() -> {
+            button("Resolve").fire();
+            remarksInput().setText(" Repaired ");
+            button("Confirm resolution").fire();
+            return null;
+        });
+        awaitFx(() -> labels(page).contains("Resolution not saved"));
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+        onFx(() -> {
+            assertEquals(" Repaired ", remarksInput().getText());
+            button("Confirm resolution").fire();
+            return null;
+        });
+        awaitFx(() -> returned.get() == 1);
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    void pendingResolutionRejectsRepeatClicksAndDirectSubmissions() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger returned = new AtomicInteger();
+        CountDownLatch release = new CountDownLatch(1);
+        open(incidents::claim, (id, remarks) -> {
+            assertFalse(Platform.isFxApplicationThread());
+            calls.incrementAndGet();
+            awaitRelease(release);
+            return incidents.resolve(id, remarks);
+        }, returned::incrementAndGet);
+        try {
+            onFx(() -> {
+                button("Resolve").fire();
+                remarksInput().setText("Done");
+                Button submit = button("Confirm resolution");
+                submit.fire();
+                submit.fire();
+                page.resolve("Duplicate");
+                assertTrue(submit.isDisabled());
+                assertTrue(button("Cancel").isDisabled());
+                assertTrue(remarksInput().isDisabled());
+                return null;
+            });
+        } finally {
+            release.countDown();
+        }
+        awaitFx(() -> returned.get() == 1);
+        assertEquals(1, calls.get());
+        assertEquals(2, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"revoke", "reassign", "logout"})
+    void staleResolutionFormIsClearedAndCannotCommit(String change) throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        AtomicInteger calls = new AtomicInteger();
+        open(incidents::claim, (id, remarks) -> {
+            calls.incrementAndGet();
+            return incidents.resolve(id, remarks);
+        }, () -> { });
+        TextArea input = onFx(() -> {
+            button("Resolve").fire();
+            remarksInput().setText("Private work notes");
+            return remarksInput();
+        });
+        switch (change) {
+        case "revoke" -> store.update(new Account(RESPONDER, "responder", Role.RESPONDER,
+                AccountStatus.ENABLED, ResponderAccess.NONE));
+        case "reassign" -> {
+            AccountId other = new AccountId(new UUID(0, 3));
+            store.create(new Account(other, "other", Role.RESPONDER, AccountStatus.ENABLED,
+                    ResponderAccess.to(Set.of(IncidentCategory.IT))));
+            store.update(new IncidentLifecycle(CLOCK).reassign(store.findById(INCIDENT).orElseThrow(), other));
+        }
+        case "logout" -> sessions.logout();
+        default -> throw new AssertionError("Unknown test change");
+        }
+        awaitFx(() -> detail().state() instanceof IncidentDetailState.Unavailable && page.getBottom() == null);
+        onFx(() -> {
+            assertEquals("", input.getText());
+            page.resolve("Stale submission");
+            return null;
+        });
+        assertEquals(0, calls.get());
+        assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    private TextArea remarksInput() {
+        return nodes(page).filter(TextArea.class::isInstance).map(TextArea.class::cast)
+                .filter(input -> "resolution-remarks".equals(input.getId())).findFirst().orElseThrow();
+    }
+
+    @Test
+    void cancelClearsRemarksWithoutResolvingAndAllowsReopeningForm() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        open(incidents::claim, () -> { });
+        onFx(() -> {
+            button("Resolve").fire();
+            TextArea input = remarksInput();
+            input.setText("Unfinished notes");
+            button("Cancel").fire();
+            assertEquals("", input.getText());
+            assertTrue(page.getBottom() == null);
+            button("Resolve").fire();
+            assertEquals("", remarksInput().getText());
+            return null;
+        });
+        assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
+
+    @Test
+    void logoutDuringPendingResolutionDiscardsInputAndCannotNavigateOrCommit() throws Exception {
+        assertTrue(incidents.claim(INCIDENT).isSuccess());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger returned = new AtomicInteger();
+        open(incidents::claim, (id, remarks) -> {
+            entered.countDown();
+            awaitRelease(release);
+            return incidents.resolve(id, remarks);
+        }, returned::incrementAndGet);
+        try {
+            onFx(() -> {
+                button("Resolve").fire();
+                remarksInput().setText("Done");
+                button("Confirm resolution").fire();
+                return null;
+            });
+            assertTrue(entered.await(10, TimeUnit.SECONDS));
+            sessions.logout();
+        } finally {
+            release.countDown();
+        }
+        awaitFx(() -> detail().state() instanceof IncidentDetailState.Unavailable && !detail().isDisabled());
+        assertEquals(0, returned.get());
+        assertEquals(IncidentStatus.ASSIGNED, store.findById(INCIDENT).orElseThrow().status());
+        assertEquals(1, store.find(AuditQuery.all(), AuditSortDirection.OLDEST_FIRST).size());
+    }
 
     private Button button(String text) {
         return nodes(page).filter(Button.class::isInstance).map(Button.class::cast)
