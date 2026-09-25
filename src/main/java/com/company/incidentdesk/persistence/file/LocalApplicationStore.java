@@ -62,7 +62,7 @@ public final class LocalApplicationStore
 
     private final ApplicationProcessLock processLock;
     private final RecoverySafeFile<LocalApplicationState> file;
-    private final IncidentSloClassifier sloClassifier;
+    private volatile IncidentSloClassifier sloClassifier;
     private final SloConfigurationStore sloConfigurationStore = new SloConfigurationStoreFacet();
     private LocalApplicationState state;
     private final AttachmentFiles attachmentFiles;
@@ -96,6 +96,11 @@ public final class LocalApplicationStore
 
     public static LocalApplicationStore openDefault() {
         return new LocalApplicationStore(ApplicationDataDirectory.resolve());
+    }
+
+    /** Installs the application SLO evaluator after the store's configuration facet is available. */
+    public void setIncidentSloClassifier(IncidentSloClassifier classifier) {
+        sloClassifier = Objects.requireNonNull(classifier, "classifier");
     }
 
     public static void recoverLastKnownGoodBackup(Path dataDirectory) {

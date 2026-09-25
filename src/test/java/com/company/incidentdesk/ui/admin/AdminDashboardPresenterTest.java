@@ -10,6 +10,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.company.incidentdesk.application.presentation.AdministratorIncidentListModel;
+import com.company.incidentdesk.application.presentation.IncidentIdentityOptionModel;
 import com.company.incidentdesk.application.presentation.IncidentActionModel;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.presentation.SloSummaryModel;
@@ -30,10 +32,12 @@ class AdminDashboardPresenterTest {
 
     @Test
     void successfulRefreshPublishesAdministratorRows() {
-        presenter.completeRefresh(presenter.beginRefresh(), ApplicationResult.success(List.of(row)));
+        presenter.completeRefresh(presenter.beginRefresh(), ApplicationResult.success(incidentList()));
 
         assertEquals(AdminDashboardPresenter.State.READY, presenter.state());
         assertEquals(List.of(row), presenter.rows());
+        assertEquals("reporter", presenter.reporters().getFirst().displayName());
+        assertEquals("responder", presenter.responders().getFirst().displayName());
     }
 
     @Test
@@ -53,12 +57,12 @@ class AdminDashboardPresenterTest {
             sessions.account = account(Role.ADMINISTRATOR);
             long request = presenter.beginRefresh();
             sessions.account = replacement;
-            presenter.completeRefresh(request, ApplicationResult.success(List.of(row)));
+            presenter.completeRefresh(request, ApplicationResult.success(incidentList()));
             assertUnavailable();
         }
 
         sessions.account = account(Role.ADMINISTRATOR);
-        presenter.completeRefresh(presenter.beginRefresh(), ApplicationResult.success(List.of(row)));
+        presenter.completeRefresh(presenter.beginRefresh(), ApplicationResult.success(incidentList()));
         sessions.authenticatedAt = sessions.authenticatedAt.plusSeconds(1);
         assertUnavailable();
     }
@@ -67,7 +71,7 @@ class AdminDashboardPresenterTest {
     void lateResultCannotRestoreClearedData() {
         long request = presenter.beginRefresh();
         presenter.clear();
-        presenter.completeRefresh(request, ApplicationResult.success(List.of(row)));
+        presenter.completeRefresh(request, ApplicationResult.success(incidentList()));
         assertUnavailable();
     }
 
@@ -81,6 +85,13 @@ class AdminDashboardPresenterTest {
                 "Reporter", "Unassigned", "23 Sep 2026, 16:00", "23 Sep 2026, 16:00",
                 SloSummaryModel.unavailable(), false, 0,
                 new IncidentActionModel(false, false, false, false, false, false, false, false, false));
+    }
+
+    private static AdministratorIncidentListModel incidentList() {
+        return new AdministratorIncidentListModel(
+                List.of(row()),
+                List.of(new IncidentIdentityOptionModel(new AccountId(new UUID(0, 2)), "reporter")),
+                List.of(new IncidentIdentityOptionModel(new AccountId(new UUID(0, 3)), "responder")));
     }
 
     private static Account account(Role role) {

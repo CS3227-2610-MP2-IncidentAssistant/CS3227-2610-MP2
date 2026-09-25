@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.company.incidentdesk.application.presentation.AdministratorIncidentListModel;
+import com.company.incidentdesk.application.presentation.IncidentIdentityOptionModel;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.application.session.AuthenticatedSession;
@@ -18,7 +20,7 @@ public final class AdminDashboardPresenter {
 
     private final SessionProvider sessions;
     private Optional<Context> context = Optional.empty();
-    private List<IncidentRowModel> rows = List.of();
+    private AdministratorIncidentListModel incidentList = AdministratorIncidentListModel.empty();
     private State state = State.UNAVAILABLE;
     private long revision;
 
@@ -28,12 +30,12 @@ public final class AdminDashboardPresenter {
 
     public long beginRefresh() {
         context = currentContext();
-        rows = List.of();
+        incidentList = AdministratorIncidentListModel.empty();
         state = context.isPresent() ? State.LOADING : State.UNAVAILABLE;
         return ++revision;
     }
 
-    public void completeRefresh(long request, ApplicationResult<List<IncidentRowModel>> result) {
+    public void completeRefresh(long request, ApplicationResult<AdministratorIncidentListModel> result) {
         Objects.requireNonNull(result, "result");
         if (request != revision) {
             return;
@@ -42,14 +44,14 @@ public final class AdminDashboardPresenter {
             clear();
             return;
         }
-        rows = List.copyOf(result.value().orElseThrow());
+        incidentList = result.value().orElseThrow();
         state = State.READY;
     }
 
     public void clear() {
         revision++;
         context = Optional.empty();
-        rows = List.of();
+        incidentList = AdministratorIncidentListModel.empty();
         state = State.UNAVAILABLE;
     }
 
@@ -57,7 +59,21 @@ public final class AdminDashboardPresenter {
         if (!isContextCurrent()) {
             clear();
         }
-        return rows;
+        return incidentList.rows();
+    }
+
+    public List<IncidentIdentityOptionModel> reporters() {
+        if (!isContextCurrent()) {
+            clear();
+        }
+        return incidentList.reporters();
+    }
+
+    public List<IncidentIdentityOptionModel> responders() {
+        if (!isContextCurrent()) {
+            clear();
+        }
+        return incidentList.responders();
     }
 
     public State state() {

@@ -114,8 +114,17 @@ public final class IncidentFilterBar extends VBox {
 
     /** Supplies already-authorized identity options; anonymous reporters must never be included. */
     public void setIdentityOptions(List<AccountOption> reporterOptions, List<AccountOption> responderOptions) {
-        reporters.setItems(FXCollections.observableArrayList(withEmptyOption("Any reporter", reporterOptions)));
-        responders.setItems(FXCollections.observableArrayList(withEmptyOption("Any responder", responderOptions)));
+        Optional<AccountId> selectedReporter = selectedAccount(reporters);
+        Optional<AccountId> selectedResponder = selectedAccount(responders);
+        suppressSearch = true;
+        try {
+            reporters.setItems(FXCollections.observableArrayList(withEmptyOption("Any reporter", reporterOptions)));
+            responders.setItems(FXCollections.observableArrayList(withEmptyOption("Any responder", responderOptions)));
+            selectAccount(reporters, selectedReporter);
+            selectAccount(responders, selectedResponder);
+        } finally {
+            suppressSearch = false;
+        }
     }
 
     public void setIdentityFiltersVisible(boolean visible) {

@@ -5,11 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import com.company.incidentdesk.application.incident.IncidentService;
+import com.company.incidentdesk.application.presentation.AdministratorIncidentListModel;
+import com.company.incidentdesk.application.presentation.IncidentIdentityOptionModel;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
-import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
@@ -21,6 +21,7 @@ import com.company.incidentdesk.domain.slo.SloTargetVersion;
 import com.company.incidentdesk.ui.shared.components.IncidentTable;
 import com.company.incidentdesk.ui.shared.components.IncidentTableConfiguration;
 import com.company.incidentdesk.ui.shared.components.IncidentTableState;
+import com.company.incidentdesk.ui.shared.components.IncidentFilterBar.AccountOption;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
@@ -34,9 +35,10 @@ import javafx.scene.layout.VBox;
 /** Service-backed administrator view of company incidents. */
 public final class AdminIncidentPage extends BorderPane {
     private final AdminDashboardPresenter presenter;
-    private final Supplier<ApplicationResult<List<IncidentRowModel>>> load;
+    private final IncidentService service;
+    private final IncidentPresentationMapper mapper;
     private final IncidentTable incidents = new IncidentTable(IncidentTableConfiguration.administrator());
-    private Task<ApplicationResult<List<IncidentRowModel>>> activeLoad;
+    private Task<ApplicationResult<AdministratorIncidentListModel>> activeLoad;
 
     public AdminIncidentPage(
             IncidentService service,
@@ -44,11 +46,10 @@ public final class AdminIncidentPage extends BorderPane {
             SessionProvider sessions,
             SloConfigurationService sloConfigurations,
             Consumer<IncidentId> onOpenDetail) {
-        Objects.requireNonNull(service, "service");
-        Objects.requireNonNull(mapper, "mapper");
+        this.service = Objects.requireNonNull(service, "service");
+        this.mapper = Objects.requireNonNull(mapper, "mapper");
         Objects.requireNonNull(onOpenDetail, "onOpenDetail");
         presenter = new AdminDashboardPresenter(sessions);
-        load = () -> service.administratorIncidents(incidents.criteria(), mapper);
         incidents.setTableAccessibleText("Company incidents");
         incidents.setOnRefresh(criteria -> refresh());
         incidents.setOnOpenDetail(row -> onOpenDetail.accept(row.id()));
@@ -99,13 +100,16 @@ public final class AdminIncidentPage extends BorderPane {
 
     private void refresh() {
         cancelLoad();
+        var criteria = incidents.criteria();
         long request = presenter.beginRefresh();
         render();
         if (presenter.state() != AdminDashboardPresenter.State.LOADING) {
             return;
         }
-        Task<ApplicationResult<List<IncidentRowModel>>> task = new Task<>() {
-            @Override protected ApplicationResult<List<IncidentRowModel>> call() { return load.get(); }
+        Task<ApplicationResult<AdministratorIncidentListModel>> task = new Task<>() {
+            @Override protected ApplicationResult<AdministratorIncidentListModel> call() {
+                return service.administratorIncidentList(criteria, mapper);
+            }
         };
         activeLoad = task;
         task.setOnSucceeded(event -> finishRefresh(request, task.getValue()));
@@ -113,18 +117,27 @@ public final class AdminIncidentPage extends BorderPane {
         Thread.startVirtualThread(task);
     }
 
-    private void finishRefresh(long request, ApplicationResult<List<IncidentRowModel>> result) {
+    private void finishRefresh(long request, ApplicationResult<AdministratorIncidentListModel> result) {
         presenter.completeRefresh(request, result);
         render();
     }
 
     private void render() {
+        if (presenter.state() == AdminDashboardPresenter.State.READY) {
+            incidents.setIdentityOptions(options(presenter.reporters()), options(presenter.responders()));
+        } else if (presenter.state() == AdminDashboardPresenter.State.UNAVAILABLE) {
+            incidents.setIdentityOptions(List.of(), List.of());
+        }
         incidents.setState(switch (presenter.state()) {
             case LOADING -> IncidentTableState.loading();
             case READY -> IncidentTableState.loaded(presenter.rows());
             case UNAVAILABLE -> IncidentTableState.error(
                     "Sign in as an administrator and refresh to try again.");
         });
+    }
+
+    private static List<AccountOption> options(List<IncidentIdentityOptionModel> values) {
+        return values.stream().map(value -> new AccountOption(value.id(), value.displayName())).toList();
     }
 
     private void deactivate() {
@@ -140,7 +153,7 @@ public final class AdminIncidentPage extends BorderPane {
         }
     }
 
-    private static ApplicationResult<List<IncidentRowModel>> unavailable() {
+    private static ApplicationResult<AdministratorIncidentListModel> unavailable() {
         return ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE));
     }
 }
