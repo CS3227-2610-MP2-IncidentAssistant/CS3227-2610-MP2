@@ -462,6 +462,33 @@ class IncidentServiceTest {
     }
 
     @Test
+    void administratorIncidentListOffersOnlyIdentitiesVisibleThroughIncidentRows() {
+        AccountId visibleReporter = accountId("00000000-0000-0000-0000-000000000011");
+        AccountId anonymousOnlyReporter = accountId("00000000-0000-0000-0000-000000000012");
+        AccountId assignedResponder = accountId("00000000-0000-0000-0000-000000000013");
+        accounts.create(reporter(visibleReporter));
+        accounts.create(reporter(anonymousOnlyReporter));
+        accounts.create(responder(assignedResponder, IncidentCategory.IT));
+        IncidentLifecycle lifecycle = new IncidentLifecycle(clock);
+        incidents.create(lifecycle.submit(new IncidentId(new UUID(2, 1)), visibleReporter,
+                "Visible", "Description", IncidentCategory.IT, false));
+        incidents.create(lifecycle.submit(new IncidentId(new UUID(2, 2)), anonymousOnlyReporter,
+                "Anonymous", "Description", IncidentCategory.IT, true));
+        incidents.create(lifecycle.claim(lifecycle.submit(new IncidentId(new UUID(2, 3)), visibleReporter,
+                "Assigned", "Description", IncidentCategory.IT, false), assignedResponder));
+        sessions.signIn(administrator());
+
+        var result = service.administratorIncidentList(IncidentSearchCriteria.defaults(), dashboardMapper());
+
+        assertTrue(result.isSuccess());
+        var model = result.value().orElseThrow();
+        assertEquals(List.of(visibleReporter), model.reporters().stream().map(option -> option.id()).toList());
+        assertEquals(List.of(assignedResponder), model.responders().stream().map(option -> option.id()).toList());
+        assertFalse(model.toString().contains(anonymousOnlyReporter.value().toString()));
+        assertFalse(model.toString().contains("reporter-" + anonymousOnlyReporter.value()));
+    }
+
+    @Test
     void administratorIncidentViewDeniesMissingAndNonAdministratorSessions() {
         assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE,
                 service.administratorIncidents(IncidentSearchCriteria.defaults(), dashboardMapper())

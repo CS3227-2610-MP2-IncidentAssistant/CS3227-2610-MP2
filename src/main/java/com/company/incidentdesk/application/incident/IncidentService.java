@@ -1,6 +1,7 @@
 package com.company.incidentdesk.application.incident;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -11,9 +12,12 @@ import java.util.function.Supplier;
 import com.company.incidentdesk.application.audit.AuditEventFactory;
 import com.company.incidentdesk.application.authorization.AuthorizationDecision;
 import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.presentation.AdministratorIncidentListModel;
+import com.company.incidentdesk.application.presentation.IncidentIdentityOptionModel;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
 import com.company.incidentdesk.application.presentation.ResponderDashboardModel;
+import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
@@ -72,6 +76,7 @@ public final class IncidentService {
     private final Supplier<IncidentId> incidentIdentifierGenerator;
     private final Supplier<CommentId> commentIdentifierGenerator;
     private final IncidentEventPublisher eventPublisher;
+    private final Function<Incident, SloSummaryModel> sloSummaries;
     private final RequiredTextValidator requiredTextValidator = new RequiredTextValidator();
 
     public IncidentService(
@@ -85,7 +90,7 @@ public final class IncidentService {
             IncidentEventPublisher eventPublisher) {
         this(sessionProvider, incidentStore, accountRepository, authorizationPolicy, lifecycle,
                 auditEventFactory, incidentIdentifierGenerator,
-                () -> new CommentId(UUID.randomUUID()), eventPublisher);
+                () -> new CommentId(UUID.randomUUID()), eventPublisher, incident -> SloSummaryModel.unavailable());
     }
 
     public IncidentService(
@@ -98,6 +103,22 @@ public final class IncidentService {
             Supplier<IncidentId> incidentIdentifierGenerator,
             Supplier<CommentId> commentIdentifierGenerator,
             IncidentEventPublisher eventPublisher) {
+        this(sessionProvider, incidentStore, accountRepository, authorizationPolicy, lifecycle, auditEventFactory,
+                incidentIdentifierGenerator, commentIdentifierGenerator, eventPublisher,
+                incident -> SloSummaryModel.unavailable());
+    }
+
+    public IncidentService(
+            SessionProvider sessionProvider,
+            IncidentStore incidentStore,
+            AccountRepository accountRepository,
+            IncidentAuthorizationPolicy authorizationPolicy,
+            IncidentLifecycle lifecycle,
+            AuditEventFactory auditEventFactory,
+            Supplier<IncidentId> incidentIdentifierGenerator,
+            Supplier<CommentId> commentIdentifierGenerator,
+            IncidentEventPublisher eventPublisher,
+            Function<Incident, SloSummaryModel> sloSummaries) {
         this.sessionProvider = Objects.requireNonNull(sessionProvider, "sessionProvider");
         this.incidentStore = Objects.requireNonNull(incidentStore, "incidentStore");
         this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository");
@@ -111,6 +132,7 @@ public final class IncidentService {
                 commentIdentifierGenerator,
                 "commentIdentifierGenerator");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.sloSummaries = Objects.requireNonNull(sloSummaries, "sloSummaries");
     }
 
     public ApplicationResult<IncidentView> saveDraft(
@@ -391,6 +413,16 @@ public final class IncidentService {
     /** Reads the administrator incident view with authorization rechecked around mapping. */
     public ApplicationResult<List<IncidentRowModel>> administratorIncidents(
             IncidentSearchCriteria criteria, IncidentPresentationMapper mapper) {
+        ApplicationResult<AdministratorIncidentListModel> result = administratorIncidentList(criteria, mapper);
+        if (!result.isSuccess()) {
+            return ApplicationResult.failure(result.error().orElseThrow());
+        }
+        return ApplicationResult.success(result.value().orElseThrow().rows());
+    }
+
+    /** Reads administrator rows together with privacy-safe reporter and responder filter values. */
+    public ApplicationResult<AdministratorIncidentListModel> administratorIncidentList(
+            IncidentSearchCriteria criteria, IncidentPresentationMapper mapper) {
         Objects.requireNonNull(criteria, "criteria");
         Objects.requireNonNull(mapper, "mapper");
         try {
@@ -399,20 +431,39 @@ public final class IncidentService {
                 return unavailable();
             }
             Account administrator = actor.orElseThrow();
+            List<Incident> allAuthorized = queryFor(administrator, IncidentSearchCriteria.defaults()).stream()
+                    .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
+                    .toList();
             List<IncidentRowModel> rows = queryFor(administrator, criteria).stream()
                     .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
                     .sorted(criteria.sort().comparator())
-                    .map(mapper::toRow)
+                    .map(incident -> mapper.toRow(incident, sloSummaries.apply(incident)))
                     .toList();
+            List<IncidentIdentityOptionModel> reporterOptions = identityOptions(allAuthorized.stream()
+                    .filter(incident -> !incident.anonymous())
+                    .map(Incident::reporterId).distinct().toList());
+            List<IncidentIdentityOptionModel> responderOptions = identityOptions(allAuthorized.stream()
+                    .flatMap(incident -> incident.assigneeId().stream()).distinct().toList());
             if (!actor.equals(currentActor())) {
                 return unavailable();
             }
-            return ApplicationResult.success(rows);
+            return ApplicationResult.success(
+                    new AdministratorIncidentListModel(rows, reporterOptions, responderOptions));
         } catch (SecurityException exception) {
             return unavailable();
         } catch (RepositoryException exception) {
             return storageFailure(exception);
         }
+    }
+
+    private List<IncidentIdentityOptionModel> identityOptions(List<AccountId> accountIds) {
+        return accountIds.stream()
+                .map(accountRepository::findById)
+                .flatMap(Optional::stream)
+                .map(account -> new IncidentIdentityOptionModel(account.id(), account.loginName()))
+                .sorted(Comparator.comparing(IncidentIdentityOptionModel::displayName)
+                        .thenComparing(option -> option.id().value()))
+                .toList();
     }
 
     private List<IncidentRowModel> dashboardRows(

@@ -30,6 +30,7 @@ import com.company.incidentdesk.application.presentation.IncidentPresentationMap
 import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
+import com.company.incidentdesk.application.slo.SloIncidentClassifier;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -117,6 +118,9 @@ public final class ApplicationContext implements AutoCloseable {
         NotificationInbox notifications = new NotificationInbox();
         NotificationService notificationService = new NotificationService(
                 events, store, store, notifications, clock);
+        SloIncidentClassifier sloSummaries = new SloIncidentClassifier(
+                store.sloConfigurationStore(), clock);
+        store.setIncidentSloClassifier(sloSummaries);
         IncidentService incidents = new IncidentService(
                 sessions,
                 store,
@@ -125,7 +129,7 @@ public final class ApplicationContext implements AutoCloseable {
                 new IncidentLifecycle(clock),
                 new AuditEventFactory(clock, () -> new AuditEventId(UUID.randomUUID())),
                 () -> new IncidentId(UUID.randomUUID()),
-                events::publish);
+                () -> new CommentId(UUID.randomUUID()), events::publish, sloSummaries::summarize);
         IncidentPresentationMapper mapper = new IncidentPresentationMapper(
                 store, authorization, ZoneId.systemDefault(), DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm"));
         AccountDirectoryService accountDirectory = new AccountDirectoryService(accountAuthorization, store);

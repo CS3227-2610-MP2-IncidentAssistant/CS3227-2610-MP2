@@ -212,6 +212,25 @@ class IncidentFilterBarTest {
         });
     }
 
+    @Test
+    void refreshingIdentityOptionsRetainsValidSelectionsWithoutTriggeringSearch() throws Exception {
+        runOnJavaFx(() -> {
+            IncidentFilterBar bar = new IncidentFilterBar();
+            AtomicInteger searches = new AtomicInteger();
+            IncidentFilterBar.AccountOption reporter = new IncidentFilterBar.AccountOption(REPORTER, "Reporter");
+            bar.setIdentityOptions(List.of(reporter), List.of());
+            bar.setCriteria(new IncidentSearchCriteria("", Set.of(), Set.of(), AssignmentState.ANY,
+                    Optional.of(REPORTER), Optional.empty(), Optional.empty(), Optional.empty(), Set.of(),
+                    new IncidentSort(IncidentSortField.CREATED_AT, SortDirection.DESCENDING)));
+            bar.setOnSearch(criteria -> searches.incrementAndGet());
+
+            bar.setIdentityOptions(List.of(reporter), List.of());
+
+            assertEquals(Optional.of(REPORTER), bar.criteria().reporterId());
+            assertEquals(0, searches.get());
+        });
+    }
+
     private static <T> T createOnJavaFx(java.util.function.Supplier<T> supplier) throws Exception {
         FutureTask<T> task = new FutureTask<>(supplier::get);
         Platform.runLater(task);
