@@ -18,7 +18,10 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
-          - macos-latest
+          # macos-13 is the last Intel macOS runner. The packaged JavaFX
+          # natives are x86_64-only (see build.gradle); an arm64 runner like
+          # macos-latest cannot load them and JavaFX Toolkit startup fails.
+          - macos-13
 
     steps:
       - name: Check out repository

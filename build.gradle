@@ -51,11 +51,15 @@ dependencies {
         implementation("org.openjfx:${module}:${javaFxVersion}:${hostPlatform}")
     }
 
-    // The packaged shadow jar bundles JavaFX natives for all three
-    // platforms; each platform's native library file name is distinct
+    // The packaged shadow jar bundles JavaFX natives for win/mac/linux, all
+    // x86_64; each platform's native library file name is distinct
     // (glass.dll / libglass.dylib / libglass.so), so merging them into one
     // jar does not collide, and the shipped jar resolves its own natives
-    // relative to itself regardless of which OS launches it.
+    // relative to itself regardless of which OS launches it. JavaFX also
+    // publishes mac-aarch64/linux-aarch64 classifiers, but those natives
+    // share the SAME file names as their x86_64 counterparts, so a single
+    // jar cannot hold both architectures for one OS; running on Apple
+    // Silicon requires an x86_64 (Rosetta) JVM. See DeveloperGuide.md.
     ['win', 'mac', 'linux'].each { platform ->
         javaFxModules.each { module ->
             shadowJavaFxNatives("org.openjfx:${module}:${javaFxVersion}:${platform}")

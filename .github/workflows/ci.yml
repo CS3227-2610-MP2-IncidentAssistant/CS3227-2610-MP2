@@ -54,7 +54,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        # macos-13 is the last Intel macOS runner. The packaged JavaFX
+        # natives are x86_64-only (see build.gradle); an arm64 runner like
+        # macos-latest cannot load them and JavaFX Toolkit startup fails.
+        os: [windows-latest, macos-13]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
