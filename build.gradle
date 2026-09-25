@@ -1,4 +1,5 @@
 import org.gradle.internal.os.OperatingSystem
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id 'application'
@@ -26,7 +27,32 @@ configurations {
     shadowJavaFxNatives {
         canBeConsumed = false
         canBeResolved = true
+        transitive = false
     }
+    shadowApplicationRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom runtimeClasspath
+        exclude group: 'org.openjfx'
+    }
+    shadowMacArm64Natives {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+
+def javaFxPlatforms = [
+    windows: [amd64: 'win', x86_64: 'win'],
+    mac: [amd64: 'mac', x86_64: 'mac', aarch64: 'mac-aarch64', arm64: 'mac-aarch64'],
+    linux: [amd64: 'linux', x86_64: 'linux', aarch64: 'linux-aarch64', arm64: 'linux-aarch64']
+]
+OperatingSystem hostOs = OperatingSystem.current()
+String hostOsName = hostOs.isWindows() ? 'windows' : hostOs.isMacOsX() ? 'mac' : hostOs.isLinux() ? 'linux' : 'unsupported'
+String hostArchitecture = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+String hostJavaFxPlatform = javaFxPlatforms[hostOsName]?.get(hostArchitecture)
+if (hostJavaFxPlatform == null) {
+    throw new GradleException("Unsupported JavaFX platform: ${hostOsName}/${hostArchitecture}. Use an x86_64 JDK 25, or an ARM64 JDK 25 on macOS/Linux.")
 }
 
 application {
@@ -45,10 +71,12 @@ dependencies {
 
     // Compile/test/run only ever see the current build machine's classifier,
     // so there is exactly one native loader on those classpaths.
-    OperatingSystem os = OperatingSystem.current()
-    String hostPlatform = os.isWindows() ? 'win' : (os.isMacOsX() ? 'mac' : 'linux')
     javaFxModules.each { module ->
-        implementation("org.openjfx:${module}:${javaFxVersion}:${hostPlatform}")
+        implementation("org.openjfx:${module}:${javaFxVersion}:${hostJavaFxPlatform}") {
+            // All four modules are explicit; POM defaults can reintroduce Intel natives.
+            transitive = false
+        }
+        shadowMacArm64Natives("org.openjfx:${module}:${javaFxVersion}:mac-aarch64")
     }
 
     // The packaged shadow jar bundles JavaFX natives for win/mac/linux, all
@@ -93,7 +121,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    // The shadow jar is the only executable artifact this project distributes.
+    // Only dependency-inclusive Shadow JARs are distributed.
     enabled = false
     // Rename its output anyway; Gradle forbids it clashing with the shadowJar output file, even for a disabled task.
     archiveClassifier = 'without-dependencies'
@@ -101,7 +129,22 @@ jar {
 
 shadowJar {
     archiveFileName = 'incident-desk.jar'
-    configurations = [project.configurations.runtimeClasspath, project.configurations.shadowJavaFxNatives]
+    // Keep host-specific development natives out of the Intel-only distributable.
+    configurations = [project.configurations.shadowApplicationRuntime, project.configurations.shadowJavaFxNatives]
+    manifest {
+        attributes(
+            'Main-Class': application.mainClass.get(),
+            'Enable-Native-Access': 'ALL-UNNAMED'
+        )
+    }
+}
+
+def shadowJarMacArm64 = tasks.register('shadowJarMacArm64', ShadowJar) {
+    group = 'build'
+    description = 'Builds the standalone Apple Silicon JAR for an ARM64 JDK 25.'
+    archiveFileName = 'incident-desk-mac-aarch64.jar'
+    from sourceSets.main.output
+    configurations = [project.configurations.shadowApplicationRuntime, project.configurations.shadowMacArm64Natives]
     manifest {
         attributes(
             'Main-Class': application.mainClass.get(),
@@ -111,7 +154,27 @@ shadowJar {
 }
 
 tasks.named('assemble') {
-    dependsOn shadowJar
+    dependsOn shadowJar, shadowJarMacArm64
+}
+
+// A test-only agent observes the real `java -jar` window and closes it.
+// It supplies no JavaFX classes or application code to the packaged process.
+def packagedStartupProbeJar = tasks.register('packagedStartupProbeJar', Jar) {
+    dependsOn testClasses
+    archiveFileName = 'packaged-startup-probe.jar'
+    destinationDirectory = layout.buildDirectory.dir('test-support')
+    from(sourceSets.test.output) {
+        include 'com/company/incidentdesk/startup/PackagedStartupProbe.class'
+    }
+    manifest { attributes 'Premain-Class': 'com.company.incidentdesk.startup.PackagedStartupProbe' }
+}
+
+tasks.named('test') {
+    dependsOn shadowJar, shadowJarMacArm64, packagedStartupProbeJar
+    systemProperty 'incidentdesk.test.intelJar', tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath
+    systemProperty 'incidentdesk.test.armJar', shadowJarMacArm64.get().archiveFile.get().asFile.absolutePath
+    systemProperty 'incidentdesk.test.probeJar', packagedStartupProbeJar.get().archiveFile.get().asFile.absolutePath
+    inputs.files(tasks.named('shadowJar'), shadowJarMacArm64, packagedStartupProbeJar)
 }
 
 def shadowJarOutputFile = layout.buildDirectory.file('libs/incident-desk.jar')
@@ -155,6 +218,33 @@ tasks.register('verifyShadowJar') {
 
 tasks.named('check') {
     dependsOn verifyShadowJar
+}
+
+tasks.register('verifyJavaFxPlatforms') {
+    group = 'verification'
+    description = 'Checks development and packaged JavaFX classifier isolation.'
+    doLast {
+        ['compileClasspath', 'runtimeClasspath', 'testRuntimeClasspath'].each { name ->
+            def artifacts = configurations.getByName(name).resolvedConfiguration.resolvedArtifacts
+                .findAll { it.moduleVersion.id.group == 'org.openjfx' }
+            if (artifacts.size() != 4 || artifacts.any { it.classifier != hostJavaFxPlatform }) {
+                throw new GradleException("${name} must contain exactly four JavaFX modules for ${hostJavaFxPlatform}: ${artifacts}")
+            }
+        }
+        def packagedArtifacts = configurations.shadowJavaFxNatives.resolvedConfiguration.resolvedArtifacts
+        if (packagedArtifacts.size() != 12 || packagedArtifacts.any { !(it.classifier in ['win', 'mac', 'linux']) }) {
+            throw new GradleException('Packaged JavaFX dependencies must contain only the twelve x86_64 platform modules.')
+        }
+        def armArtifacts = configurations.shadowMacArm64Natives.resolvedConfiguration.resolvedArtifacts
+        if (armArtifacts.size() != 4 || armArtifacts.any { it.classifier != 'mac-aarch64' }) {
+            throw new GradleException('Apple Silicon packaging must contain only the four mac-aarch64 JavaFX modules.')
+        }
+        logger.lifecycle("Verified JavaFX development platform: ${hostJavaFxPlatform}; packaged platforms: win/mac/linux x86_64")
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyJavaFxPlatforms
 }
 
 // The distribution tasks create archives for local testing.

@@ -28,9 +28,33 @@ JavaFX publishes separate, differently-architected natives for Apple Silicon
 (`mac-aarch64`) and ARM Linux (`linux-aarch64`), but those natives share the
 same file names as their x86_64 counterparts (e.g. `libglass.dylib`), so a
 single jar cannot bundle both architectures for the same OS. Running the
-packaged jar on Apple Silicon therefore requires an x86_64 (Rosetta) JVM;
-compiling, testing, and running via Gradle on an Apple Silicon machine
-likewise resolves the x86_64 JavaFX classifier and needs an x86_64 JDK.
+packaged jar on Apple Silicon therefore requires an x86_64 (Rosetta) JVM.
+Development compilation, tests, and `run` instead select JavaFX for the Gradle
+JVM's OS and CPU architecture, including native Apple Silicon (`mac-aarch64`)
+and ARM Linux (`linux-aarch64`). Use the same architecture for the Gradle JVM
+and its JDK 25 toolchain. Windows development currently supports x86_64 only.
+`verifyJavaFxPlatforms` (included in `check`) verifies dependency isolation;
+building the Shadow JAR on ARM does not add ARM natives to that Intel-only JAR.
+
+For native Apple Silicon packaging, run:
+
+```sh
+./gradlew shadowJarMacArm64
+java -jar build/libs/incident-desk-mac-aarch64.jar
+```
+
+Use an ARM64 JDK 25 for that launch. This second JAR contains only macOS ARM64
+JavaFX libraries and does not replace `incident-desk.jar`. `assemble` builds
+both artifacts; `shadowJar` alone still builds only the original Intel artifact.
+Each user needs just the one JAR matching their OS/JVM architecture.
+
+`PackagedApplicationTest` checks both JARs' macOS binary headers and launches
+the matching artifact with `java -jar`. A test-only observer agent waits for
+the application window and requests normal shutdown. Neither the observer nor
+test code ships in either application JAR. The process uses fresh temporary
+application storage and a separate JavaFX cache. CI tests the packaged launch
+on Linux/Windows x86_64, macOS x86_64, and macOS ARM64. Release jobs publish
+each of the two filenames only once, avoiding merged-artifact overwrites.
 
 `previewAuthenticatedShell` exercises the real login, session, role-routing,
 shell, and logout path with in-memory administrator, reporter, and responder accounts:
