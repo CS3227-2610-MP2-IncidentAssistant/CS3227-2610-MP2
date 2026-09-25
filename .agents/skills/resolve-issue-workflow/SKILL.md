@@ -15,9 +15,12 @@ infer commit permission from a broad issue-resolution request.
 
 1. Read the issue and applicable repository instructions. Check the working
    tree and preserve unrelated or user-owned changes.
-2. Create a dedicated feature branch from the intended base branch. Follow the
-   repository's branch naming convention and include the issue number when
-   available.
+2. Preserve any existing work, then update the local `main` branch with
+   `git pull --ff-only origin main`. Create the dedicated feature branch from
+   that updated local `main` branch, following the repository's branch naming
+   convention and including the issue number when available. If `main` cannot
+   be updated safely, stop and report the blocker rather than branching from a
+   stale or uncertain base.
 3. Implement and verify the smallest coherent fix. Keep the implementation
    unstaged unless the user explicitly asked to stage it.
 4. Stop for user review. Provide a review guide that:
