@@ -72,11 +72,10 @@ authorization between sequentially logged-in accounts.
   otherwise uses `.incident-desk` under the current user's home directory.
 - `incident-desk.dat` is one versioned aggregate state file. Schema version 1
   persists accounts, salted PBKDF2 password credentials, incidents, comments,
-  audits, and SLO target configuration
-  history and attachment metadata, and reserves an empty promotion-request
-  section. Password credentials include temporary-credential state and its UTC
-  expiry. The whole file shares one schema version; there is no
-  independent per-section versioning.
+  audits, responder-promotion request history, SLO target configuration
+  history, and attachment metadata. Password credentials include
+  temporary-credential state and its UTC expiry. The whole file shares one
+  schema version; there is no independent per-section versioning.
 - Each successful replacement retains one bounded last-known-good copy at
   `incident-desk.dat.bak`. Unique unfinished temporary files are never treated
   as canonical state.

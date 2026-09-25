@@ -24,6 +24,9 @@ import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
 import com.company.incidentdesk.domain.account.ResponderAccess;
 import com.company.incidentdesk.domain.account.Role;
+import com.company.incidentdesk.domain.account.PromotionRequestId;
+import com.company.incidentdesk.domain.account.PromotionRequestStatus;
+import com.company.incidentdesk.domain.account.ResponderPromotionRequest;
 import com.company.incidentdesk.application.account.PasswordCredential;
 import com.company.incidentdesk.domain.audit.AuditAction;
 import com.company.incidentdesk.domain.audit.AuditActor;
@@ -72,7 +75,7 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             writeComments(output, state.comments());
             writeAudits(output, state.auditEvents());
             writeAttachments(output, state.attachments());
-            writeReservedSection(output, "promotions");
+            writePromotionRequests(output, state.promotionRequests());
             writeSloTargetVersions(output, state.sloTargetVersions());
         }
         return bytes.toByteArray();
@@ -98,10 +101,11 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             List<IncidentComment> comments = readComments(input);
             List<AuditEvent> auditEvents = readAudits(input);
             Map<AttachmentId, IncidentAttachment> attachments = readAttachments(input);
-            readReservedSection(input, "promotions");
+            Map<PromotionRequestId, ResponderPromotionRequest> promotionRequests = readPromotionRequests(input);
             Map<SloTargetVersionId, SloTargetVersion> sloTargetVersions = readSloTargetVersions(input);
             LocalApplicationState state = new LocalApplicationState(
-                    accounts, credentials, incidents, comments, auditEvents, sloTargetVersions, attachments, version);
+                    accounts, credentials, incidents, comments, auditEvents, promotionRequests,
+                    sloTargetVersions, attachments, version);
             if (input.read() != -1) {
                 throw new IOException("unexpected trailing application data");
             }
@@ -192,6 +196,55 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
             requireUnique(accounts.put(id, account), "account identifier");
         }
         return accounts;
+    }
+
+    private static void writePromotionRequests(DataOutputStream output,
+            Map<PromotionRequestId, ResponderPromotionRequest> requests) throws IOException {
+        output.writeUTF("promotions");
+        output.writeInt(requests.size());
+        for (ResponderPromotionRequest request : requests.values().stream()
+                .sorted((left, right) -> left.id().value().compareTo(right.id().value())).toList()) {
+            writeUuid(output, request.id().value());
+            writeUuid(output, request.requesterId().value());
+            output.writeInt(request.requestedCategories().size());
+            for (IncidentCategory category : request.requestedCategories().stream().sorted().toList()) {
+                output.writeUTF(category.name());
+            }
+            output.writeBoolean(request.comments().isPresent());
+            if (request.comments().isPresent()) {
+                output.writeUTF(request.comments().orElseThrow());
+            }
+            writeInstant(output, request.requestedAt());
+            output.writeUTF(request.status().name());
+            writeOptionalAccountId(output, request.decidedBy());
+            writeOptionalInstant(output, request.decidedAt());
+        }
+    }
+
+    private static Map<PromotionRequestId, ResponderPromotionRequest> readPromotionRequests(DataInputStream input)
+            throws IOException {
+        if (!"promotions".equals(input.readUTF())) {
+            throw new IOException("invalid promotions section");
+        }
+        Map<PromotionRequestId, ResponderPromotionRequest> requests = new LinkedHashMap<>();
+        int count = readCount(input);
+        for (int index = 0; index < count; index++) {
+            PromotionRequestId id = new PromotionRequestId(readUuid(input));
+            AccountId requesterId = new AccountId(readUuid(input));
+            EnumSet<IncidentCategory> categories = EnumSet.noneOf(IncidentCategory.class);
+            int categoryCount = readCount(input);
+            for (int category = 0; category < categoryCount; category++) {
+                categories.add(readEnum(input, IncidentCategory.class));
+            }
+            Optional<String> comments = input.readBoolean() ? Optional.of(input.readUTF()) : Optional.empty();
+            Instant requestedAt = readInstant(input);
+            PromotionRequestStatus status = readEnum(input, PromotionRequestStatus.class);
+            Optional<AccountId> decidedBy = readOptionalAccountId(input);
+            Optional<Instant> decidedAt = readOptionalInstant(input);
+            requireUnique(requests.put(id, new ResponderPromotionRequest(id, requesterId, categories, comments,
+                    requestedAt, status, decidedBy, decidedAt)), "promotion request identifier");
+        }
+        return requests;
     }
 
     private static void writeIncidents(DataOutputStream output, Map<IncidentId, Incident> incidents) throws IOException {
@@ -417,6 +470,10 @@ final class LocalApplicationStateCodec implements DataCodec<LocalApplicationStat
         }
         for (SloTargetVersion version : state.sloTargetVersions().values()) {
             requireAccount(state, version.changedBy(), "SLO configuration changedBy");
+        }
+        for (ResponderPromotionRequest request : state.promotionRequests().values()) {
+            requireAccount(state, request.requesterId(), "promotion requester");
+            request.decidedBy().ifPresent(id -> requireAccountUnchecked(state, id, "promotion decision actor"));
         }
     }
 
