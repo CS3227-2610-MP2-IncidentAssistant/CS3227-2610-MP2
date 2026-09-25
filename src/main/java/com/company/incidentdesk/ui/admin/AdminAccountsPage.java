@@ -2,9 +2,11 @@ package com.company.incidentdesk.ui.admin;
 
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -12,10 +14,13 @@ import java.util.stream.Collectors;
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.account.AccountPasswordResetService;
+import com.company.incidentdesk.application.account.PromotionRequestService;
 import com.company.incidentdesk.application.account.ResponderAccessService;
 import com.company.incidentdesk.application.audit.AuditActorLabelResolver;
 import com.company.incidentdesk.domain.account.Account;
-import com.company.incidentdesk.domain.account.AccountStatus;
+import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.account.PromotionRequestStatus;
+import com.company.incidentdesk.domain.account.ResponderPromotionRequest;
 import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.ui.shared.components.ActionStyle;
@@ -35,6 +40,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -46,31 +52,62 @@ public final class AdminAccountsPage extends BorderPane {
     private final AccountDeletionService deletion;
     private final AccountPasswordResetService passwordResets;
     private final ResponderAccessService responderAccess;
+    private final PromotionRequestService promotionRequests;
     private final VBox content = new VBox(16);
+    private final CheckBox pendingOnly = new CheckBox("Show only accounts with pending promotion requests");
+    private List<Account> loadedAccounts = List.of();
+    private Map<AccountId, ResponderPromotionRequest> pendingRequestsByRequester = Map.of();
+    private boolean accountsAvailable;
 
     public AdminAccountsPage(AccountDirectoryService directory, AccountDeletionService deletion,
-            AccountPasswordResetService passwordResets, ResponderAccessService responderAccess) {
+            AccountPasswordResetService passwordResets, ResponderAccessService responderAccess,
+            PromotionRequestService promotionRequests) {
         this.directory = Objects.requireNonNull(directory, "directory");
         this.deletion = Objects.requireNonNull(deletion, "deletion");
         this.passwordResets = Objects.requireNonNull(passwordResets, "passwordResets");
         this.responderAccess = Objects.requireNonNull(responderAccess, "responderAccess");
+        this.promotionRequests = Objects.requireNonNull(promotionRequests, "promotionRequests");
         Label title = new Label("Accounts");
         title.getStyleClass().add("page-title");
-        content.getChildren().add(title);
+        pendingOnly.setId("pending-only-toggle");
+        pendingOnly.setAccessibleText("Show only accounts with pending promotion requests");
+        pendingOnly.selectedProperty().addListener((observable, was, is) -> {
+            if (accountsAvailable) {
+                renderTable();
+            }
+        });
+        content.getChildren().addAll(title, pendingOnly);
         content.setPadding(new Insets(24));
         refresh();
         setCenter(content);
     }
 
     private void refresh() {
-        content.getChildren().remove(1, content.getChildren().size());
+        content.getChildren().remove(2, content.getChildren().size());
         var result = directory.listAccounts();
         if (result.isSuccess()) {
-            content.getChildren().add(UiComponents.panel("Users", accountTable(result.value().orElseThrow())));
+            accountsAvailable = true;
+            loadedAccounts = result.value().orElseThrow();
+            pendingRequestsByRequester = promotionRequests.visibleHistory().stream()
+                    .filter(request -> request.status() == PromotionRequestStatus.PENDING)
+                    .collect(Collectors.toMap(ResponderPromotionRequest::requesterId, Function.identity(),
+                            (first, second) -> first, HashMap::new));
+            renderTable();
         } else {
+            accountsAvailable = false;
+            loadedAccounts = List.of();
+            pendingRequestsByRequester = Map.of();
             content.getChildren().add(UiComponents.feedback(
                     "Accounts unavailable", "Sign in as an administrator and try again.", FeedbackType.ERROR));
         }
+    }
+
+    private void renderTable() {
+        content.getChildren().remove(2, content.getChildren().size());
+        List<Account> visible = pendingOnly.isSelected()
+                ? loadedAccounts.stream().filter(account -> pendingRequestsByRequester.containsKey(account.id())).toList()
+                : loadedAccounts;
+        content.getChildren().add(UiComponents.panel("Users", accountTable(visible)));
     }
 
     private TableView<Account> accountTable(List<Account> accounts) {
@@ -82,11 +119,9 @@ public final class AdminAccountsPage extends BorderPane {
         fixWidth(login, 145);
         TableColumn<Account, Account> role = nodeColumn("Role", account -> roleBadge(account.role()));
         fixWidth(role, 130);
-        TableColumn<Account, Account> status = nodeColumn("Status", account -> statusBadge(account.status()));
-        fixWidth(status, 100);
         TableColumn<Account, Account> categories = nodeColumn("Responder categories", this::categoryBadges);
         fixWidth(categories, 280);
-        table.getColumns().addAll(login, role, status, categories);
+        table.getColumns().addAll(login, role, categories);
         table.getColumns().add(actionColumn());
         table.getItems().setAll(accounts);
         table.setPlaceholder(new Label("No user accounts found"));
@@ -105,14 +140,6 @@ public final class AdminAccountsPage extends BorderPane {
         case REPORTER -> UiComponents.badge("Reporter", SemanticTone.NEUTRAL);
         case RESPONDER -> UiComponents.badge("Responder", SemanticTone.INFO);
         case ADMINISTRATOR -> UiComponents.badge("Administrator", SemanticTone.WARNING);
-        };
-    }
-
-    private Label statusBadge(AccountStatus status) {
-        return switch (status) {
-        case ENABLED -> UiComponents.badge("Enabled", SemanticTone.SUCCESS);
-        case DISABLED -> UiComponents.badge("Disabled", SemanticTone.WARNING);
-        case DELETED -> UiComponents.badge("Deleted", SemanticTone.NEUTRAL);
         };
     }
 
@@ -139,7 +166,8 @@ public final class AdminAccountsPage extends BorderPane {
             private final Button delete = UiComponents.action("Delete", ActionStyle.DANGER);
             private final Button reset = UiComponents.action("Reset password", ActionStyle.SECONDARY);
             private final Button categories = UiComponents.action("Configure categories", ActionStyle.SECONDARY);
-            private final HBox actions = new HBox(8, categories, reset, delete);
+            private final Button viewRequest = UiComponents.action("View request", ActionStyle.SECONDARY);
+            private final HBox actions = new HBox(8, viewRequest, categories, reset, delete);
             {
                 delete.setAccessibleText("Delete account");
                 delete.setOnAction(event -> confirmDeletion(getTableView().getItems().get(getIndex())));
@@ -147,6 +175,8 @@ public final class AdminAccountsPage extends BorderPane {
                 reset.setOnAction(event -> confirmPasswordReset(getTableView().getItems().get(getIndex())));
                 categories.setAccessibleText("Configure responder categories");
                 categories.setOnAction(event -> configureCategories(getTableView().getItems().get(getIndex())));
+                viewRequest.setAccessibleText("View promotion request");
+                viewRequest.setOnAction(event -> viewPromotionRequest(getTableView().getItems().get(getIndex())));
             }
 
             @Override
@@ -165,12 +195,58 @@ public final class AdminAccountsPage extends BorderPane {
                 boolean isResponder = account.role() == Role.RESPONDER && account.isEnabled();
                 categories.setManaged(isResponder);
                 categories.setVisible(isResponder);
+                boolean hasPendingRequest = pendingRequestsByRequester.containsKey(account.id());
+                viewRequest.setAccessibleText("View promotion request from " + account.loginName());
+                viewRequest.setManaged(hasPendingRequest);
+                viewRequest.setVisible(hasPendingRequest);
                 setGraphic(actions);
             }
         });
-        column.setPrefWidth(330);
-        column.setMinWidth(330);
+        column.setPrefWidth(430);
+        column.setMinWidth(430);
         return column;
+    }
+
+    private void viewPromotionRequest(Account account) {
+        ResponderPromotionRequest request = pendingRequestsByRequester.get(account.id());
+        if (request == null) {
+            return;
+        }
+        String categoryList = request.requestedCategories().stream()
+                .map(IncidentCategory::displayName)
+                .sorted()
+                .collect(Collectors.joining(", "));
+        String requestedAt = UiComponents.localDateTimeFormatter().format(request.requestedAt());
+        TextArea details = new TextArea(
+                "Requester: " + account.loginName() + "\n"
+                        + "Requested categories: " + categoryList + "\n"
+                        + "Requested: " + requestedAt + "\n"
+                        + "Comments: " + request.comments().orElse("(none)"));
+        details.setId("promotion-request-details");
+        details.setEditable(false);
+        details.setWrapText(true);
+        details.setPrefRowCount(6);
+        details.setAccessibleText("Promotion request details for " + account.loginName());
+
+        ButtonType approve = new ButtonType("Approve", ButtonType.OK.getButtonData());
+        ButtonType reject = new ButtonType("Reject", ButtonType.OK.getButtonData());
+        Alert dialog = new Alert(Alert.AlertType.NONE, "", approve, reject, ButtonType.CANCEL);
+        dialog.setTitle("Promotion request");
+        dialog.setHeaderText("Responder promotion request from " + account.loginName());
+        dialog.getDialogPane().setContent(details);
+        Optional<ButtonType> choice = dialog.showAndWait();
+        if (choice.isEmpty() || choice.orElseThrow() == ButtonType.CANCEL) {
+            return;
+        }
+        boolean approved = choice.orElseThrow() == approve;
+        var result = promotionRequests.decide(request.id(), approved);
+        if (result.isSuccess()) {
+            refresh();
+        } else {
+            content.getChildren().add(UiComponents.feedback(
+                    approved ? "Promotion request was not approved" : "Promotion request was not rejected",
+                    "The request may no longer be pending. Refresh and try again.", FeedbackType.ERROR));
+        }
     }
 
     private void configureCategories(Account account) {
