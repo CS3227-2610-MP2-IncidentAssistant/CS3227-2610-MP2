@@ -18,10 +18,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
-          # macos-13 is the last Intel macOS runner. The packaged JavaFX
-          # natives are x86_64-only (see build.gradle); an arm64 runner like
-          # macos-latest cannot load them and JavaFX Toolkit startup fails.
-          - macos-13
+          - macos-latest
 
     steps:
       - name: Check out repository
@@ -32,6 +29,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          # The packaged JavaFX natives are x86_64-only (see build.gradle).
+          # macos-latest is an arm64 runner; forcing an x64 JDK here runs it
+          # under GitHub's preinstalled Rosetta 2, so the x86_64 JavaFX
+          # Toolkit natives load correctly. GitHub no longer provisions
+          # Intel (macos-13) hosted runners, so Rosetta is used instead of
+          # pinning to an Intel runner image. This also makes the resolved
+          # `implementation` classifier (win/mac/linux, all x86_64) match
+          # what actually runs on every job in this matrix.
+          architecture: x64
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
