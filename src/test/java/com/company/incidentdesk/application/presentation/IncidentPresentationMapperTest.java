@@ -104,9 +104,11 @@ class IncidentPresentationMapperTest {
         assertTrue(mapper(RESPONDER).toRow(assigned).actions().resolve());
         assertFalse(mapper(REPORTER).toRow(assigned).actions().resolve());
         assertTrue(mapper(RESPONDER).toRow(assigned).actions().handoff());
-        assertFalse(mapper(ADMIN).toRow(assigned).actions().handoff());
+        assertTrue(mapper(ADMIN).toRow(assigned).actions().handoff());
         assertTrue(mapper(ADMIN).toRow(assigned).actions().reassign());
         assertFalse(mapper(RESPONDER).toRow(assigned).actions().reassign());
+        assertTrue(mapper(ADMIN).toRow(submitted).actions().reassign());
+        assertFalse(mapper(RESPONDER).toRow(submitted).actions().reassign());
         assertTrue(mapper(REPORTER).toRow(resolved).actions().reopen());
         assertFalse(mapper(ADMIN).toRow(resolved).actions().reopen());
     }

@@ -11,6 +11,7 @@ import com.company.incidentdesk.application.attachment.AttachmentService;
 import com.company.incidentdesk.application.comment.IncidentCommentService;
 import com.company.incidentdesk.application.incident.IncidentDetailService;
 import com.company.incidentdesk.application.presentation.IncidentDetailModel;
+import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.presentation.ResolutionModel;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -28,7 +29,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
@@ -189,7 +189,8 @@ public final class IncidentDetailView extends VBox implements AutoCloseable {
                 fact("First assigned", detail.queue().firstAssignedAt()),
                 fact("Latest assignment", detail.queue().latestAssignedAt()));
         page.getChildren().add(UiComponents.panel("Details", facts));
-        page.getChildren().add(new IncidentActionBar(incidentId, detail.summary().actions(), actions));
+        boolean unassigned = IncidentPresentationMapper.UNASSIGNED_LABEL.equals(detail.summary().assigneeLabel());
+        page.getChildren().add(new IncidentActionBar(incidentId, detail.summary().actions(), actions, unassigned));
 
         page.getChildren().add(resolutionHistory(detail.resolutions()));
         page.getChildren().add(sloSection(detail));

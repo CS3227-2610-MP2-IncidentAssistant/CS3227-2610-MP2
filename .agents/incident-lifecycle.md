@@ -22,7 +22,7 @@
 | `SUBMITTED` | Claim | `ASSIGNED` | Eligible responder | Set assignee and first/current assignment timestamps |
 | `SUBMITTED` | Assign/reassign | `ASSIGNED` | Admin | Assignee must be eligible for the category |
 | `ASSIGNED` | Resolve | `RESOLVED` | Assigned responder or admin | Require remarks; set resolution timestamp |
-| `ASSIGNED` | Hand off | `SUBMITTED` | Assigned responder | Clear assignee; preserve original queue position |
+| `ASSIGNED` | Hand off / unassign | `SUBMITTED` | Assigned responder or admin | Clear assignee; preserve original queue position |
 | `ASSIGNED` | Reassign | `ASSIGNED` | Admin | Replace assignee with another eligible responder |
 | `RESOLVED` | Reopen with follow-up comment | `SUBMITTED` | Owning reporter | Require a non-blank explanation; append it to the comment thread; increment reopen count; clear assignee; set reopened/current queue timestamp |
 

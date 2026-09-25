@@ -16,7 +16,7 @@ must hold. UI visibility must mirror, but never replace, domain authorization.
 | Edit/withdraw | Own `DRAFT`, or own unassigned `SUBMITTED` incident | No | No current requirement |
 | Claim | No | Unassigned `SUBMITTED` incident in a permitted category | No current requirement |
 | Resolve | No | Incident assigned to self | Any `ASSIGNED` incident |
-| Hand off | No | Incident assigned to self | No current requirement |
+| Hand off / unassign | No | Incident assigned to self | Any `ASSIGNED` incident |
 | Reassign | No | No | To a responder permitted for the incident category |
 | Follow up/reopen | Own `RESOLVED` incident, with a non-blank explanatory comment | No | No current requirement |
 | View reporter identity | Own identity | Only for non-anonymous incidents they may access | Non-anonymous identity; anonymous identity remains hidden by default |

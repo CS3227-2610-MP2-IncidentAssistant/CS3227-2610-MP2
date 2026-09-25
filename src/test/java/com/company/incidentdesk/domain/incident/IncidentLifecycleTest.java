@@ -159,6 +159,17 @@ class IncidentLifecycleTest {
     }
 
     @Test
+    void reassignsUnassignedSubmittedIncidentSettingFirstAssignment() {
+        Incident submitted = submitted();
+
+        Incident reassigned = lifecycleAt(ASSIGNED_AT).reassign(submitted, OTHER_RESPONDER_ID);
+
+        assertAssignment(reassigned, OTHER_RESPONDER_ID, ASSIGNED_AT, ASSIGNED_AT);
+        assertEquals(SUBMITTED_AT, reassigned.currentCycle().orElseThrow().queueEnteredAt());
+        assertTrue(submitted.assigneeId().isEmpty());
+    }
+
+    @Test
     void resolvesAssignedIncidentWithPreservedRemarksAndAttribution() {
         String remarks = "  Replaced the damaged cable.\n";
 
@@ -292,7 +303,7 @@ class IncidentLifecycleTest {
         statuses.put(IncidentAction.WITHDRAW, Set.of(IncidentStatus.SUBMITTED));
         statuses.put(IncidentAction.CLAIM, Set.of(IncidentStatus.SUBMITTED));
         statuses.put(IncidentAction.ASSIGN, Set.of(IncidentStatus.SUBMITTED));
-        statuses.put(IncidentAction.REASSIGN, Set.of(IncidentStatus.ASSIGNED));
+        statuses.put(IncidentAction.REASSIGN, Set.of(IncidentStatus.SUBMITTED, IncidentStatus.ASSIGNED));
         statuses.put(IncidentAction.RESOLVE, Set.of(IncidentStatus.ASSIGNED));
         statuses.put(IncidentAction.HANDOFF, Set.of(IncidentStatus.ASSIGNED));
         statuses.put(IncidentAction.REOPEN, Set.of(IncidentStatus.RESOLVED));

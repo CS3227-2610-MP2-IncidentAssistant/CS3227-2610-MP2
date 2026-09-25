@@ -93,10 +93,10 @@ public final class IncidentAuthorizationPolicy {
         return decide(actor -> canResolve(actor, incident));
     }
 
-    /** Authorizes handing an assigned report back to its category queue. */
+    /** Authorizes handing an assigned report back to its category queue, unassigned. */
     public AuthorizationDecision authorizeHandoff(Incident incident) {
         Objects.requireNonNull(incident, "incident");
-        return decide(actor -> isAssignedResponder(actor, incident));
+        return decide(actor -> canHandoff(actor, incident));
     }
 
     /** Authorizes reassigning an incident to an eligible responder. */
@@ -181,9 +181,20 @@ public final class IncidentAuthorizationPolicy {
         };
     }
 
+    private static boolean canHandoff(Account actor, Incident incident) {
+        if (incident.status() != IncidentStatus.ASSIGNED) {
+            return false;
+        }
+        return switch (actor.role()) {
+        case REPORTER -> false;
+        case RESPONDER -> isAssignedTo(actor, incident);
+        case ADMINISTRATOR -> true;
+        };
+    }
+
     private static boolean canReassign(Account actor, Incident incident) {
         return actor.role() == Role.ADMINISTRATOR
-                && incident.status() == IncidentStatus.ASSIGNED;
+                && (incident.status() == IncidentStatus.SUBMITTED || incident.status() == IncidentStatus.ASSIGNED);
     }
 
     private static boolean canReopen(Account actor, Incident incident) {

@@ -18,6 +18,7 @@ import com.company.incidentdesk.application.session.SessionProvider;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.ui.admin.AdminIncidentDetailPage;
 import com.company.incidentdesk.ui.admin.AdminIncidentPage;
 import com.company.incidentdesk.ui.admin.AdminAccountsPage;
 import com.company.incidentdesk.ui.admin.AdminAuditLogPage;
@@ -106,6 +107,10 @@ public final class DefaultViewFactory implements ViewFactory {
         Objects.requireNonNull(account, "account");
         if (account.role() == Role.RESPONDER) {
             return new ResponderIncidentPage(incidents, incidentDetails, comments, attachments, incidentId, onBack);
+        }
+        if (account.role() == Role.ADMINISTRATOR) {
+            return new AdminIncidentDetailPage(
+                    incidents, incidentDetails, comments, attachments, accounts, incidentId, onBack);
         }
         IncidentDetailView detail = new IncidentDetailView(
                 incidentDetails, comments, attachments, incidentId, onBack, IncidentDetailActions.none());

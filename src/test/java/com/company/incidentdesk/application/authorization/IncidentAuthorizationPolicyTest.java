@@ -172,7 +172,7 @@ class IncidentAuthorizationPolicyTest {
     }
 
     @Test
-    void handoffRequiresAssignedResponder() {
+    void handoffRequiresAssignedResponderOrAdministrator() {
         Incident incident = assigned(false);
         sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.IT));
 
@@ -183,6 +183,11 @@ class IncidentAuthorizationPolicyTest {
         assertEquals(DENIED, policy.authorizeHandoff(incident));
 
         sessionProvider.signIn(administrator());
+
+        assertEquals(ALLOWED, policy.authorizeHandoff(incident));
+        assertEquals(DENIED, policy.authorizeHandoff(submitted(false)));
+
+        sessionProvider.signIn(reporter(REPORTER_ID));
 
         assertEquals(DENIED, policy.authorizeHandoff(incident));
     }
@@ -210,6 +215,28 @@ class IncidentAuthorizationPolicyTest {
 
         assertEquals(DENIED, policy.authorizeReassign(incident));
         assertEquals(DENIED, policy.authorizeReassign(incident, eligibleTarget));
+    }
+
+    @Test
+    void reassignAllowsAdministratorAssigningAnUnassignedSubmittedIncident() {
+        Incident incident = submitted(false);
+        Account eligibleTarget = responder(RESPONDER_ID, IncidentCategory.IT);
+        sessionProvider.signIn(administrator());
+
+        assertEquals(ALLOWED, policy.authorizeReassign(incident));
+        assertEquals(ALLOWED, policy.authorizeReassign(incident, eligibleTarget));
+        assertEquals(
+                DENIED,
+                policy.authorizeReassign(incident, responder(RESPONDER_ID, IncidentCategory.FACILITIES)));
+
+        sessionProvider.signIn(responder(RESPONDER_ID, IncidentCategory.IT));
+
+        assertEquals(DENIED, policy.authorizeReassign(incident));
+
+        sessionProvider.signIn(administrator());
+
+        assertEquals(DENIED, policy.authorizeReassign(draft(false)));
+        assertEquals(DENIED, policy.authorizeReassign(resolved(false)));
     }
 
     @Test

@@ -10,7 +10,10 @@ import java.util.Objects;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -142,5 +145,21 @@ public final class UiComponents {
 
     public static DateTimeFormatter localDateTimeFormatter() {
         return LOCAL_DATE_TIME;
+    }
+
+    /**
+     * Shows a blocking confirmation dialog for a consequential action.
+     *
+     * @param dialogId lookup id placed on the dialog pane so tests can find the showing window
+     * @return true when the confirming button was chosen
+     */
+    public static boolean confirm(String title, String header, String content, String confirmText, String dialogId) {
+        ButtonType confirmButton = new ButtonType(
+                Objects.requireNonNull(confirmText, "confirmText"), ButtonBar.ButtonData.OK_DONE);
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION, content, ButtonType.CANCEL, confirmButton);
+        dialog.setTitle(title);
+        dialog.setHeaderText(header);
+        dialog.getDialogPane().setId(Objects.requireNonNull(dialogId, "dialogId"));
+        return dialog.showAndWait().filter(confirmButton::equals).isPresent();
     }
 }

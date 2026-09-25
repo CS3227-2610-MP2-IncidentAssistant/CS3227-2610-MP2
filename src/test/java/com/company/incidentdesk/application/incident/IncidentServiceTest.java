@@ -32,6 +32,7 @@ import com.company.incidentdesk.domain.account.AccountId;
 import com.company.incidentdesk.domain.account.AccountStatus;
 import com.company.incidentdesk.domain.account.ResponderAccess;
 import com.company.incidentdesk.domain.account.Role;
+import com.company.incidentdesk.domain.audit.AuditAction;
 import com.company.incidentdesk.domain.audit.AuditActorVisibility;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.CommentType;
@@ -299,6 +300,65 @@ class IncidentServiceTest {
         assertEquals(IncidentStatus.RESOLVED, resolved.status());
         assertEquals(SECOND_RESPONDER_ID,
                 resolved.currentCycle().orElseThrow().resolution().orElseThrow().responderAtResolution());
+    }
+
+    @Test
+    void administratorCanUnassignAnAssignedIncidentBackToTheQueue() {
+        createSubmittedIncident(false);
+        sessions.signIn(accounts.findById(RESPONDER_ID).orElseThrow());
+        assertTrue(service.claim(INCIDENT_ID).isSuccess());
+        Incident claimed = incidents.findById(INCIDENT_ID).orElseThrow();
+        sessions.signIn(accounts.findById(ADMIN_ID).orElseThrow());
+
+        ApplicationResult<IncidentView> result = service.handoff(INCIDENT_ID);
+
+        assertTrue(result.isSuccess());
+        Incident unassigned = incidents.findById(INCIDENT_ID).orElseThrow();
+        assertEquals(IncidentStatus.SUBMITTED, unassigned.status());
+        assertTrue(unassigned.assigneeId().isEmpty());
+        assertEquals(claimed.currentCycle().orElseThrow().queueEnteredAt(),
+                unassigned.currentCycle().orElseThrow().queueEnteredAt());
+        assertEquals(3, incidents.auditEvents().size());
+        assertEquals(AuditAction.INCIDENT_HANDED_OFF, incidents.auditEvents().getLast().action());
+    }
+
+    @Test
+    void administratorCannotUnassignAnUnassignedIncident() {
+        createSubmittedIncident(false);
+        sessions.signIn(accounts.findById(ADMIN_ID).orElseThrow());
+
+        ApplicationResult<IncidentView> result = service.handoff(INCIDENT_ID);
+
+        assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE, result.error().orElseThrow().code());
+        assertEquals(1, incidents.auditEvents().size());
+    }
+
+    @Test
+    void administratorCanAssignAnUnassignedSubmittedIncidentDirectly() {
+        createSubmittedIncident(false);
+        sessions.signIn(accounts.findById(ADMIN_ID).orElseThrow());
+
+        ApplicationResult<IncidentView> result = service.reassign(INCIDENT_ID, RESPONDER_ID);
+
+        assertTrue(result.isSuccess());
+        Incident assigned = incidents.findById(INCIDENT_ID).orElseThrow();
+        assertEquals(IncidentStatus.ASSIGNED, assigned.status());
+        assertEquals(RESPONDER_ID, assigned.assigneeId().orElseThrow());
+        assertEquals(2, incidents.auditEvents().size());
+        assertEquals(AuditAction.INCIDENT_REASSIGNED, incidents.auditEvents().getLast().action());
+    }
+
+    @Test
+    void administratorCannotAssignSubmittedIncidentToIneligibleResponder() {
+        createSubmittedIncident(false);
+        accounts.update(responder(SECOND_RESPONDER_ID, IncidentCategory.FACILITIES));
+        sessions.signIn(accounts.findById(ADMIN_ID).orElseThrow());
+
+        ApplicationResult<IncidentView> result = service.reassign(INCIDENT_ID, SECOND_RESPONDER_ID);
+
+        assertEquals(ApplicationErrorCode.RESOURCE_UNAVAILABLE, result.error().orElseThrow().code());
+        assertTrue(incidents.findById(INCIDENT_ID).orElseThrow().assigneeId().isEmpty());
+        assertEquals(1, incidents.auditEvents().size());
     }
 
     @Test

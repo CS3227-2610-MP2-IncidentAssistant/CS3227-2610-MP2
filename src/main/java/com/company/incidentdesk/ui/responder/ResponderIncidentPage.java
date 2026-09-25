@@ -15,10 +15,12 @@ import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
 import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.ui.shared.components.ConfirmedIncidentAction;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
 import com.company.incidentdesk.ui.shared.components.IncidentDetailActions;
 import com.company.incidentdesk.ui.shared.components.IncidentDetailState;
 import com.company.incidentdesk.ui.shared.components.IncidentDetailView;
+import com.company.incidentdesk.ui.shared.components.ResolutionForm;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
 import javafx.concurrent.Task;
@@ -33,30 +35,37 @@ public final class ResponderIncidentPage extends BorderPane {
     private final BooleanSupplier sessionMatches;
     private final Function<IncidentId, ApplicationResult<IncidentView>> claimOperation;
     private final BiFunction<IncidentId, String, ApplicationResult<IncidentView>> resolveOperation;
+    private final Function<IncidentId, ApplicationResult<IncidentView>> handoffOperation;
     private final Runnable onBack;
     private final VBox feedback = new VBox();
+    private final ConfirmedIncidentAction handoffAction;
     private Task<ApplicationResult<IncidentView>> activeClaim;
     private Task<ApplicationResult<IncidentView>> activeResolution;
     private ResolutionForm resolutionForm;
 
     public ResponderIncidentPage(IncidentService incidents, IncidentDetailService details,
             IncidentCommentService comments, AttachmentService attachments, IncidentId incidentId, Runnable onBack) {
-        this(incidents::claim, incidents::resolve, details, comments, attachments, incidentId, onBack);
+        this(incidents::claim, incidents::resolve, incidents::handoff, details, comments, attachments, incidentId,
+                onBack);
     }
 
     ResponderIncidentPage(Function<IncidentId, ApplicationResult<IncidentView>> claimOperation,
             BiFunction<IncidentId, String, ApplicationResult<IncidentView>> resolveOperation,
+            Function<IncidentId, ApplicationResult<IncidentView>> handoffOperation,
             IncidentDetailService details, IncidentCommentService comments, AttachmentService attachments,
             IncidentId incidentId, Runnable onBack) {
         this.incidentId = Objects.requireNonNull(incidentId, "incidentId");
         this.claimOperation = Objects.requireNonNull(claimOperation, "claimOperation");
         this.resolveOperation = Objects.requireNonNull(resolveOperation, "resolveOperation");
+        this.handoffOperation = Objects.requireNonNull(handoffOperation, "handoffOperation");
         this.onBack = Objects.requireNonNull(onBack, "onBack");
         authorized = details.viewGuard(incidentId);
         sessionMatches = details.sessionGuard();
         IncidentDetailActions actions = new IncidentDetailActions(Optional.empty(), Optional.empty(),
-                Optional.of(this::claim), Optional.of(this::openResolution), Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.of(this::claim), Optional.of(this::openResolution), Optional.of(this::handoff),
+                Optional.empty(), Optional.empty());
         detail = new IncidentDetailView(details, comments, attachments, incidentId, onBack, actions);
+        handoffAction = new ConfirmedIncidentAction(detail, feedback, authorized, sessionMatches);
         detail.stateProperty().addListener((observable, previous, current) -> {
             if (current instanceof IncidentDetailState.Unavailable) {
                 discardResolutionForm();
@@ -73,8 +82,7 @@ public final class ResponderIncidentPage extends BorderPane {
     }
 
     void claim(IncidentId id) {
-        if (activeClaim != null || activeResolution != null || resolutionForm != null
-                || getScene() == null || !incidentId.equals(id)) {
+        if (anyTaskActive() || resolutionForm != null || getScene() == null || !incidentId.equals(id)) {
             return;
         }
         if (!authorized.getAsBoolean()) {
@@ -130,7 +138,7 @@ public final class ResponderIncidentPage extends BorderPane {
     }
 
     private void openResolution(IncidentId id) {
-        if (!incidentId.equals(id) || activeClaim != null || activeResolution != null || getScene() == null) {
+        if (!incidentId.equals(id) || anyTaskActive() || getScene() == null) {
             return;
         }
         if (!authorized.getAsBoolean()) {
@@ -150,7 +158,7 @@ public final class ResponderIncidentPage extends BorderPane {
     }
 
     void resolve(String remarks) {
-        if (resolutionForm == null || activeClaim != null || activeResolution != null || getScene() == null) {
+        if (resolutionForm == null || anyTaskActive() || getScene() == null) {
             return;
         }
         if (!authorized.getAsBoolean()) {
@@ -227,6 +235,40 @@ public final class ResponderIncidentPage extends BorderPane {
         }
     }
 
+    void handoff(IncidentId id) {
+        if (!incidentId.equals(id) || anyTaskActive() || resolutionForm != null || getScene() == null) {
+            return;
+        }
+        if (!authorized.getAsBoolean()) {
+            detail.showUnavailable();
+            return;
+        }
+        if (!(detail.state() instanceof IncidentDetailState.Ready ready)
+                || !ready.model().summary().actions().handoff()) {
+            return;
+        }
+        handoffAction.run(
+                "Hand off incident", "You will lose your claim on this incident",
+                "Hand this incident back to the queue for other responders to claim?", "Hand off",
+                "handoff-confirmation", () -> handoffOperation.apply(incidentId),
+                "Handing off incident", "Returning it to the queue.", this::finishHandoff);
+    }
+
+    private void finishHandoff(ApplicationResult<IncidentView> result) {
+        if (result.isSuccess()) {
+            feedback.getChildren().setAll(UiComponents.feedback("Incident handed off",
+                    "It has been returned to the category queue.", FeedbackType.SUCCESS));
+        } else {
+            feedback.getChildren().setAll(UiComponents.feedback("Hand off not completed",
+                    "The incident's availability or your access may have changed.", FeedbackType.ERROR));
+        }
+        detail.refresh();
+    }
+
+    private boolean anyTaskActive() {
+        return activeClaim != null || activeResolution != null || handoffAction.isActive();
+    }
+
     private void deactivate() {
         if (activeResolution != null) {
             activeResolution.cancel();
@@ -237,6 +279,7 @@ public final class ResponderIncidentPage extends BorderPane {
             activeClaim.cancel();
             activeClaim = null;
         }
+        handoffAction.cancel();
         feedback.getChildren().clear();
         detail.setDisable(false);
         detail.close();
