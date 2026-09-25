@@ -1,7 +1,9 @@
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     id 'application'
     id 'java'
-    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'com.gradleup.shadow' version '9.5.1'
 }
 
 group = 'com.cs3227'
@@ -13,20 +15,57 @@ java {
     }
 }
 
-javafx {
-    version = '25'
-    modules = [ 'javafx.controls', 'javafx.fxml' ]
+// Used only to feed every platform's JavaFX natives into shadowJar (see
+// below), never added to compile/test/run classpaths. Keeping platform
+// classifiers off `implementation` matters: each javafx-graphics classifier
+// ships an identically-named native loader class, and if more than one
+// classifier is on the same resolvable classpath the JVM binds to whichever
+// jar it resolves first and looks for THAT jar's natives, regardless of the
+// host OS — breaking JavaFX Toolkit startup on every other platform.
+configurations {
+    shadowJavaFxNatives {
+        canBeConsumed = false
+        canBeResolved = true
+    }
 }
 
 application {
     mainClass = 'com.company.incidentdesk.startup.IncidentDeskLauncher'
+    // JavaFX loads native graphics libraries from the classpath, not the module path.
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 run {
-    jvmArgs = ['--enable-native-access=javafx.graphics']
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 dependencies {
+    String javaFxVersion = '25.0.2'
+    List<String> javaFxModules = ['javafx-base', 'javafx-controls', 'javafx-fxml', 'javafx-graphics']
+
+    // Compile/test/run only ever see the current build machine's classifier,
+    // so there is exactly one native loader on those classpaths.
+    OperatingSystem os = OperatingSystem.current()
+    String hostPlatform = os.isWindows() ? 'win' : (os.isMacOsX() ? 'mac' : 'linux')
+    javaFxModules.each { module ->
+        implementation("org.openjfx:${module}:${javaFxVersion}:${hostPlatform}")
+    }
+
+    // The packaged shadow jar bundles JavaFX natives for win/mac/linux, all
+    // x86_64; each platform's native library file name is distinct
+    // (glass.dll / libglass.dylib / libglass.so), so merging them into one
+    // jar does not collide, and the shipped jar resolves its own natives
+    // relative to itself regardless of which OS launches it. JavaFX also
+    // publishes mac-aarch64/linux-aarch64 classifiers, but those natives
+    // share the SAME file names as their x86_64 counterparts, so a single
+    // jar cannot hold both architectures for one OS; running on Apple
+    // Silicon requires an x86_64 (Rosetta) JVM. See DeveloperGuide.md.
+    ['win', 'mac', 'linux'].each { platform ->
+        javaFxModules.each { module ->
+            shadowJavaFxNatives("org.openjfx:${module}:${javaFxVersion}:${platform}")
+        }
+    }
+
     testImplementation platform('org.junit:junit-bom:5.11.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -34,6 +73,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
     testLogging {
         exceptionFormat = 'full'
     }
@@ -45,17 +85,76 @@ tasks.register('previewAuthenticatedShell', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.company.incidentdesk.ui.navigation.AuthenticatedShellPreview'
-    jvmArgs = ['--enable-native-access=javafx.graphics']
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-tasks.named('jar') {
+jar {
+    // The shadow jar is the only executable artifact this project distributes.
+    enabled = false
+    // Rename its output anyway; Gradle forbids it clashing with the shadowJar output file, even for a disabled task.
+    archiveClassifier = 'without-dependencies'
+}
+
+shadowJar {
+    archiveFileName = 'incident-desk.jar'
+    configurations = [project.configurations.runtimeClasspath, project.configurations.shadowJavaFxNatives]
     manifest {
-        attributes('Main-Class': application.mainClass.get())
+        attributes(
+            'Main-Class': application.mainClass.get(),
+            'Enable-Native-Access': 'ALL-UNNAMED'
+        )
     }
+}
+
+tasks.named('assemble') {
+    dependsOn shadowJar
+}
+
+def shadowJarOutputFile = layout.buildDirectory.file('libs/incident-desk.jar')
+
+tasks.register('verifyShadowJar') {
+    group = 'verification'
+    description = 'Verifies the packaged shadow jar exists, declares the expected main class, and bundles JavaFX natives for Windows, macOS, and Linux.'
+    dependsOn shadowJar
+    inputs.file(shadowJarOutputFile)
+
+    doLast {
+        File jarFile = shadowJarOutputFile.get().asFile
+        if (!jarFile.exists()) {
+            throw new GradleException("Expected packaged jar not found at ${jarFile}")
+        }
+
+        new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+            String mainClass = jar.manifest?.mainAttributes?.getValue('Main-Class')
+            String expectedMainClass = application.mainClass.get()
+            if (mainClass != expectedMainClass) {
+                throw new GradleException(
+                    "Expected Main-Class '${expectedMainClass}' in ${jarFile} but found '${mainClass}'"
+                )
+            }
+
+            Map<String, String> nativeMarkerByPlatform = [
+                'Windows': 'glass.dll',
+                'macOS'  : 'libglass.dylib',
+                'Linux'  : 'libglass.so',
+            ]
+            nativeMarkerByPlatform.each { platform, marker ->
+                if (jar.getEntry(marker) == null) {
+                    throw new GradleException(
+                        "Expected ${jarFile} to bundle the ${platform} JavaFX native '${marker}' but it was missing"
+                    )
+                }
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyShadowJar
 }
 
 // The distribution tasks create archives for local testing.

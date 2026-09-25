@@ -23,7 +23,14 @@ On Windows, run:
 On macOS or Linux, replace `.\gradlew.bat` with `./gradlew`.
 
 The executable Shadow JAR is written to `build/libs/incident-desk.jar`. It
-contains JavaFX native libraries for Windows, macOS, and Linux.
+contains JavaFX native libraries for Windows, macOS, and Linux, all x86_64.
+JavaFX publishes separate, differently-architected natives for Apple Silicon
+(`mac-aarch64`) and ARM Linux (`linux-aarch64`), but those natives share the
+same file names as their x86_64 counterparts (e.g. `libglass.dylib`), so a
+single jar cannot bundle both architectures for the same OS. Running the
+packaged jar on Apple Silicon therefore requires an x86_64 (Rosetta) JVM;
+compiling, testing, and running via Gradle on an Apple Silicon machine
+likewise resolves the x86_64 JavaFX classifier and needs an x86_64 JDK.
 
 `previewAuthenticatedShell` exercises the real login, session, role-routing,
 shell, and logout path with in-memory administrator, reporter, and responder accounts:
