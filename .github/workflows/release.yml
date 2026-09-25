@@ -10,15 +10,26 @@ permissions:
 
 jobs:
   package:
-    name: Package on ${{ matrix.os }}
+    name: Package on ${{ matrix.os }} (${{ matrix.architecture }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
+        include:
+          - os: ubuntu-latest
+            architecture: x64
+            artifact: incident-desk.jar
+            publish: true
+          - os: windows-latest
+            architecture: x64
+            publish: false
+          - os: macos-latest
+            architecture: x64
+            publish: false
+          - os: macos-latest
+            architecture: arm64
+            artifact: incident-desk-mac-aarch64.jar
+            publish: true
 
     steps:
       - name: Check out repository
@@ -29,15 +40,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          # The packaged JavaFX natives are x86_64-only (see build.gradle).
-          # macos-latest is an arm64 runner; forcing an x64 JDK here runs it
-          # under GitHub's preinstalled Rosetta 2, so the x86_64 JavaFX
-          # Toolkit natives load correctly. GitHub no longer provisions
-          # Intel (macos-13) hosted runners, so Rosetta is used instead of
-          # pinning to an Intel runner image. This also makes the resolved
-          # `implementation` classifier (win/mac/linux, all x86_64) match
-          # what actually runs on every job in this matrix.
-          architecture: x64
+          # Test Intel macOS under Rosetta and Apple Silicon natively.
+          architecture: ${{ matrix.architecture }}
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -69,13 +73,12 @@ jobs:
         run: ./gradlew build -x test
 
       - name: Upload packaged application
+        if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
-          name: incident-app-${{ matrix.os }}
-          path: |
-            build/libs/*
-            build/distributions/*
-            build/jpackage/*
+          name: incident-app-${{ matrix.os }}-${{ matrix.architecture }}
+          # Publish each filename once; other jobs verify the same Intel artifact.
+          path: build/libs/${{ matrix.artifact }}
           if-no-files-found: error
 
   create-release:

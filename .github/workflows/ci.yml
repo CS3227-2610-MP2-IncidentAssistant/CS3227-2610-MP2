@@ -50,11 +50,17 @@ jobs:
           retention-days: 7
 
   attachment-platform-tests:
-    name: Attachments (${{ matrix.os }})
+    name: Attachments and packaging (${{ matrix.os }}, ${{ matrix.architecture }})
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            architecture: x64
+          - os: macos-latest
+            architecture: arm64
+          - os: macos-latest
+            architecture: x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,23 +68,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          # The packaged JavaFX natives are x86_64-only (see build.gradle).
-          # macos-latest is an arm64 runner; forcing an x64 JDK here runs it
-          # under GitHub's preinstalled Rosetta 2, so the x86_64 JavaFX
-          # Toolkit natives load correctly. GitHub no longer provisions
-          # Intel (macos-13) hosted runners, so Rosetta is used instead of
-          # pinning to an Intel runner image.
-          architecture: x64
+          architecture: ${{ matrix.architecture }}
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify image attachments and storage
         shell: bash
-        run: ./gradlew test --tests '*Attachment*Test'
+        run: ./gradlew verifyJavaFxPlatforms verifyShadowJar test --tests '*Attachment*Test' --tests '*IncidentDeskApplicationTest' --tests '*PackagedApplicationTest'
 
       - name: Preserve attachment test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports-${{ matrix.os }}
+          name: test-reports-${{ matrix.os }}-${{ matrix.architecture }}
           path: |
             build/test-results/test/*.xml
             build/reports/tests/test/
