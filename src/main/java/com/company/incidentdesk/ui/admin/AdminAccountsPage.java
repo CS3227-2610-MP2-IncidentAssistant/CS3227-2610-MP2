@@ -1,14 +1,18 @@
 package com.company.incidentdesk.ui.admin;
 
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.company.incidentdesk.application.account.AccountDirectoryService;
 import com.company.incidentdesk.application.account.AccountDeletionService;
 import com.company.incidentdesk.application.account.AccountPasswordResetService;
+import com.company.incidentdesk.application.account.ResponderAccessService;
 import com.company.incidentdesk.application.audit.AuditActorLabelResolver;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.account.AccountStatus;
@@ -23,6 +27,7 @@ import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -32,7 +37,6 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
@@ -41,13 +45,15 @@ public final class AdminAccountsPage extends BorderPane {
     private final AccountDirectoryService directory;
     private final AccountDeletionService deletion;
     private final AccountPasswordResetService passwordResets;
+    private final ResponderAccessService responderAccess;
     private final VBox content = new VBox(16);
 
     public AdminAccountsPage(AccountDirectoryService directory, AccountDeletionService deletion,
-            AccountPasswordResetService passwordResets) {
+            AccountPasswordResetService passwordResets, ResponderAccessService responderAccess) {
         this.directory = Objects.requireNonNull(directory, "directory");
         this.deletion = Objects.requireNonNull(deletion, "deletion");
         this.passwordResets = Objects.requireNonNull(passwordResets, "passwordResets");
+        this.responderAccess = Objects.requireNonNull(responderAccess, "responderAccess");
         Label title = new Label("Accounts");
         title.getStyleClass().add("page-title");
         content.getChildren().add(title);
@@ -73,18 +79,25 @@ public final class AdminAccountsPage extends BorderPane {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         TableColumn<Account, String> login = column("Login name", account -> account.isDeleted()
                 ? AuditActorLabelResolver.DELETED_ACCOUNT_LABEL : account.loginName());
-        login.setPrefWidth(145);
+        fixWidth(login, 145);
         TableColumn<Account, Account> role = nodeColumn("Role", account -> roleBadge(account.role()));
-        role.setPrefWidth(112);
+        fixWidth(role, 130);
         TableColumn<Account, Account> status = nodeColumn("Status", account -> statusBadge(account.status()));
-        status.setPrefWidth(96);
+        fixWidth(status, 100);
         TableColumn<Account, Account> categories = nodeColumn("Responder categories", this::categoryBadges);
-        categories.setPrefWidth(190);
+        fixWidth(categories, 280);
         table.getColumns().addAll(login, role, status, categories);
         table.getColumns().add(actionColumn());
         table.getItems().setAll(accounts);
         table.setPlaceholder(new Label("No user accounts found"));
         return table;
+    }
+
+    /** Locks a column to its content width so only the actions column absorbs extra table width. */
+    private static void fixWidth(TableColumn<Account, ?> column, double width) {
+        column.setPrefWidth(width);
+        column.setMinWidth(width);
+        column.setMaxWidth(width);
     }
 
     private Label roleBadge(Role role) {
@@ -107,7 +120,7 @@ public final class AdminAccountsPage extends BorderPane {
         if (account.responderAccess().isEmpty()) {
             return new Label("—");
         }
-        FlowPane badges = new FlowPane(6, 6);
+        HBox badges = new HBox(6);
         for (IncidentCategory category : IncidentCategory.values()) {
             if (account.responderAccess().permits(category)) {
                 badges.getChildren().add(UiComponents.badge(category.displayName(), SemanticTone.INFO));
@@ -125,12 +138,15 @@ public final class AdminAccountsPage extends BorderPane {
         column.setCellFactory(ignored -> new TableCell<>() {
             private final Button delete = UiComponents.action("Delete", ActionStyle.DANGER);
             private final Button reset = UiComponents.action("Reset password", ActionStyle.SECONDARY);
-            private final HBox actions = new HBox(8, reset, delete);
+            private final Button categories = UiComponents.action("Configure categories", ActionStyle.SECONDARY);
+            private final HBox actions = new HBox(8, categories, reset, delete);
             {
                 delete.setAccessibleText("Delete account");
                 delete.setOnAction(event -> confirmDeletion(getTableView().getItems().get(getIndex())));
                 reset.setAccessibleText("Reset account password");
                 reset.setOnAction(event -> confirmPasswordReset(getTableView().getItems().get(getIndex())));
+                categories.setAccessibleText("Configure responder categories");
+                categories.setOnAction(event -> configureCategories(getTableView().getItems().get(getIndex())));
             }
 
             @Override
@@ -145,12 +161,47 @@ public final class AdminAccountsPage extends BorderPane {
                 reset.setDisable(!passwordResets.canReset(account.id()));
                 delete.setAccessibleText("Delete account " + account.loginName());
                 reset.setAccessibleText("Reset password for " + account.loginName());
+                categories.setAccessibleText("Configure categories for " + account.loginName());
+                boolean isResponder = account.role() == Role.RESPONDER && account.isEnabled();
+                categories.setManaged(isResponder);
+                categories.setVisible(isResponder);
                 setGraphic(actions);
             }
         });
-        column.setPrefWidth(245);
-        column.setMinWidth(245);
+        column.setPrefWidth(330);
+        column.setMinWidth(330);
         return column;
+    }
+
+    private void configureCategories(Account account) {
+        Map<IncidentCategory, CheckBox> checkboxes = new EnumMap<>(IncidentCategory.class);
+        VBox options = new VBox(6);
+        for (IncidentCategory category : IncidentCategory.values()) {
+            CheckBox checkbox = new CheckBox(category.displayName());
+            checkbox.setSelected(account.responderAccess().permits(category));
+            checkboxes.put(category, checkbox);
+            options.getChildren().add(checkbox);
+        }
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION, "", ButtonType.CANCEL, ButtonType.OK);
+        dialog.setTitle("Configure categories");
+        dialog.setHeaderText("Choose the incident categories " + account.loginName() + " can access as a responder");
+        dialog.getDialogPane().setContent(options);
+        if (dialog.showAndWait().filter(ButtonType.OK::equals).isEmpty()) {
+            return;
+        }
+
+        Set<IncidentCategory> selected = checkboxes.entrySet().stream()
+                .filter(entry -> entry.getValue().isSelected())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
+
+        var result = responderAccess.changeCategories(account.id(), selected);
+        if (result.isSuccess()) {
+            refresh();
+        } else {
+            content.getChildren().add(UiComponents.feedback("Categories were not updated",
+                    "The account may no longer be available. Refresh and try again.", FeedbackType.ERROR));
+        }
     }
 
     private void confirmPasswordReset(Account account) {
