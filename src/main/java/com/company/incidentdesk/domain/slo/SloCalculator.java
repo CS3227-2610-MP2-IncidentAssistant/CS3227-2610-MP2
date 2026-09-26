@@ -46,52 +46,59 @@ public final class SloCalculator {
     /**
      * Aggregates completed-cycle averages and reopen-rate metrics over the given incident scope.
      *
-     * <p>Callers select the scope (category, time period, responder) before calling; this method
-     * performs no filtering of its own and uses only persisted lifecycle timestamps.
+     * <p>Callers select the scope (category, responder) before calling; this method performs no
+     * filtering of its own and uses only persisted lifecycle timestamps.
      *
      * @param incidents incidents already filtered to the desired scope
      * @return deterministic aggregate evaluation, {@link SloEvaluation#empty()} for an empty scope
      */
     public static SloEvaluation evaluate(List<Incident> incidents) {
+        return evaluate(incidents, Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * Aggregates completed-cycle averages and reopen-rate metrics, restricted to a reporting period.
+     *
+     * <p>A cycle's time-to-claim contributes only when its queue-entry timestamp falls within the
+     * period; its time-in-progress, resolution, and reopen contribution only when its resolution
+     * timestamp falls within the period. Both bounds are inclusive. An incident unresolved at the
+     * end of the period contributes no resolution-based metrics, without error.
+     *
+     * @param incidents incidents already filtered to the desired category/responder scope
+     * @param periodFrom inclusive period start, or empty for no lower bound
+     * @param periodThrough inclusive period end, or empty for no upper bound
+     * @return deterministic aggregate evaluation, {@link SloEvaluation#empty()} for an empty scope
+     */
+    public static SloEvaluation evaluate(
+            List<Incident> incidents, Optional<Instant> periodFrom, Optional<Instant> periodThrough) {
         Objects.requireNonNull(incidents, "incidents");
+        Objects.requireNonNull(periodFrom, "periodFrom");
+        Objects.requireNonNull(periodThrough, "periodThrough");
 
-        List<Duration> claimDurations = new ArrayList<>();
-        List<Duration> progressDurations = new ArrayList<>();
-        int resolvedIncidentCount = 0;
-        int reopenedIncidentCount = 0;
-        int reopenEventCount = 0;
+        PeriodTally tally = new PeriodTally(periodFrom, periodThrough);
+        incidents.forEach(tally::add);
+        return tally.toEvaluation();
+    }
 
-        for (Incident incident : incidents) {
-            boolean resolvedAtLeastOnce = false;
-            for (ResolutionCycle cycle : incident.resolutionCycles()) {
-                timeToClaim(cycle).ifPresent(claimDurations::add);
-                timeInProgress(cycle).ifPresent(progressDurations::add);
-                if (cycle.isResolved()) {
-                    resolvedAtLeastOnce = true;
-                }
-            }
-            if (resolvedAtLeastOnce) {
-                resolvedIncidentCount++;
-                reopenEventCount += incident.reopenCount();
-                if (incident.reopenCount() > 0) {
-                    reopenedIncidentCount++;
-                }
-            }
-        }
+    /** Returns whether the cycle was resolved at an instant within the inclusive period. */
+    public static boolean isResolvedInPeriod(
+            ResolutionCycle cycle, Optional<Instant> from, Optional<Instant> through) {
+        return cycle.resolution()
+                .map(resolution -> inPeriod(resolution.resolvedAt(), from, through))
+                .orElse(false);
+    }
 
-        Optional<Double> reopenRate = resolvedIncidentCount == 0
-                ? Optional.empty()
-                : Optional.of((double) reopenedIncidentCount / resolvedIncidentCount);
-
-        return new SloEvaluation(
-                average(claimDurations),
-                claimDurations.size(),
-                average(progressDurations),
-                progressDurations.size(),
-                reopenRate,
-                reopenedIncidentCount,
-                resolvedIncidentCount,
-                reopenEventCount);
+    /**
+     * Checks whether an instant falls within an inclusive optional period.
+     *
+     * @param instant timestamp to test
+     * @param from inclusive period start, or empty for no lower bound
+     * @param through inclusive period end, or empty for no upper bound
+     * @return true when the instant satisfies both bounds
+     */
+    public static boolean inPeriod(Instant instant, Optional<Instant> from, Optional<Instant> through) {
+        return from.map(start -> !instant.isBefore(start)).orElse(true)
+                && through.map(end -> !instant.isAfter(end)).orElse(true);
     }
 
     /**
@@ -128,7 +135,8 @@ public final class SloCalculator {
         return SloStatusModel.notApplicable();
     }
 
-    private static Optional<Duration> average(List<Duration> durations) {
+    /** Returns the mean of the durations, or empty when there are none. */
+    public static Optional<Duration> average(List<Duration> durations) {
         if (durations.isEmpty()) {
             return Optional.empty();
         }
@@ -137,5 +145,64 @@ public final class SloCalculator {
             total = total.plus(duration);
         }
         return Optional.of(total.dividedBy(durations.size()));
+    }
+
+    /** Accumulates period-restricted claim, progress, and reopen figures across incidents. */
+    private static final class PeriodTally {
+        private final Optional<Instant> periodFrom;
+        private final Optional<Instant> periodThrough;
+        private final List<Duration> claimDurations = new ArrayList<>();
+        private final List<Duration> progressDurations = new ArrayList<>();
+        private int resolvedIncidentCount;
+        private int reopenedIncidentCount;
+        private int reopenEventCount;
+
+        private PeriodTally(Optional<Instant> periodFrom, Optional<Instant> periodThrough) {
+            this.periodFrom = periodFrom;
+            this.periodThrough = periodThrough;
+        }
+
+        private void add(Incident incident) {
+            List<ResolutionCycle> cycles = incident.resolutionCycles();
+            int reopenEventsInPeriod = 0;
+            boolean resolvedInPeriod = false;
+            for (int index = 0; index < cycles.size(); index++) {
+                ResolutionCycle cycle = cycles.get(index);
+                if (inPeriod(cycle.queueEnteredAt(), periodFrom, periodThrough)) {
+                    timeToClaim(cycle).ifPresent(claimDurations::add);
+                }
+                if (!isResolvedInPeriod(cycle, periodFrom, periodThrough)) {
+                    continue;
+                }
+                timeInProgress(cycle).ifPresent(progressDurations::add);
+                resolvedInPeriod = true;
+                boolean reopened = index + 1 < cycles.size();
+                if (reopened) {
+                    reopenEventsInPeriod++;
+                }
+            }
+            reopenEventCount += reopenEventsInPeriod;
+            if (resolvedInPeriod) {
+                resolvedIncidentCount++;
+            }
+            if (reopenEventsInPeriod > 0) {
+                reopenedIncidentCount++;
+            }
+        }
+
+        private SloEvaluation toEvaluation() {
+            Optional<Double> reopenRate = resolvedIncidentCount == 0
+                    ? Optional.empty()
+                    : Optional.of((double) reopenedIncidentCount / resolvedIncidentCount);
+            return new SloEvaluation(
+                    average(claimDurations),
+                    claimDurations.size(),
+                    average(progressDurations),
+                    progressDurations.size(),
+                    reopenRate,
+                    reopenedIncidentCount,
+                    resolvedIncidentCount,
+                    reopenEventCount);
+        }
     }
 }

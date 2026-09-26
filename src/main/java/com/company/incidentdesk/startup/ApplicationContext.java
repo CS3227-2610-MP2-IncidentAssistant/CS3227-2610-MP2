@@ -33,6 +33,8 @@ import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
 import com.company.incidentdesk.application.slo.SloIncidentClassifier;
+import com.company.incidentdesk.application.authorization.StatisticsAuthorizationPolicy;
+import com.company.incidentdesk.application.statistics.IncidentStatisticsService;
 import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.comment.CommentId;
 import com.company.incidentdesk.domain.incident.IncidentId;
@@ -61,6 +63,7 @@ public final class ApplicationContext implements AutoCloseable {
     private final IncidentDetailService incidentDetails;
     private final PromotionRequestService promotionRequests;
     private final ResponderAccessService responderAccess;
+    private final IncidentStatisticsService statistics;
 
     private ApplicationContext(
             LocalApplicationStore store,
@@ -77,7 +80,8 @@ public final class ApplicationContext implements AutoCloseable {
             AuditLogService auditLog,
             SloConfigurationService sloConfigurations, AttachmentService attachments,
             IncidentCommentService comments, IncidentDetailService incidentDetails,
-            PromotionRequestService promotionRequests, ResponderAccessService responderAccess) {
+            PromotionRequestService promotionRequests, ResponderAccessService responderAccess,
+            IncidentStatisticsService statistics) {
         this.store = store;
         this.sessions = sessions;
         this.notifications = notifications;
@@ -96,6 +100,7 @@ public final class ApplicationContext implements AutoCloseable {
         this.incidentDetails = incidentDetails;
         this.promotionRequests = promotionRequests;
         this.responderAccess = responderAccess;
+        this.statistics = statistics;
     }
 
     public static ApplicationContext openDefault() {
@@ -169,10 +174,12 @@ public final class ApplicationContext implements AutoCloseable {
                 () -> new PromotionRequestId(UUID.randomUUID()), events::publish);
         ResponderAccessService responderAccess = new ResponderAccessService(sessions, accountAuthorization,
                 store, store, accountAuditEvents, events::publish);
+        IncidentStatisticsService statistics = new IncidentStatisticsService(
+                store, store, new StatisticsAuthorizationPolicy(sessions));
         return new ApplicationContext(store, sessions, notifications, incidents, mapper, notificationService,
                 Objects.requireNonNull(registrations, "registrations"), accountDirectory, accountDeletion, passwords,
                 passwordResets, auditLog, sloConfigurations,
-                attachments, comments, incidentDetails, promotionRequests, responderAccess);
+                attachments, comments, incidentDetails, promotionRequests, responderAccess, statistics);
     }
 
     public SessionService sessions() {
@@ -226,6 +233,8 @@ public final class ApplicationContext implements AutoCloseable {
     public PromotionRequestService promotionRequests() { return promotionRequests; }
 
     public ResponderAccessService responderAccess() { return responderAccess; }
+
+    public IncidentStatisticsService statistics() { return statistics; }
 
     private static void reportSubscriberFailure(RuntimeException exception) {
         System.err.println("Application event subscriber failed: " + exception.getClass().getSimpleName());
