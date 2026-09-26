@@ -296,7 +296,8 @@ class ResponderMvpIntegrationTest {
             var views = new DefaultViewFactory(context.incidents(), context.presentationMapper(), context.sessions(),
                     context.accountDirectory(), context.accountDeletion(), context.passwordResets(),
                     context.responderAccess(), context.promotionRequests(), context.auditLog(),
-                    context.sloConfigurations(), context.incidentDetails(), context.comments(), context.attachments());
+                    context.sloConfigurations(), context.incidentDetails(), context.comments(), context.attachments(),
+                    context.statistics());
             navigator = new ApplicationNavigator(scene, context.sessions(), context.notifications(), views,
                     context.registrations(), context.passwords());
             navigator.start();

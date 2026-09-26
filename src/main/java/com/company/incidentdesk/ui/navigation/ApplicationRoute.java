@@ -7,7 +7,8 @@ public enum ApplicationRoute {
     DASHBOARD("Dashboard", false),
     ADMIN_ACCOUNTS("Accounts", true),
     ADMIN_SLO("SLO configuration", true),
-    ADMIN_AUDIT_LOG("Audit log", true)
+    ADMIN_AUDIT_LOG("Audit log", true),
+    ADMIN_STATISTICS("Statistics", true)
     ;
 
     private final String label;

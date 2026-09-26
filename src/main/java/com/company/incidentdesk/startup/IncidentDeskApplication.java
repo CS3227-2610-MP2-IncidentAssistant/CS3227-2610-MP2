@@ -40,7 +40,8 @@ public final class IncidentDeskApplication extends Application {
                         applicationContext.sloConfigurations(),
                         applicationContext.incidentDetails(),
                         applicationContext.comments(),
-                        applicationContext.attachments()),
+                        applicationContext.attachments(),
+                        applicationContext.statistics()),
                 applicationContext.registrations(),
                 applicationContext.passwords());
         navigator.start();

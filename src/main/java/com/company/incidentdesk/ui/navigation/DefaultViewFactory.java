@@ -16,6 +16,7 @@ import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.presentation.IncidentPresentationMapper;
 import com.company.incidentdesk.application.session.SessionProvider;
 import com.company.incidentdesk.application.slo.SloConfigurationService;
+import com.company.incidentdesk.application.statistics.StatisticsGateway;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.ui.admin.AdminIncidentDetailPage;
@@ -23,6 +24,7 @@ import com.company.incidentdesk.ui.admin.AdminIncidentPage;
 import com.company.incidentdesk.ui.admin.AdminAccountsPage;
 import com.company.incidentdesk.ui.admin.AdminAuditLogPage;
 import com.company.incidentdesk.ui.admin.AdminSloPage;
+import com.company.incidentdesk.ui.admin.AdminStatisticsPage;
 import com.company.incidentdesk.ui.reporter.ReporterPage;
 import com.company.incidentdesk.ui.responder.ResponderPage;
 import com.company.incidentdesk.ui.responder.ResponderIncidentPage;
@@ -49,6 +51,7 @@ public final class DefaultViewFactory implements ViewFactory {
     private final IncidentDetailService incidentDetails;
     private final IncidentCommentService comments;
     private final AttachmentService attachments;
+    private final StatisticsGateway statistics;
 
     public DefaultViewFactory(
             IncidentService incidents,
@@ -63,7 +66,8 @@ public final class DefaultViewFactory implements ViewFactory {
             SloConfigurationService sloConfigurations,
             IncidentDetailService incidentDetails,
             IncidentCommentService comments,
-            AttachmentService attachments) {
+            AttachmentService attachments,
+            StatisticsGateway statistics) {
         this.incidents = Objects.requireNonNull(incidents, "incidents");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.sessions = Objects.requireNonNull(sessions, "sessions");
@@ -77,6 +81,7 @@ public final class DefaultViewFactory implements ViewFactory {
         this.incidentDetails = Objects.requireNonNull(incidentDetails, "incidentDetails");
         this.comments = Objects.requireNonNull(comments, "comments");
         this.attachments = Objects.requireNonNull(attachments, "attachments");
+        this.statistics = Objects.requireNonNull(statistics, "statistics");
     }
 
     @Override
@@ -91,6 +96,7 @@ public final class DefaultViewFactory implements ViewFactory {
                     accounts, accountDeletion, passwordResets, responderAccess, promotionRequests);
             case ADMIN_SLO -> new AdminSloPage(sloConfigurations);
             case ADMIN_AUDIT_LOG -> new AdminAuditLogPage(auditLog);
+            case ADMIN_STATISTICS -> new AdminStatisticsPage(statistics);
             case DASHBOARD -> throw new IllegalStateException("Dashboard handled below");
             };
         }
