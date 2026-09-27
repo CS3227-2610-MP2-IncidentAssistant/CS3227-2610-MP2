@@ -212,7 +212,7 @@
     -fx-max-width: 310px;
     -fx-min-height: 145px;
 }
-.attachment-tile { -fx-min-height: 92px; -fx-background-color: #F8FAFD; -fx-border-color: #AAB5C5; -fx-border-radius: 9px; -fx-border-style: segments(5, 5); }
+.attachment-tile { -fx-min-height: 92px; -fx-background-color: #F8FAFD; -fx-border-color: #AAB5C5; -fx-border-radius: 9px; -fx-border-style: dashed; }
 .empty-state { -fx-background-color: #F8FAFD; }
 .loading-state { -fx-background-color: #E4ECFF; }
 .error-banner { -fx-background-color: #FCE4E4; -fx-border-color: #E5B1B1; -fx-border-radius: 9px; }
