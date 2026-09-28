@@ -91,3 +91,25 @@ Other account actions are:
 - **View request**: appears only on accounts with a pending Responder promotion request. The dialog shows requested categories and comments, with **Approve** and **Reject** choices. The current Reporter UI has no way to create such a request, so a fresh installation will not offer this action.
 
 The **Show only accounts with pending promotion requests** checkbox narrows the account table to those requests. Actions that are not allowed for an account are disabled or absent.
+
+## Administrator: SLOs, statistics, and audit log
+
+### Configure SLO targets
+
+Select **SLO configuration**, then choose an incident category. The page shows its current effective target and configuration history. Enter all three target values and select **Save new target version**:
+
+| Field | Enter |
+| --- | --- |
+| Average time to claim (minutes) | A non-negative whole number of minutes |
+| Average time in progress (minutes) | A non-negative whole number of minutes |
+| Average reopen rate (%) | A number from 0 to 100 |
+
+For a simple test, select **Facilities** and enter `60`, `240`, and `10`. A successful save creates a new effective version in the history. New target versions apply prospectively; they do not rewrite historical compliance. Invalid values show a validation message and are not saved.
+
+### Review statistics
+
+Select **Statistics** to see a company summary and a Responder breakdown. You can filter by category and **Period from**/**Period through** dates. The summary includes incidents resolved, average time to claim, average time in progress, reopen rate, and Administrator-resolved count. The Responder table shows resolution-related measures per Responder; time to claim is queue performance and is not assigned to a particular Responder. If no incidents match the filters, the summary says so instead of inventing results.
+
+### Review application activity
+
+Select **Audit log** to view recorded security-sensitive and incident-changing activity. Each row shows its time, event ID, actor, event description, and outcome. Double-click a row to open **Audit event details**, including the action, target, outcome, and recorded changes. This is an application-level audit log; the incident detail's **Audit timeline** placeholder does not display these entries.
