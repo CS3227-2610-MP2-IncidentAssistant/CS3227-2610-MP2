@@ -1,10 +1,24 @@
 # Incident Desk User Guide
 
+## Table of Contents
+
+- [Overview](#overview)
+- [1. Getting started](#1-getting-started)
+- [2. Reporter: submit an incident](#2-reporter-submit-an-incident)
+- [3. Administrator: set up responder access and manage accounts](#3-administrator-set-up-responder-access-and-manage-accounts)
+- [4. Responder: handle an incident](#4-responder-handle-an-incident)
+- [5. Administrator: manage incidents](#5-administrator-manage-incidents)
+- [6. Administrator: SLOs, statistics, and audit log](#6-administrator-slos-statistics-and-audit-log)
+- [7. Incident details and comments](#7-incident-details-and-comments)
+- [8. Local data and current limitations](#8-local-data-and-current-limitations)
+
+## Overview
+
 Incident Desk is a local desktop app for reporting and handling company incidents. It has three account types: Reporters submit incidents, Responders handle incidents in categories they can access, and Administrators oversee incidents and accounts. Only one account is signed in at a time.
 
 This guide describes the current application, not the separate **Sample UI** preview shown on the sign-in screen. Use fictional information when testing; incident text and attachments are stored on your computer.
 
-## Getting started
+## 1. Getting started
 
 You need JDK 25. Check that both `java -version` and `javac -version` report version 25. Other Java versions are rejected at startup. From the repository root, launch the app with the checked-in Gradle wrapper:
 
@@ -45,7 +59,7 @@ Select **Update password** under your account name to enter your current passwor
 
 Select the bell icon to open your notifications. Its badge shows the number you have not seen yet; opening the tray marks the displayed notifications as seen. These notifications are available only during the current app session, not after a restart. Select **Log out** when you want to switch accounts or finish using the app.
 
-## Reporter: submit an incident
+## 2. Reporter: submit an incident
 
 Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
 
@@ -60,7 +74,7 @@ All three fields are required. If one is empty, the form highlights it and does 
 
 The current Reporter dashboard has only the submission form. It does not provide a Reporter incident list or a route to incident details. Drafts, anonymous submission, editing, withdrawal, reopening, promotion requests, and adding attachments from this dashboard are not available in the current UI. Do not use the **Sample UI** preview to test or infer these workflows.
 
-## Administrator: set up responder access and manage accounts
+## 3. Administrator: set up responder access and manage accounts
 
 Sign in as an Admin and select **Accounts** to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. Log out and sign in as the Responder; the Facilities incident should now appear in **Eligible queue**.
 
@@ -74,7 +88,7 @@ Other account actions are:
 
 The **Show only accounts with pending promotion requests** checkbox narrows the account table to those requests. Actions that are not allowed for an account are disabled or absent.
 
-## Responder: handle an incident
+## 4. Responder: handle an incident
 
 A Responder sees only incidents in categories granted by an Administrator. Complete the account setup above before looking for the Facilities example. If the dashboard is still empty, check that the account has Facilities access and select **Refresh**.
 
@@ -92,7 +106,7 @@ If you need to return a claimed incident to the category queue instead, open its
 
 The current Responder lists do not offer search, filters, sorting, an **In Progress** action, or personal statistics. Those controls may appear in the Sample UI preview, but they are not part of this authenticated workflow.
 
-## Administrator: manage incidents
+## 5. Administrator: manage incidents
 
 Sign in as an Admin. **Dashboard** shows an SLO overview and an **Incidents** table across the company. Use the search box to look for words in a title or description, or an incident ID. The filters include category, status, assignment, reporter, responder, creation dates, and SLO state. You can also choose a sort field and direction; **Reset** restores the default view. Double-click an incident row, or select it and press Enter, to open its details. **Back to dashboard** returns to the list.
 
@@ -106,7 +120,7 @@ The detail view shows the incident description, category and status, reporter an
 
 The incident detail has an **Audit timeline** placeholder, not a working per-incident audit timeline. Use the separate **Audit log** page for application activity.
 
-## Administrator: SLOs, statistics, and audit log
+## 6. Administrator: SLOs, statistics, and audit log
 
 ### Configure SLO targets
 
@@ -128,7 +142,7 @@ Select **Statistics** to see a company summary and a Responder breakdown. You ca
 
 Select **Audit log** to view recorded security-sensitive and incident-changing activity. Each row shows its time, event ID, actor, event description, and outcome. Double-click a row to open **Audit event details**, including the action, target, outcome, and recorded changes. This is an application-level audit log; the incident detail's **Audit timeline** placeholder does not display these entries.
 
-## Incident details and comments
+## 7. Incident details and comments
 
 Administrators can open incidents from their dashboard; Responders can open incidents from their eligible or assigned lists. The detail page displays the latest information their account is allowed to see. Select **Back to dashboard** to return to the list. If an incident or your access changes while the page is open, it may show **Incident unavailable**; return to the dashboard and refresh.
 
@@ -136,7 +150,7 @@ In **Comments**, enter a non-blank message and select **Add comment**. A success
 
 The **Attachments** panel can list and display authorized PNG and JPEG images already attached to an incident. Select **View attachment** on an entry to open its in-app image viewer. The underlying **Add attachment** control is enabled only for a Reporter who can still edit that incident, but the current Reporter dashboard has no way to open incident details. Consequently, a peer tester cannot upload a new attachment through the current UI. Videos are not supported by the image viewer.
 
-## Local data and current limitations
+## 8. Local data and current limitations
 
 Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
 
