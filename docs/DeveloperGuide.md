@@ -144,11 +144,13 @@ application and domain code; domain code must not depend on those outer layers.
 
 `ApplicationNavigator` switches between sign-in and the authenticated shell.
 `DefaultViewFactory` constructs each role's dashboard and permitted detail
-views from the services in `ApplicationContext`. A UI control being hidden is
-not an access check: application services obtain the current account from the
-session and recheck ownership, role, assignment, and responder category access
-when an operation runs. Denied or missing incident access maps to a
-presentation-safe unavailable result.
+views from the services in `ApplicationContext`. The Reporter dashboard opens
+owned incidents through `ReporterIncidentPage`, which wraps the shared
+`IncidentDetailView` and supplies Reporter-specific edit, withdrawal, and
+reopen callbacks. A UI control being hidden is not an access check: application
+services obtain the current account from the session and recheck ownership,
+role, assignment, and responder category access when an operation runs. Denied
+or missing incident access maps to a presentation-safe unavailable result.
 
 ### Incident model and lifecycle
 
@@ -200,6 +202,19 @@ replaces its in-memory state. `IncidentChangedEvent` is published after the
 commit returns. If validation, authorization, or storage fails, the UI shows a
 failure and retains the form entries; no success event is published.
 
+### Reporter incident actions (#90)
+
+`ReporterPage` reads the authenticated user's incident rows; opening a row routes
+through `DefaultViewFactory` to `ReporterIncidentPage`. That page composes the
+shared detail and attachment components, and supplies callbacks for editing,
+withdrawing, and reopening. The forms perform required-field feedback, then
+delegate mutations to `IncidentService`; the service remains responsible for
+authorization, lifecycle validation, audit evidence, and persistence. A stale
+action rejected after an incident changes triggers a detail refresh. When the
+Reporter can still view the incident but can no longer perform that action, the
+form retains its text as read-only until dismissed. Attachments use the shared
+`AttachmentPane` and existing PNG/JPEG rules; video and audio are unsupported.
+
 ### Responder dashboard integration (#37)
 
 `ResponderPage` accepts the shared `IncidentService`, an
@@ -230,10 +245,8 @@ file reads off the JavaFX thread and owns an `AttachmentViewer`; close it on
 navigation if it is not detached from its scene. The viewer clears content
 when the authenticated session or incident permission snapshot changes.
 The pane must receive a persisted incident; saving a new draft/submission and
-attaching selected files is a separate, explicit sequence. The pane is now
-composed into Administrator and Responder incident-detail pages. The current
-Reporter dashboard has no incident-detail route, so upload is not an
-end-to-end Reporter UI workflow yet.
+attaching selected files is a separate, explicit sequence. The pane is
+composed into Administrator, Reporter, and Responder incident-detail pages.
 
 `AttachmentService.list/add/open` enforce current incident authorization.
 Only the owning reporter can add files while a draft or an unassigned submitted
