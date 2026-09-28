@@ -60,9 +60,21 @@ All three fields are required. If one is empty, the form highlights it and does 
 
 The current Reporter dashboard has only the submission form. It does not provide a Reporter incident list or a route to incident details. Drafts, anonymous submission, editing, withdrawal, reopening, promotion requests, and adding attachments from this dashboard are not available in the current UI. Do not use the **Sample UI** preview to test or infer these workflows.
 
+## Administrator: set up responder access and manage accounts
+
+Sign in as an Admin and select **Accounts** to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. Log out and sign in as the Responder; the Facilities incident should now appear in **Eligible queue**.
+
+Other account actions are:
+
+- **Reset password**: confirm the reset. A one-time temporary password is displayed once and expires after 24 hours. Pass it to the account holder securely; they must replace it after signing in. Do not include it in screenshots or bug reports.
+- **Delete**: confirm to disable that account's login. Its incident and audit history is retained. This cannot be undone in the current UI; use only a disposable test account when testing it.
+- **View request**: appears only on accounts with a pending Responder promotion request. The dialog shows requested categories and comments, with **Approve** and **Reject** choices. The current Reporter UI has no way to create such a request, so a fresh installation will not offer this action.
+
+The **Show only accounts with pending promotion requests** checkbox narrows the account table to those requests. Actions that are not allowed for an account are disabled or absent.
+
 ## Responder: handle an incident
 
-A Responder sees only incidents in categories granted by an Administrator. If the dashboard is empty, ask an Administrator to open **Accounts**, find the Responder, and use **Configure categories**. For the example above, grant **Facilities**.
+A Responder sees only incidents in categories granted by an Administrator. Complete the account setup above before looking for the Facilities example. If the dashboard is still empty, check that the account has Facilities access and select **Refresh**.
 
 The Responder **Dashboard** has two lists: **Eligible queue** for unassigned incidents you can claim, and **My assigned incidents** for incidents already assigned to you. Select an incident and choose **Open details**, or double-click its row. Use **Refresh** to reload the lists.
 
@@ -76,7 +88,7 @@ If you need to return a claimed incident to the category queue instead, open its
 
 The current Responder lists do not offer search, filters, sorting, an **In Progress** action, or personal statistics. Those controls may appear in the Sample UI preview, but they are not part of this authenticated workflow.
 
-## Administrator: incidents and accounts
+## Administrator: manage incidents
 
 Sign in as an Admin. **Dashboard** shows an SLO overview and an **Incidents** table across the company. Use the search box to look for words in a title or description, or an incident ID. The filters include category, status, assignment, reporter, responder, creation dates, and SLO state. You can also choose a sort field and direction; **Reset** restores the default view. Double-click an incident row, or select it and press Enter, to open its details. **Back to dashboard** returns to the list.
 
@@ -87,18 +99,6 @@ The detail view shows the incident description, category and status, reporter an
 - **Resolve** an assigned incident: enter non-blank **Resolution remarks** and select **Confirm resolution**. An Administrator can review the saved remarks in **Resolution history**.
 
 The incident detail has an **Audit timeline** placeholder, not a working per-incident audit timeline. Use the separate **Audit log** page for application activity.
-
-### Manage accounts and responder access
-
-Select **Accounts** in the navigation to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. The Responder can sign in or select **Refresh** on their dashboard to see the eligible incident.
-
-Other account actions are:
-
-- **Reset password**: confirm the reset. A one-time temporary password is displayed once and expires after 24 hours. Pass it to the account holder securely; they must replace it after signing in. Do not include it in screenshots or bug reports.
-- **Delete**: confirm to disable that account's login. Its incident and audit history is retained. This cannot be undone in the current UI; use only a disposable test account when testing it.
-- **View request**: appears only on accounts with a pending Responder promotion request. The dialog shows requested categories and comments, with **Approve** and **Reject** choices. The current Reporter UI has no way to create such a request, so a fresh installation will not offer this action.
-
-The **Show only accounts with pending promotion requests** checkbox narrows the account table to those requests. Actions that are not allowed for an account are disabled or absent.
 
 ## Administrator: SLOs, statistics, and audit log
 
