@@ -1,52 +1,69 @@
 ---
 layout: default
 title: User Guide
+nav_order: 2
 ---
 
 # Incident Desk User Guide
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [1. Getting started](#1-getting-started)
-- [2. Reporter: submit an incident](#2-reporter-submit-an-incident)
-- [3. Administrator: set up responder access and manage accounts](#3-administrator-set-up-responder-access-and-manage-accounts)
-- [4. Responder: handle an incident](#4-responder-handle-an-incident)
-- [5. Administrator: manage incidents](#5-administrator-manage-incidents)
-- [6. Administrator: SLOs, statistics, and audit log](#6-administrator-slos-statistics-and-audit-log)
-- [7. Incident details and comments](#7-incident-details-and-comments)
-- [8. Local data and current limitations](#8-local-data-and-current-limitations)
+- **[Overview](#overview)**
+- **[Quick start](#quick-start)**
+  - [Install and open Incident Desk](#install-and-open-incident-desk)
+  - [Register and sign in](#register-and-sign-in)
+  - [Account controls and notifications](#account-controls-and-notifications)
+- **[Reporter: submit an incident](#reporter-submit-an-incident)**
+- **[Administrator: set up responder access and manage accounts](#administrator-set-up-responder-access-and-manage-accounts)**
+- **[Responder: handle an incident](#responder-handle-an-incident)**
+  - [Claim and resolve an incident](#claim-and-resolve-an-incident)
+  - [Hand off an incident](#hand-off-an-incident)
+- **[Administrator: manage incidents](#administrator-manage-incidents)**
+- **[Administrator: SLOs, statistics, and audit log](#administrator-slos-statistics-and-audit-log)**
+  - [Configure SLO targets](#configure-slo-targets)
+  - [Review statistics](#review-statistics)
+  - [Review application activity](#review-application-activity)
+- **[Incident details, comments, and attachments](#incident-details-comments-and-attachments)**
+- **[Data storage and current limitations](#data-storage-and-current-limitations)**
+- **[Planned improvements](#planned-improvements)**
+
+---
 
 ## Overview
 
-Incident Desk is a local desktop app for reporting and handling company incidents. It has three account types: Reporters submit incidents, Responders handle incidents in categories they can access, and Administrators oversee incidents and accounts. Only one account is signed in at a time.
+Incident Desk is a desktop app for reporting and handling company incidents. It has three account types:
 
-This guide describes the current application, not the separate **Sample UI** preview shown on the sign-in screen. Use fictional information when testing; incident text and attachments are stored on your computer.
+- **Reporters** submit incidents.
+- **Responders** handle incidents in categories assigned to them.
+- **Administrators** oversee incidents, accounts, service-level objectives (SLOs), statistics, and audit records.
 
-## 1. Getting started
+Only one account can be signed in at a time. Use the section for your account type, or follow the guide from start to finish to see how an incident moves from submission to resolution.
 
-You need JDK 25. Check that both `java -version` and `javac -version` report version 25. Other Java versions are rejected at startup. From the repository root, launch the app with the checked-in Gradle wrapper:
+If you are exploring the app, use fictional information because incident text and attachments are stored on your computer.
 
-```powershell
-# Windows
-.\gradlew.bat run
+---
+
+## Quick start
+
+### Install and open Incident Desk
+
+Before you begin, make sure Java 25 is installed. You can check your version by opening a terminal and entering:
+
+```text
+java -version
 ```
 
-```sh
-# macOS or Linux
-./gradlew run
-```
+The version shown should begin with `25`. If it does not, install Java 25 before continuing.
 
-You do not need to install Gradle separately. The app opens a window titled **Incident Desk**. If you build the executable JAR instead, run `./gradlew shadowJar` (or `.\gradlew.bat shadowJar` on Windows), then `java -jar build/libs/incident-desk.jar`. That JAR supports x86_64 Windows, Linux, and macOS. On an Apple Silicon Mac using an ARM64 JDK 25, build with `./gradlew shadowJarMacArm64` and run `java -jar build/libs/incident-desk-mac-aarch64.jar` instead.
+To open the app:
 
-The app saves accounts and incidents in a local data directory. By default this is `.incident-desk` under your home directory. To keep peer-test data separate, set `INCIDENT_DESK_DATA_DIR` to a new directory **before** launching the app. For example, in PowerShell:
+1. Download the Incident Desk JAR file provided for your computer.
+2. Move it to a folder where you want to keep the app.
+3. Open a terminal in that folder.
+4. Enter `java -jar incident-desk.jar`. If your downloaded file has a different name, use that filename instead.
+5. Wait for the window titled **Incident Desk** to appear.
 
-```powershell
-$env:INCIDENT_DESK_DATA_DIR = Join-Path $env:TEMP 'incident-desk-peer-test'
-.\gradlew.bat run
-```
-
-On macOS or Linux, you can use `INCIDENT_DESK_DATA_DIR="$HOME/incident-desk-peer-test" ./gradlew run`. Reuse the same directory to check that data survives a restart. Do not point it at a directory containing data you need to keep private from testers.
+On an Apple Silicon Mac, use the macOS ARM64 JAR supplied with the release. Keep the JAR in place after opening it; your accounts and incidents are saved separately and remain available the next time you start the app.
 
 ### Register and sign in
 
@@ -64,22 +81,28 @@ Select **Update password** under your account name to enter your current passwor
 
 Select the bell icon to open your notifications. Its badge shows the number you have not seen yet; opening the tray marks the displayed notifications as seen. These notifications are available only during the current app session, not after a restart. Select **Log out** when you want to switch accounts or finish using the app.
 
-## 2. Reporter: submit an incident
+---
+
+## Reporter: submit an incident
 
 Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
 
 1. Enter a **Title** and **Description**, and choose a **Category**: IT, Human Relations, or Facilities.
 2. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form clears after a successful submission.
 
-For a peer test, try **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. The Administrator and a Responder with Facilities access can then use this incident in the following sections.
+For example, enter **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. An Administrator and a Responder with Facilities access can then manage this incident.
 
 ![Reporter dashboard with a completed Facilities incident form before submission](images/reporter-submission.png)
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
-The current Reporter dashboard has only the submission form. It does not provide a Reporter incident list or a route to incident details. Drafts, anonymous submission, editing, withdrawal, reopening, promotion requests, and adding attachments from this dashboard are not available in the current UI. Do not use the **Sample UI** preview to test or infer these workflows.
+The **My incidents** table below the form lists incidents submitted by the signed-in Reporter. Select **Refresh** to reload the list. To inspect an incident, select its row and choose **Open details**, or double-click the row. The details page shows its current status, comments, resolution history, and attachments.
 
-## 3. Administrator: set up responder access and manage accounts
+Drafts, anonymous submission, editing, withdrawal, and reopening are not available in the current Reporter UI.
+
+---
+
+## Administrator: set up responder access and manage accounts
 
 Sign in as an Admin and select **Accounts** to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. Log out and sign in as the Responder; the Facilities incident should now appear in **Eligible queue**.
 
@@ -89,11 +112,10 @@ Other account actions are:
 
 - **Reset password**: confirm the reset. A one-time temporary password is displayed once and expires after 24 hours. Pass it to the account holder securely; they must replace it after signing in. Do not include it in screenshots or bug reports.
 - **Delete**: confirm to disable that account's login. Its incident and audit history is retained. This cannot be undone in the current UI; use only a disposable test account when testing it.
-- **View request**: appears only on accounts with a pending Responder promotion request. The dialog shows requested categories and comments, with **Approve** and **Reject** choices. The current Reporter UI has no way to create such a request, so a fresh installation will not offer this action.
 
-The **Show only accounts with pending promotion requests** checkbox narrows the account table to those requests. Actions that are not allowed for an account are disabled or absent.
+---
 
-## 4. Responder: handle an incident
+## Responder: handle an incident
 
 A Responder sees only incidents in categories granted by an Administrator. Complete the account setup above before looking for the Facilities example. If the dashboard is still empty, check that the account has Facilities access and select **Refresh**.
 
@@ -101,17 +123,21 @@ The Responder **Dashboard** has two lists: **Eligible queue** for unassigned inc
 
 ![Responder dashboard with the submitted Facilities incident selected in the eligible queue](images/responder-eligible-queue.png)
 
-### Claim and resolve
+### Claim and resolve an incident
 
 1. Open the `Water leak near pantry` incident from **Eligible queue** and select **Claim**. The app confirms the claim. Select **Back to dashboard**; the incident should now appear under **My assigned incidents**.
 2. Open it again and select **Resolve**. Enter non-blank **Resolution remarks**, such as `The leak was isolated and the ceiling was repaired.`, then select **Confirm resolution**. Empty remarks are rejected.
 3. After a successful resolution, the app returns to the dashboard. The incident no longer appears in the Responder's active queues. An Administrator can still inspect it and its resolution history.
 
-If you need to return a claimed incident to the category queue instead, open its details, select **Hand off**, and confirm. The incident is unassigned and becomes eligible for another authorized Responder to claim. You can cancel the confirmation without changing the incident.
+### Hand off an incident
 
-The current Responder lists do not offer search, filters, sorting, an **In Progress** action, or personal statistics. Those controls may appear in the Sample UI preview, but they are not part of this authenticated workflow.
+If you need to return a claimed incident to the category queue, open its details, select **Hand off**, and confirm. The incident is unassigned and becomes eligible for another authorized Responder to claim. You can cancel the confirmation without changing the incident.
 
-## 5. Administrator: manage incidents
+The current Responder lists do not offer search, filters, sorting, an **In Progress** action, or personal statistics.
+
+---
+
+## Administrator: manage incidents
 
 Sign in as an Admin. **Dashboard** shows an SLO overview and an **Incidents** table across the company. Use the search box to look for words in a title or description, or an incident ID. The filters include category, status, assignment, reporter, responder, creation dates, and SLO state. You can also choose a sort field and direction; **Reset** restores the default view. Double-click an incident row, or select it and press Enter, to open its details. **Back to dashboard** returns to the list.
 
@@ -125,7 +151,9 @@ The detail view shows the incident description, category and status, reporter an
 
 The incident detail has an **Audit timeline** placeholder, not a working per-incident audit timeline. Use the separate **Audit log** page for application activity.
 
-## 6. Administrator: SLOs, statistics, and audit log
+---
+
+## Administrator: SLOs, statistics, and audit log
 
 ### Configure SLO targets
 
@@ -147,18 +175,28 @@ Select **Statistics** to see a company summary and a Responder breakdown. You ca
 
 Select **Audit log** to view recorded security-sensitive and incident-changing activity. Each row shows its time, event ID, actor, event description, and outcome. Double-click a row to open **Audit event details**, including the action, target, outcome, and recorded changes. This is an application-level audit log; the incident detail's **Audit timeline** placeholder does not display these entries.
 
-## 7. Incident details and comments
+---
+
+## Incident details, comments, and attachments
 
 Administrators can open incidents from their dashboard; Responders can open incidents from their eligible or assigned lists. The detail page displays the latest information their account is allowed to see. Select **Back to dashboard** to return to the list. If an incident or your access changes while the page is open, it may show **Incident unavailable**; return to the dashboard and refresh.
 
 In **Comments**, enter a non-blank message and select **Add comment**. A successful comment appears in the thread. The text remains in the box if sending fails so you can try again. The **Resolution history** shows saved resolution remarks, while the **Service-level objective** panel shows the incident's SLO indicator.
 
-The **Attachments** panel can list and display authorized PNG and JPEG images already attached to an incident. Select **View attachment** on an entry to open its in-app image viewer. The underlying **Add attachment** control is enabled only for a Reporter who can still edit that incident, but the current Reporter dashboard has no way to open incident details. Consequently, a peer tester cannot upload a new attachment through the current UI. Videos are not supported by the image viewer.
+The **Attachments** panel can list and display authorized PNG and JPEG images attached to an incident. Select **View attachment** on an entry to open its in-app image viewer. If you are the Reporter who submitted the incident and it is still eligible for changes, select **Add attachment** to upload another image. Videos are not supported.
 
-## 8. Local data and current limitations
+---
+
+## Data storage and current limitations
 
 Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
 
-The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI also lacks a Reporter incident list/details, Reporter edit or withdrawal, anonymous or draft submission, Reporter follow-up/reopening, a Reporter promotion-request form, attachment upload access from the Reporter screen, an **In Progress** action, and Responder personal statistics. Some underlying services or the separate Sample UI preview contain parts of these ideas; they are not end-to-end user workflows in this release.
+The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI also lacks Reporter edit or withdrawal, anonymous or draft submission, Reporter follow-up/reopening, an **In Progress** action, and Responder personal statistics. These are not end-to-end user workflows in this release.
 
-For a short end-to-end check: register the three account types in the same test data directory, submit the Facilities example as Reporter, grant Facilities access to the Responder under the Admin **Accounts** page, claim and resolve the incident as Responder, then review it in the Admin **Dashboard**, **Statistics**, and **Audit log**. Close and relaunch the app with the same data directory to check that the incident and accounts remain. The guide's steps describe expected behavior; report any difference you observe as a possible bug.
+To explore the complete workflow, register one account of each type. Submit the Facilities example as a Reporter, grant Facilities access to the Responder from the Administrator's **Accounts** page, and then claim and resolve the incident as the Responder. Finally, sign in as the Administrator to review the incident in **Dashboard**, **Statistics**, and **Audit log**.
+
+---
+
+## Planned improvements
+
+- **Responder promotion requests:** Reporters cannot currently request promotion to Responder through the app. A future improvement will allow Reporters to submit a request for an Administrator to review and approve or reject.

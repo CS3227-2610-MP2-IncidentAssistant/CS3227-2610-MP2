@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Developer Guide
+nav_order: 3
 ---
 
 # Incident Desk Developer Guide
