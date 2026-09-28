@@ -8,38 +8,60 @@ nav_order: 3
 
 ## Table of Contents
 
-- [1. Introduction](#1-introduction)
-- [2. Setting up](#2-setting-up)
-- [3. Architecture](#3-architecture)
-- [4. Design](#4-design)
-- [5. Implementation](#5-implementation)
-- [6. Design considerations](#6-design-considerations)
-- [7. Development process and testing](#7-development-process-and-testing)
-- [8. Instructions for manual testing](#8-instructions-for-manual-testing)
-- [9. Acknowledgements](#9-acknowledgements)
+- [Introduction](#introduction)
+- [Setting up](#setting-up)
+- [Architecture](#architecture)
+- [Component design](#component-design)
+- [Implementation](#implementation)
+- [Design considerations](#design-considerations)
+- [Development process and testing](#development-process-and-testing)
+- [Instructions for manual testing](#instructions-for-manual-testing)
+- [Known limitations and planned work](#known-limitations-and-planned-work)
+- [Product requirements summary](#product-requirements-summary)
+- [Glossary](#glossary)
+- [Acknowledgements](#acknowledgements)
 
-## 1. Introduction
+## Introduction
 
 This guide is for developers building, testing, or extending Incident Desk. The
-[User Guide](UserGuide.md) describes the current user-facing workflows. Incident
+[User Guide](UserGuide.md) describes current user-facing workflows. Incident
 Desk is a single-process JavaFX desktop application with Reporter, Responder,
 and Administrator roles. It uses local files, not a server or database. Some
-application services support operations that the current authenticated UI does
-not expose; the guides distinguish those from complete user workflows.
+application services support operations that the authenticated UI does not yet
+expose; this guide marks those cases rather than presenting them as complete
+user workflows.
 
-## 2. Setting up
+The repository's [`.agents/` documents](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/tree/main/.agents)
+are the authoritative contracts. Read the
+[product requirements](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/requirements.md),
+[MVP scope](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/mvp-scope.md),
+[incident lifecycle](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/incident-lifecycle.md),
+[authorization matrix](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/authorization-matrix.md),
+[anonymity policy](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/anonymity-policy.md),
+[audit policy](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/audit-policy.md),
+[SLO definitions](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/slo.md),
+[persistence contract](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/persistence.md), and
+[testing requirements](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/testing.md)
+before changing related behavior.
+A concise, publishable summary appears in
+[Product requirements summary](#product-requirements-summary), so readers of
+the generated site can understand the product without repository-only files.
+
+## Setting up
 
 ### Prerequisites
 
-- JDK 25. The application deliberately rejects every other Java feature
-  version at startup so local and packaged behavior remains reproducible.
-- Git. A separate Gradle installation is not required.
+- JDK 25. The application rejects every other Java feature version at startup
+  so local and packaged behavior remains reproducible.
+- Git. A separate Gradle installation is unnecessary because the repository
+  contains the Gradle wrapper.
 
-Confirm that `java -version` and `javac -version` both report version 25.
+Confirm that `java -version` and `javac -version` both report version 25. Open
+the repository root as a Gradle project in the IDE of your choice.
 
 ### Common commands
 
-On Windows, run:
+On Windows:
 
 ```powershell
 .\gradlew.bat test
@@ -51,19 +73,10 @@ On Windows, run:
 
 On macOS or Linux, replace `.\gradlew.bat` with `./gradlew`.
 
-The executable Shadow JAR is written to `build/libs/incident-desk.jar`. It
-contains JavaFX native libraries for Windows, macOS, and Linux, all x86_64.
-JavaFX publishes separate, differently-architected natives for Apple Silicon
-(`mac-aarch64`) and ARM Linux (`linux-aarch64`), but those natives share the
-same file names as their x86_64 counterparts (e.g. `libglass.dylib`), so a
-single jar cannot bundle both architectures for the same OS. Running the
-packaged jar on Apple Silicon therefore requires an x86_64 (Rosetta) JVM.
-Development compilation, tests, and `run` instead select JavaFX for the Gradle
-JVM's OS and CPU architecture, including native Apple Silicon (`mac-aarch64`)
-and ARM Linux (`linux-aarch64`). Use the same architecture for the Gradle JVM
-and its JDK 25 toolchain. Windows development currently supports x86_64 only.
-`verifyJavaFxPlatforms` (included in `check`) verifies dependency isolation;
-building the Shadow JAR on ARM does not add ARM natives to that Intel-only JAR.
+The executable `build/libs/incident-desk.jar` contains JavaFX natives for
+Windows, macOS, and Linux x86_64. JavaFX natives for different CPU architectures
+on one OS share filenames, so one JAR cannot contain both Intel and ARM variants.
+The main JAR therefore requires an x86_64 JVM on Apple Silicon.
 
 For native Apple Silicon packaging, run:
 
@@ -72,281 +85,562 @@ For native Apple Silicon packaging, run:
 java -jar build/libs/incident-desk-mac-aarch64.jar
 ```
 
-Use an ARM64 JDK 25 for that launch. This second JAR contains only macOS ARM64
-JavaFX libraries and does not replace `incident-desk.jar`. `assemble` builds
-both artifacts; `shadowJar` alone still builds only the original Intel artifact.
-Each user needs just the one JAR matching their OS/JVM architecture.
+Use an ARM64 JDK 25 for that launch. `assemble` builds both artifacts;
+`shadowJar` builds the main Intel artifact. Development builds select JavaFX
+for the Gradle JVM's operating system and architecture. Windows development
+currently supports x86_64 only. `verifyJavaFxPlatforms`, included in `check`,
+verifies classifier isolation.
 
-`PackagedApplicationTest` checks both JARs' macOS binary headers and launches
-the matching artifact with `java -jar`. A test-only observer agent waits for
-the application window and requests normal shutdown. Neither the observer nor
-test code ships in either application JAR. The process uses fresh temporary
-application storage and a separate JavaFX cache. CI tests the packaged launch
-on Linux/Windows x86_64, macOS x86_64, and macOS ARM64. Release jobs publish
-each of the two filenames only once, avoiding merged-artifact overwrites.
+`PackagedApplicationTest` launches the matching JAR with `java -jar` using
+temporary application storage and a separate JavaFX cache. A test-only observer
+requests normal shutdown and is not included in production. CI exercises
+packaged startup on Linux/Windows x86_64, macOS x86_64, and macOS ARM64.
 
-`previewAuthenticatedShell` exercises the real login, session, role-routing,
-shell, and logout path with in-memory administrator, reporter, and responder accounts:
-
-```powershell
-.\gradlew.bat previewAuthenticatedShell
-```
-
-The login names are `admin`, `reporter`, and `responder`; the preview accepts
-any password for each account. These accounts and the test-only verifier exist
-only in the preview process and are not written to application data or included
-in production.
+`previewAuthenticatedShell` exercises login, session, role routing, shell, and
+logout using in-memory accounts named `admin`, `reporter`, and `responder`. The
+preview accepts any password. These accounts exist only in the preview process
+and are neither persisted nor included in production.
 
 ### Repository layout
 
-`src/main/java/com/company/incidentdesk/` contains the production packages
-below; `src/test/java/` mirrors them for JUnit tests. `docs/` contains this
-guide, the User Guide, diagrams, and screenshots. `.agents/` holds the product
-and engineering contracts, while `.github/workflows/` defines CI and release
-jobs. Generated artifacts go under `build/` and are not source files.
+| Path | Purpose |
+| --- | --- |
+| `src/main/java/com/company/incidentdesk/domain/` | Entities, lifecycle rules, audit values, and deterministic SLO/statistics calculations |
+| `src/main/java/com/company/incidentdesk/application/` | Authenticated use cases, authorization, validation, mapping, events, and notifications |
+| `src/main/java/com/company/incidentdesk/persistence/` | Persistence ports plus in-memory and local-file adapters |
+| `src/main/java/com/company/incidentdesk/ui/` | JavaFX navigation, role pages, shared components, and theme |
+| `src/main/java/com/company/incidentdesk/startup/` | Runtime checks, configuration, and dependency assembly |
+| `src/test/java/` | JUnit tests mirroring production packages |
+| `docs/` | User/developer guides, diagrams, and screenshots |
+| `.agents/` | Authoritative product and engineering contracts |
+| `.github/workflows/` | CI and release jobs |
+| `build/` | Generated output; never edit or commit it as source |
 
-## 3. Architecture
+## Architecture
 
 ![Incident Desk component architecture](diagrams/architecture.png)
 
-The diagram shows runtime collaboration. `ApplicationContext` assembles the
-shared services and storage once; the JavaFX shell and views call those
-services. Application services apply domain rules and use persistence
-interfaces. `LocalApplicationStore` implements the incident, account, and audit
-interfaces; its inner facets implement attachment and SLO interfaces. The
-local-file adapters persist application state in one aggregate file and
-attachment content in separate files. Solid arrows show
-runtime interactions or wiring; the dashed hollow arrow points toward the
-interfaces implemented by the adapters. Arrows do not grant permissions.
+`ApplicationContext` assembles shared services and storage once. JavaFX views
+call application services; services enforce authorization and domain rules
+before calling persistence interfaces. `LocalApplicationStore` implements the
+incident, account, audit, attachment, and SLO ports. Aggregate state is stored
+in one file and attachment content in separate generated files. Diagram arrows
+show collaboration or interface implementation; they do not grant permission.
 
-- `com.company.incidentdesk.domain`: domain types, incident lifecycle, and SLO
-  calculations.
-- `com.company.incidentdesk.application`: use cases and authenticated-session
-  orchestration, including authorization policies.
-- `com.company.incidentdesk.persistence`: local-file storage behind
-  application-facing interfaces and their local-file implementation.
-- `com.company.incidentdesk.ui`: JavaFX presentation code.
-- `com.company.incidentdesk.startup`: runtime checks, configuration, and
-  assembly. The file store acquires the process lock.
+Dependencies point inward:
 
-`ApplicationContext` assembles process-wide repositories and application
-services once at startup. `ApplicationNavigator` owns the authentication
-boundary and places every role dashboard inside the same `AuthenticatedShell`;
-views receive their dependencies through `DefaultViewFactory` rather than
-constructing services themselves.
+- Domain code is independent of UI, startup, and file storage.
+- Application code depends on domain types and persistence interfaces, not on
+  JavaFX or the local-file implementation.
+- UI code invokes use cases and consumes presentation-safe models.
+- Persistence adapters translate durable data to and from domain types.
+- Startup is the composition root and may depend on every layer to wire it.
 
-Dependencies point inward: UI, persistence, and startup may depend on
-application and domain code; domain code must not depend on those outer layers.
+This deliberately differs from the UI–Logic–Model–Storage structure common in
+command-driven AddressBook-derived applications. Incident Desk has an explicit
+application layer because authorization, atomic auditing, and session-derived
+actors are use-case concerns rather than UI or entity concerns.
 
-## 4. Design
+## Component design
 
-### UI, session, and authorization
+### Startup and composition
 
-`ApplicationNavigator` switches between sign-in and the authenticated shell.
-`DefaultViewFactory` constructs each role's dashboard and permitted detail
-views from the services in `ApplicationContext`. A UI control being hidden is
-not an access check: application services obtain the current account from the
-session and recheck ownership, role, assignment, and responder category access
-when an operation runs. Denied or missing incident access maps to a
-presentation-safe unavailable result.
+`IncidentDeskLauncher` is the executable entry point.
+`IncidentDeskApplication` owns JavaFX startup and shutdown, while
+`ApplicationContext` constructs process-wide repositories, services, event bus,
+and session state. The file store acquires the process lock during assembly.
 
-### Incident model and lifecycle
+Keep dependency construction here. Views and services should receive their
+collaborators rather than opening files or constructing alternate repositories.
 
-`IncidentLifecycle` owns the transitions among `DRAFT`, `SUBMITTED`,
-`ASSIGNED`, `RESOLVED`, and `WITHDRAWN`. `IncidentService` combines lifecycle
-operations with authorization, validation, audit creation, persistence, and
-post-commit events. Handoff clears the assignee but preserves the queue key;
-reopening starts a new queue cycle. The full transition contract is in
-[`.agents/incident-lifecycle.md`](../.agents/incident-lifecycle.md).
+### UI and navigation
 
-### Runtime data
+`ApplicationNavigator` owns the authentication boundary and switches between
+`AuthenticationPage` and `AuthenticatedShell`. `DefaultViewFactory` creates
+role dashboards and incident-detail views from `ApplicationContext` services.
 
-The packaged JAR and classpath resources are read-only. Runtime data,
-attachments, backups, and diagnostics are resolved through one configurable
-application-data directory. Tests that exercise persistence must use a fresh
-temporary directory and must never use a real application-data directory.
+Shared components under `ui.shared.components` consume presentation models
+rather than unrestricted domain objects. They include `IncidentTable`,
+`IncidentDetailView`, `IncidentFilterBar`, `AttachmentPane`,
+`IncidentCommentThread`, `NotificationCenter`, and `SloProgressBar`. Storage
+and image-decoding work runs away from the JavaFX thread. Views discard stale
+results when detached, logged out, or superseded by newer requests.
 
-`ApplicationDataDirectory` uses the `incidentdesk.dataDir` system property,
-then `INCIDENT_DESK_DATA_DIR`, then `.incident-desk` under the user's home
-directory. `LocalApplicationStore` holds accounts, credentials, incidents,
-comments, audit records, promotion requests, SLO target versions, and
-attachment metadata in `incident-desk.dat` (current schema version 1). It
-holds `incident-desk.lock` while the app is open, so a second process cannot
-write to the same directory.
+Hiding a control is usability behavior, not authorization. Application services
+recheck every operation when it executes.
 
-`RecoverySafeFile` writes a validated temporary file, retains one
-last-known-good `.bak` copy, and replaces the canonical file atomically where
-the filesystem permits. Corrupt canonical data or an unsupported newer schema
-stops startup; restoring a backup is an explicit action, not an automatic
-reset. Attachment blobs live separately under the same data directory. See
-[`.agents/persistence.md`](../.agents/persistence.md) for the intended recovery
-contract, noting that its attachment-migration paragraph still describes an
-older version-2 plan rather than the current version-1 implementation.
+### Application services
 
-## 5. Implementation
+The application layer coordinates use cases and returns stable success/error
+results to the UI. It:
+
+- obtains the actor from `SessionProvider`, never from form input;
+- applies ownership, role, assignee, and category policies;
+- validates input and invokes legal domain transitions;
+- creates redacted audit evidence;
+- commits related state and audit changes atomically;
+- publishes in-process events only after durable commit; and
+- maps domain data to privacy-safe presentation models.
+
+Principal services include `IncidentService`, `IncidentDetailService`,
+`IncidentCommentService`, `AttachmentService`, account and responder-access
+services, `AuditLogService`, `SloConfigurationService`, and
+`IncidentStatisticsService`.
+
+### Domain model
+
+`IncidentLifecycle` owns transitions among `DRAFT`, `SUBMITTED`, `ASSIGNED`,
+`RESOLVED`, and `WITHDRAWN`. `Incident` retains lifecycle timestamps,
+assignment history, resolution cycles, and the queue key required for stable
+ordering. Value types validate identifiers, remarks, reopen explanations,
+comments, accounts, and audit evidence.
+
+`SloCalculator` and statistics calculators are deterministic domain services.
+They consume persisted UTC timestamps and versioned targets; they do not read a
+UI clock or JavaFX state.
+
+### Persistence
+
+Application services depend on interfaces such as `IncidentStore`,
+`AccountRepository`, `AuditRepository`, `AttachmentStore`, and
+`SloConfigurationStore`. In-memory implementations support focused tests.
+`LocalApplicationStore` and its facets provide production local-file storage.
+
+`LocalApplicationStateCodec` encodes accounts, credentials, incidents,
+comments, audit records, promotion requests, SLO history, and attachment
+metadata in `incident-desk.dat`. Attachment bytes live separately under the
+same data directory. The persisted schema version is 1.
+
+### Events and notifications
+
+Application events are published only after a successful durable mutation.
+`NotificationService` updates the in-memory `NotificationInbox`, which
+`NotificationCenter` presents. Notifications are convenience state, not the
+audit trail or source of truth. Persistent notification history is out of scope.
+
+## Implementation
+
+### Authentication, accounts, and sessions
+
+Login names are case-sensitive. Password code stores salted hashes and never
+exposes plaintext passwords, hashes, reset credentials, or session identifiers
+through presentation models, audit changes, or logs.
+
+`SessionService` holds the one active account. Login replaces the session,
+logout clears it, and every privileged use case reads the actor when it executes.
+Self-service password replacement requires the current password and commits the
+new credential with its audit event. Administrator account, promotion, reset,
+and category-access operations enforce separate policies and preserve audit
+references when an account is disabled.
+
+The UI exposes only a subset of account services. Service availability is not
+proof of a complete end-to-end workflow.
+
+### Authorization and privacy-safe reads
+
+Authorization is deny-by-default. Reporters access only incidents they
+submitted. Responders access unassigned incidents in permitted categories and
+incidents assigned to them. Administrators may inspect all incidents, subject
+to anonymous-identity redaction. Mutations add state and eligibility conditions.
+
+List filtering is never reused as authorization. Detail reads and mutations
+re-evaluate current permissions. Missing and inaccessible incidents map to the
+same presentation-safe result. `IncidentPresentationMapper` removes anonymous
+identity before data reaches tables, details, filters, statistics, audit labels,
+notifications, or attachment display names.
+
+### Incident lifecycle
+
+| From | Action | To | Authorized actor and conditions |
+| --- | --- | --- | --- |
+| none | Save draft | `DRAFT` | Reporter |
+| none or `DRAFT` | Submit | `SUBMITTED` | Owning reporter; required content is valid |
+| `DRAFT` or unassigned `SUBMITTED` | Edit | unchanged | Owning reporter |
+| unassigned `SUBMITTED` | Withdraw | `WITHDRAWN` | Owning reporter |
+| `SUBMITTED` | Claim | `ASSIGNED` | Responder permitted for the category |
+| `SUBMITTED` | Assign | `ASSIGNED` | Administrator; responder is eligible |
+| `ASSIGNED` | Resolve | `RESOLVED` | Assigned responder or administrator; non-blank remarks |
+| `ASSIGNED` | Hand off | `SUBMITTED` | Assigned responder or administrator; queue key retained |
+| `ASSIGNED` | Reassign | `ASSIGNED` | Administrator; replacement is eligible |
+| `RESOLVED` | Reopen with follow-up | `SUBMITTED` | Owning reporter; non-blank explanation |
+
+Every successful transition produces one incident audit event. Reopening
+commits its explanatory comment, transition, and audit event together and starts
+a new queue cycle. Handoff retains the current cycle's original queue position.
+Resolution history remains append-only across reopen cycles.
 
 ### Incident submission and atomic audit
 
 ![Reporter incident submission sequence](diagrams/incident-submission.png)
 
-`ReporterPage` submits the form asynchronously through
-`IncidentService.submit(...)`, passing `anonymous=false` in the current UI.
-The service derives the actor from the active session, authorizes submission,
-validates required content, and asks `IncidentLifecycle` to create a submitted
-incident. It builds an `INCIDENT_CREATED` audit event and calls
-`IncidentStore.commit(new AuditedMutation<>(...))`. The local store constructs
-the next state with both the incident and audit event, saves it, and only then
-replaces its in-memory state. `IncidentChangedEvent` is published after the
-commit returns. If validation, authorization, or storage fails, the UI shows a
-failure and retains the form entries; no success event is published.
+`ReporterPage` submits asynchronously through `IncidentService.submit(...)`,
+passing `anonymous=false` in the current UI. The service derives the actor,
+authorizes and validates the request, and asks `IncidentLifecycle` to create a
+submitted incident. It creates `INCIDENT_CREATED` evidence and calls
+`IncidentStore.commit(new AuditedMutation<>(...))`.
 
-### Responder dashboard integration (#37)
+The store builds the next state with the incident and audit event, saves it,
+and only then replaces in-memory state. `IncidentChangedEvent` is published
+after commit. Validation, authorization, or storage failure retains the form
+input and produces no success event.
 
-`ResponderPage` accepts the shared `IncidentService`, an
-`IncidentPresentationMapper` using the same authorization/session source, the
-`SessionProvider`, and an incident-ID detail callback. It reads
-authorized eligible and assigned queues asynchronously, in deterministic queue
-order. Refresh and navigation recheck the session and current category access;
-detaching the page clears its contents and invalidates outstanding reads.
+### Queue reads, claim, resolution, and handoff
 
-The reusable `IncidentTable` from #20 is shared with the component showcase and
-consumes only privacy-safe `IncidentRowModel` values. The dashboard displays
-queue-entry timestamps and keeps application queue ordering. The authenticated
-Responder dashboard does not currently expose filters, interactive sorting, or
-an SLO column.
+`ResponderPage` reads eligible and assigned queues in deterministic order.
+Refresh and navigation recheck the session and category access; detaching the
+page clears content and invalidates outstanding reads. `ResponderIncidentPage`
+invokes claim, resolution, and handoff and refreshes from committed state.
 
-`DefaultViewFactory` now supplies the authenticated services and detail
-callback, and `ResponderIncidentPage` handles claim, resolution, and handoff.
-Dashboard reads do not modify persisted data, audit records, or SLO timestamps,
-and require no migration or additional production dependency. The separate
-test-only shell preview uses in-memory accounts, not production data.
+A responder who loses category access immediately loses unassigned incidents
+in that category but retains incidents already assigned to them until resolution,
+handoff, or reassignment. Claim and reassignment check eligibility at mutation
+time, so a stale list cannot grant access. An incident has at most one assignee.
 
-### Shared attachments (#15)
+### Search, filtering, and presentation
 
-Use `ApplicationContext.attachments()` for application operations and compose
-`AttachmentPane(service, savedIncidentId)` into a page. The pane reuses the
-shared panel, attachment tile, action, and feedback components. It performs
-file reads off the JavaFX thread and owns an `AttachmentViewer`; close it on
-navigation if it is not detached from its scene. The viewer clears content
-when the authenticated session or incident permission snapshot changes.
-The pane must receive a persisted incident; saving a new draft/submission and
-attaching selected files is a separate, explicit sequence. The pane is now
-composed into Administrator and Responder incident-detail pages. The current
-Reporter dashboard has no incident-detail route, so upload is not an
-end-to-end Reporter UI workflow yet.
+`IncidentSearchCriteria`, `IncidentQuery`, and `IncidentSort` describe queries.
+Text search trims input and matches identifier, title, or description
+case-insensitively. Values within one category/status group use OR; groups
+combine with AND. Empty selections mean all values. Date bounds are inclusive
+and default ordering is deterministic.
 
-`AttachmentService.list/add/open` enforce current incident authorization.
-Only the owning reporter can add files while a draft or an unassigned submitted
-incident is editable. An upload does not change lifecycle or SLO timestamps.
-Successful additions commit metadata and `ATTACHMENT_ADDED` evidence together.
-Anonymous display models use generic names and do not contain local paths.
-The internal `AttachmentRead` capability rechecks authorization before exposing
-image bytes; it does not expose a storage URI.
+Identity filters operate only on identities the actor may see. Anonymous
+reporters are excluded rather than recoverable through counts or labels. Shared
+tables receive already authorized `IncidentRowModel` values.
 
-Attachments are image-only: PNG/JPEG ≤10 MiB,
-5 files/100 MiB per incident, and 40 million decoded image pixels. Inject an
-`AttachmentLimits` value when constructing the service to change the limits.
-The UI help text comes from `AttachmentService.uploadLimitSummary()` and
-reflects those configured limits without rounding byte bounds. Videos and audio
-are rejected even if renamed as an image. Images are decoded from memory;
-the app does not use JavaFX media or launch an external viewer.
-Original content and embedded metadata are preserved, so the uploader warns
-that media can disclose identity despite generic anonymous filenames.
+### Comments, reopening, and notifications
 
-Storage uses generated UUID filenames with validated extensions beneath the
-configured application-data directory. The current aggregate schema remains
-version 1, including attachment metadata. Successful saves retain the previous
-canonical file as a bounded backup; there is no version-2 migration in this
-implementation.
-Pending-upload markers support restart cleanup without sweeping unrelated
-files. See `.agents/persistence.md` for the write/recovery protocol. Development
-tests use temporary directories and do not migrate real application data.
+`IncidentCommentService` authorizes incident access before returning or adding
+comments. Reopening is not a separate comment followed by a transition: its
+explanation, new queue cycle, and audit event commit together. Anonymous
+Reporter comments use a neutral author label for other roles.
 
-Run `./gradlew test --tests '*Attachment*Test'` on macOS/Linux, or the equivalent
-`gradlew.bat` command on Windows. The tiny original H.264 fixture is retained
-only for rejection tests, never played. CI keeps the Linux full build and
-Windows/macOS attachment tests, with no native media codec requirement.
-No data migration is needed for this policy change. Source tests alone do not
-replace the packaged-application startup test or manual GUI inspection.
+After successful changes, the event bus lets UI and notification components
+refresh without treating events as durable state. A failed save produces no
+success notification or event.
 
-## 6. Design considerations
+### Attachments
 
-The app deliberately runs in one desktop process with a local aggregate file.
-This avoids a database or server for the current scope, but does not provide
-multi-computer synchronization or concurrent writers to one data directory.
-The process lock rejects a second writer; a backup and validated replacement
-reduce the risk of a partial save. The trade-off is that each logical mutation
-rewrites the aggregate rather than a small database row.
+Use `ApplicationContext.attachments()` and compose
+`AttachmentPane(service, savedIncidentId)` into a page. File reads run off the
+JavaFX thread. The viewer clears content when session or permission changes.
 
-Authorization belongs in application operations because a hidden button cannot
-protect a service call, and category access can change after a list was loaded.
-Audit evidence is included in the same store commit as an incident change;
-notifications are published after that commit and are in-memory only. Domain
-timestamps are UTC instants, while the presentation mapper formats them in the
-local time zone. See [the authorization matrix](../.agents/authorization-matrix.md),
-[audit policy](../.agents/audit-policy.md), and [SLO definitions](../.agents/slo.md)
-for the detailed rules.
+`AttachmentService.list/add/open` enforce current authorization. Only the
+owning Reporter may add files to a draft or unassigned submitted incident.
+Upload does not change lifecycle or SLO timestamps. Metadata and
+`ATTACHMENT_ADDED` evidence commit together. `AttachmentRead` rechecks access
+before exposing bytes and never exposes a storage URI.
 
-## 7. Development process and testing
+Attachments are PNG/JPEG only: at most 10 MiB each, five files and 100 MiB per
+incident, and 40 million decoded pixels. Content is verified rather than names
+or extensions. Generated UUID filenames are stored under the data directory.
+Anonymous display models use generic names and no local paths. Original bytes
+and metadata are preserved, so uploaders are warned about possible identity
+leakage through image content or metadata.
 
-### Testing and quality checks
+Pending-upload markers enable targeted restart cleanup. Failed validation or
+persistence leaves no committed metadata, success audit, or valid orphan.
 
-JUnit tests belong under `src/test/java` and should mirror the production
-package layout. Use deterministic clocks and identifier generators for domain
-tests. Test both allowed and denied operations at the domain boundary.
+### Audit log
 
-`./gradlew check` runs tests, `verifyShadowJar`, and
-`verifyJavaFxPlatforms`; the build does not currently apply a Checkstyle
-plugin. The Linux CI job runs `build` under Xvfb. Additional Windows and macOS
-jobs run attachment, startup, and packaged-application tests. These checks do
-not replace an interactive GUI check on the intended platform. A change is
-ready for review only after the relevant checks pass and its data,
-authorization, audit, privacy, and SLO effects have been considered.
+Audit events contain a generated ID, application UTC timestamp, actor ID and
+role, action, target, outcome where applicable, and structured change summary.
+They exclude credentials, sessions, unnecessary incident text, and anonymous
+Reporter identity.
+
+`AuditLogService` is Administrator-only and supports deterministic filtering
+and ordering. Account deletion preserves a tombstoned actor reference. Normal
+operations cannot update or delete audit records. Recovery-safe local storage
+is not claimed to be tamper-proof against the machine owner.
+
+### SLOs and statistics
+
+Administrators configure per-category average time-to-claim,
+time-in-progress, and reopen-rate targets. `SloConfigurationHistory` versions
+targets so later changes do not rewrite historical evaluation.
+
+- Time to claim: first assignment minus queue entry for a queue cycle.
+- Time in progress: resolution minus first assignment for a completed cycle.
+- Reopen rate: incidents reopened at least once divided by incidents resolved
+  for the selected population and period.
+
+Handoff retains queue-entry and first-assignment timing; reopening starts a new
+cycle. Calculators use persisted UTC instants and handle empty populations and
+zero durations deterministically. Statistics services authorize scope and apply
+anonymity rules before returning results.
+
+### Local-file persistence and recovery
+
+The packaged JAR and classpath are read-only. Runtime data is resolved through
+one configurable directory. `ApplicationDataDirectory` checks the
+`incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, then
+`.incident-desk` under the user's home directory.
+
+`LocalApplicationStore` holds `incident-desk.lock` while open.
+`RecoverySafeFile` writes and validates a temporary file, retains one bounded
+`.bak`, and atomically replaces the canonical file where supported. In-memory
+state changes only after durable save. Corruption or an unsupported newer
+schema stops startup; the app does not silently reset or overwrite user data.
+The store exposes explicit backup restoration for controlled recovery, but it
+is not yet an authenticated, audited application workflow. Do not expose it to
+users until the required authorization, confirmation, and audit operation are
+implemented. Persistence tests always use fresh temporary directories.
+
+## Design considerations
+
+| Decision | Selected approach | Benefit | Trade-off or rejected alternative |
+| --- | --- | --- | --- |
+| Deployment | One desktop process and local files | Matches offline, single-user scope | No cross-device synchronization; server/database complexity is outside scope |
+| Durable state | Versioned aggregate plus attachment blobs | Cross-entity state and audit commit together | Each logical mutation rewrites the aggregate |
+| Write safety | Validated temporary file, backup, atomic replace, lock | Avoids partial canonical state and concurrent writers | More recovery logic than direct overwrite |
+| Authorization | Application policies using active session | Protects direct calls and stale screens | Repeated checks are intentional; UI-only checks were rejected |
+| Audit | Same commit as domain mutation | No successful required change without evidence | Separate append-after-save could create unaudited changes |
+| SLO targets | Versioned, prospective configuration | Historical measures retain meaning | Latest-target retroactivity is simpler but rewrites history |
+| Attachments | Verified original bytes under generated names | No lossy conversion or path disclosure | Metadata remains, requiring a privacy warning |
+| Notifications | In-memory event-driven inbox | Keeps convenience state separate from truth | History does not survive restart |
+| UI reuse | Shared typed components and presentation models | Consistency without unrestricted entities | Role pages still compose workflow-specific behavior |
+
+## Development process and testing
+
+### Automated testing strategy
+
+Tests mirror production packages. Domain, authorization, validation, lifecycle,
+audit, and SLO behavior should run without JavaFX. Use deterministic clocks and
+IDs. Persistence tests use isolated storage and verify durable state and audit
+evidence rather than returned messages.
+
+Every authorization change needs allowed and denied tests. Every lifecycle
+change needs successful and invalid states, persistence failure, audit effect,
+anonymity impact, and SLO timestamp effect where applicable.
+
+`./gradlew check` runs JUnit, `verifyShadowJar`, and
+`verifyJavaFxPlatforms`; no Checkstyle plugin is currently applied. Linux CI
+runs the full build under Xvfb. Windows and macOS jobs exercise attachments,
+startup, and packaged behavior. Automated checks do not replace interactive
+verification on a supported target platform.
 
 ### Change workflow
 
-Start from the relevant `.agents/` contract and a focused issue. Work on a
-branch, keep commits reviewable, run the affected tests and `check`, then open
-a pull request for review. Update the User Guide when observable behavior
-changes and this guide when design or engineering decisions change. CI runs on
-pushes and pull requests to `main` and `develop`; the release workflow runs on
-version tags. Record checks actually run, not checks merely expected to pass.
+1. Read applicable `.agents/` contracts and inspect existing code.
+2. Make the smallest coherent change without moving domain rules into UI or
+   persistence code.
+3. Add success, denial, failure, and persistence tests.
+4. Run focused tests, then `check` where appropriate.
+5. Review the diff for unrelated changes, generated output, runtime data, and
+   sensitive information.
+6. Update the User Guide for observable behavior and this guide for design.
+7. Report commands run, results, skipped checks, format effects, assumptions,
+   and remaining risks.
 
 ### Adding dependencies
 
-Production dependencies require team approval. Record why a dependency is
-needed, prefer a maintained library with a narrow purpose, pin its version, and
-verify its license before adding it.
+Production dependencies require approval. Record the need, prefer a maintained
+narrow-purpose library, pin its version, and verify its license.
 
-## 8. Instructions for manual testing
+## Instructions for manual testing
 
-Use a disposable directory through `INCIDENT_DESK_DATA_DIR`, not a real user's
-data. Follow the [User Guide's end-to-end scenario](UserGuide.md): register one
-account of each role, submit a Facilities incident as Reporter, grant the
-Responder Facilities access as Administrator, then claim and resolve it as
-Responder. Return as Administrator to inspect the incident, statistics, and
-audit log. Restart against the same test directory to confirm persistence.
-Record the OS, JDK version, launch command, observed result, and any failures.
-Do not claim GUI behavior on an OS that has not been checked interactively.
+Use an empty disposable directory through `INCIDENT_DESK_DATA_DIR`, never real
+user data. Record OS, architecture, JDK, JAR, launch command, and result. These
+cases are a baseline, not a substitute for exploratory testing.
 
-## 9. Acknowledgements
+### Launch, locking, and restart
 
-The guide's organization and choice of architecture and sequence diagrams were
-informed by the [Possession Manager Developer Guide](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/DeveloperGuide.md).
-The diagram style, including the Arial font and PlantUML settings, follows its
+1. Launch the matching JAR. Expected: sign-in opens and runtime files appear
+   only beneath the disposable directory.
+2. Start a second process against that directory. Expected: it is refused
+   without altering canonical data.
+3. Create accounts and an incident, close, and relaunch. Expected: authorized
+   state, audit evidence, and attachments remain available.
+
+### Authentication and password change
+
+1. Register a Reporter and sign in. Expected: the Reporter shell opens.
+2. Try duplicate registration and invalid credentials. Expected: a non-secret
+   error and no session.
+3. Change the password first with an incorrect, then correct current password.
+   Expected: the first changes nothing; the second succeeds, the old password
+   fails, and no secret appears in diagnostics or audit details.
+
+### End-to-end incident flow
+
+1. As Reporter, submit a Facilities incident. Expected: it appears in the
+   Reporter's list as submitted.
+2. As Administrator, promote an account to Responder and grant Facilities.
+   Expected: the access change is effective and audited.
+3. As Responder, claim the incident. Expected: it leaves the eligible queue,
+   enters the assigned queue, and cannot be claimed by another Responder.
+4. Resolve first with blank, then non-blank remarks. Expected: blank input is
+   rejected without change; valid input resolves and is audited.
+5. As Reporter, inspect it. Expected: status and resolution are visible.
+
+### Authorization denial
+
+1. As another Reporter, locate or open the first Reporter's incident. Expected:
+   it is absent and direct access matches a missing identifier.
+2. As a Responder without Facilities, list/open/claim it. Expected: all fail.
+3. Remove a category from a Responder with an assigned incident. Expected: no
+   new claims, but the assigned incident remains resolvable or handoff-capable.
+
+### Handoff, reopen, and queue order
+
+1. Submit two incidents, claim the older, then hand it off. Expected: assignee
+   clears and the incident returns to its original relative queue position.
+2. Try reopening a resolved incident with blank, then non-blank explanation.
+   Expected: blank input changes nothing; valid input appends the comment and
+   starts a new queue cycle at reopen time.
+
+### Anonymous privacy
+
+The production Reporter UI does not expose anonymous submission. Run this only
+through an approved fixture or after that UI is implemented.
+
+1. Inspect an anonymous incident as owner, eligible Responder, and Administrator.
+   Expected: the owner has access; other roles see `Anonymous reporter` and
+   cannot recover identity through details, comments, filters, statistics,
+   audit labels, notifications, or attachment names.
+2. Reopen with a follow-up. Expected: other roles see its text with a neutral
+   anonymous author label.
+
+### Attachments
+
+1. Add a valid PNG/JPEG through an exposed workflow. Expected: only currently
+   authorized users can list and open it.
+2. Try an oversized image, renamed video, unsupported type, excessive pixels,
+   sixth attachment, and aggregate overflow. Expected: rejection without
+   metadata, success audit, or visible orphan.
+3. Log out while viewing an image. Expected: the viewer clears and prior access
+   cannot expose bytes in the new session.
+
+### Audit, SLO, and statistics
+
+1. Inspect audit entries for registration, access change, submission, claim,
+   handoff, and resolution. Expected: deterministic order, required changes,
+   and no secrets or anonymous identity.
+2. Configure SLOs, complete a cycle, change targets, and complete another.
+   Expected: each cycle uses its applicable target version; display time zones
+   do not alter elapsed durations.
+3. Filter statistics containing an anonymous incident. Expected: no identity
+   or identifying breakdown is exposed.
+
+### Storage failure and corruption
+
+Use disposable copies only.
+
+1. Simulate save failure during a mutation. Expected: failure, unchanged
+   in-memory/canonical state, and no success audit or event.
+2. Corrupt the canonical aggregate and restart. Expected: startup stops with a
+   recovery-oriented error and does not reset or overwrite the file.
+3. Exercise `restoreLastKnownGoodBackup()` only in a disposable developer test.
+   Expected: the validated backup replaces canonical state. Do not present this
+   as a production user workflow until authorization and audit are added.
+
+## Known limitations and planned work
+
+- Reporter submission currently passes `anonymous=false`; anonymous safeguards
+  exist, but submission is not an end-to-end anonymous UI workflow.
+- Reporter has no incident-detail route, so attachment upload is not a complete
+  Reporter workflow. Administrator and Responder details use the shared pane.
+- Responder dashboard lacks the full filters, interactive sorting, and SLO
+  column.
+- Notification history is in-memory and does not survive restart.
+- Backup restoration exists at the storage layer but is not yet an
+  authenticated, audited application workflow.
+- The attachment-compatibility subsection of the
+  [persistence contract](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/persistence.md)
+  still
+  describes a schema-2 migration, while the current codec and attachment
+  implementation keep the aggregate at schema version 1. Resolve that
+  authoritative-contract mismatch before changing the persisted format.
+- Windows development supports x86_64 only. Apple Silicon uses a separate JAR.
+- The build does not enforce Checkstyle or another Java static-style plugin.
+- Server/database deployment, concurrent writers, cross-device sync,
+  deanonymization, and video/audio attachments are outside approved scope.
+
+Before implementing a planned item, update its authoritative contract,
+implementation, tests, User Guide, and this guide together. This list does not
+grant new permissions.
+
+## Product requirements summary
+
+### Product scope
+
+Incident Desk provides a local workflow for reporting and resolving company
+incidents. Reporters track their cases, Responders work within permitted
+categories, and Administrators govern access and operational oversight. It is a
+privacy-aware, auditable desktop system that requires no server deployment.
+
+### Principal user stories
+
+| Role | Need |
+| --- | --- |
+| Reporter | Register, sign in, submit, and track only incidents they submitted |
+| Reporter | Add permitted images before assignment and understand privacy risks |
+| Reporter | Withdraw an unassigned incident or reopen an inadequate resolution |
+| Responder | See and claim unassigned incidents only in permitted categories |
+| Responder | Resolve or hand off incidents assigned to them |
+| Administrator | Review incidents, accounts, audit evidence, SLOs, and statistics |
+| Administrator | Approve promotion and control Responder category access |
+
+### Principal use cases
+
+**Submit:** an authenticated Reporter supplies required content; the application
+derives the actor, validates it, and commits the incident and audit together.
+Failure leaves no partial incident or success audit.
+
+**Claim and resolve:** an eligible Responder selects an incident; eligibility is
+rechecked before assignment. The assigned Responder supplies non-blank remarks,
+and resolution plus audit commit together. Stale screens grant no authority.
+
+**Administer access:** an Administrator approves/rejects promotion or changes
+categories. State and audit commit together, and subsequent operations use the
+new permissions immediately.
+
+### Non-functional requirements
+
+- Run as a Java 25 desktop application distributed as executable Shadow JARs.
+- Preserve canonical state and required audit evidence across restart.
+- Refuse concurrent writers to one data directory.
+- Keep JavaFX responsive during storage and attachment work.
+- Enforce authorization outside UI controls.
+- Preserve anonymous confidentiality across all presentation paths.
+- Use application UTC timestamps and deterministic calculations.
+- Recover from interrupted writes without silently destroying user data.
+- Isolate tests from real data and keep secrets out of logs and audit details.
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Application-data directory | Configurable directory containing canonical state, lock, backup, attachments, and recovery files |
+| Assignment | The single Responder currently responsible for an incident |
+| Audit event | Append-only evidence of a sensitive or incident-changing operation |
+| Canonical file | `incident-desk.dat`, the authoritative aggregate-state file |
+| Handoff | Clear an assignee and return an incident to its original queue position |
+| Presentation model | Role-appropriate, privacy-safe data supplied to UI components |
+| Queue cycle | Submission/reopen to first assignment; handoff does not start a new cycle |
+| Resolution cycle | Assignment-through-resolution history for one handling cycle |
+| SLO | Service-level objective calculated from persisted timestamps and versioned targets |
+| Tombstoned account | Disabled account whose ID remains for historical references |
+| UTC instant | Time-zone-independent persisted time, converted only for display |
+
+## Acknowledgements
+
+The guide's organization and diagrams were informed by the
+[Possession Manager Developer Guide](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/DeveloperGuide.md).
+The diagram style follows its
 [architecture source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/architecture.puml)
 and [sequence source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/persistent-change-sequence.puml).
-The Incident Desk diagrams have different participants and relationships to
-match this project's code. They were rendered with [PlantUML](https://plantuml.com/).
-The project uses [JavaFX](https://openjfx.io/) for its desktop UI,
-[Gradle](https://gradle.org/) and the [Shadow plugin](https://gradleup.com/shadow/)
-for builds and packaging, [JUnit 5](https://junit.org/junit5/) for tests, and
-[GitHub Actions](https://docs.github.com/en/actions) for CI and releases.
-Contributors should add any further reused ideas, code, assets, or documentation
-they know of before submission.
+Incident Desk's participants and relationships match this project's code.
 
-### Product references
+The supplied
+[KeyContacts Developer Guide](https://ay2425s1-cs2103t-t08-2.github.io/tp/DeveloperGuide.html)
+was a reference for component documentation, design alternatives, requirements
+summaries, glossary, and manual-test structure; no KeyContacts implementation or
+product text was reused.
 
-The canonical requirements are in `.agents/`. Read the applicable lifecycle,
-authorization, anonymity, audit, persistence, SLO, and testing documents before
-changing related behavior.
+Diagrams use [PlantUML](https://plantuml.com/). The project uses
+[JavaFX](https://openjfx.io/), [Gradle](https://gradle.org/), the
+[Shadow plugin](https://gradleup.com/shadow/),
+[JUnit 5](https://junit.org/junit5/), and
+[GitHub Actions](https://docs.github.com/actions). Add any further reused ideas,
+code, assets, or documentation before submission.
