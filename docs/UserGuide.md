@@ -88,17 +88,20 @@ Select the bell icon to open your notifications. Its badge shows the number you 
 Sign in as a Reporter. The **Dashboard** shows a **New incident** form and a **My incidents** list:
 
 1. Enter a **Title** and **Description**, and choose a **Category**: IT, Human Relations, or Facilities.
-2. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form clears after a successful submission.
+2. To hide your identity in normal incident views, select **Submit anonymously**. Leave it unchecked for a named report.
+3. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form, including the anonymous selection, clears after a successful submission.
+
+Anonymous reports remain visible in **My incidents**. Responders and Administrators see **Anonymous reporter** instead of your identity in normal incident views. This is not cryptographic anonymity: the local data owner may inspect stored files. Avoid identifying details in your report text or images; image contents and metadata may reveal your identity.
 
 For example, enter **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. An Administrator and a Responder with Facilities access can then manage this incident.
 
-![Reporter dashboard with a completed Facilities incident form before submission](images/reporter-submission.png)
+![Reporter dashboard with a completed Facilities report form, the optional Submit anonymously checkbox, and the My incidents section](images/reporter-submission.png)
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
 Use **My incidents** to track reports you submitted. Select **Refresh** to reload the list, then select a row and choose **Open details** (or double-click the row) to inspect that incident. The list shows its current status. The detail page provides the actions available for that incident's current state; see [Incident details, comments, and attachments](#incident-details-comments-and-attachments).
 
-Drafts, anonymous submission, and promotion requests are not available in the current Reporter UI. Reporter attachment support is limited to PNG/JPEG images; video and audio are not supported. Do not use the **Sample UI** preview to test or infer these workflows.
+Drafts and promotion requests are not available in the current Reporter UI. Reporter attachment support is limited to PNG/JPEG images; video and audio are not supported. Do not use the **Sample UI** preview to test or infer these workflows.
 
 ---
 
@@ -195,7 +198,7 @@ The **Attachments** panel can list and display authorized PNG and JPEG images at
 
 Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
 
-The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI does not support Reporter drafts, anonymous submission, or a Reporter promotion-request form. Attachments are limited to PNG/JPEG images; video and audio uploads or playback are unsupported. The UI also lacks an **In Progress** action and Responder personal statistics. Some underlying services or the separate Sample UI preview contain other ideas; they are not end-to-end user workflows in this release.
+The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI does not support Reporter drafts or a Reporter promotion-request form. Attachments are limited to PNG/JPEG images; video and audio uploads or playback are unsupported. The UI also lacks an **In Progress** action and Responder personal statistics. Some underlying services or the separate Sample UI preview contain other ideas; they are not end-to-end user workflows in this release.
 
 To explore the complete workflow, register one account of each type. Submit the Facilities example as a Reporter, grant Facilities access to the Responder from the Administrator's **Accounts** page, and then claim and resolve the incident as the Responder. Finally, sign in as the Administrator to review the incident in **Dashboard**, **Statistics**, and **Audit log**.
 

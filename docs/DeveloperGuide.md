@@ -277,7 +277,7 @@ Resolution history remains append-only across reopen cycles.
 ![Reporter incident submission sequence](diagrams/incident-submission.png)
 
 `ReporterPage` submits asynchronously through `IncidentService.submit(...)`,
-passing `anonymous=false` in the current UI. The service derives the actor,
+passing the form's anonymous selection. The service derives the actor,
 authorizes and validates the request, and asks `IncidentLifecycle` to create a
 submitted incident. It creates `INCIDENT_CREATED` evidence and calls
 `IncidentStore.commit(new AuditedMutation<>(...))`.
@@ -509,8 +509,9 @@ cases are a baseline, not a substitute for exploratory testing.
 
 ### Anonymous privacy
 
-The production Reporter UI does not expose anonymous submission. Run this only
-through an approved fixture or after that UI is implemented.
+Use the production Reporter form's **Submit anonymously** checkbox to create a
+test report. The application retains the owner's internal reference so the
+reporter can track it, but normal incident views must not reveal that identity.
 
 1. Inspect an anonymous incident as owner, eligible Responder, and Administrator.
    Expected: the owner has access; other roles see `Anonymous reporter` and
@@ -554,8 +555,8 @@ Use disposable copies only.
 
 ## Known limitations and planned work
 
-- Reporter submission currently passes `anonymous=false`; anonymous safeguards
-  exist, but submission is not an end-to-end anonymous UI workflow.
+- The Reporter form can submit anonymously, but this is application-level
+  confidentiality, not cryptographic anonymity against the local data owner.
 - Responder dashboard lacks the full filters, interactive sorting, and SLO
   column.
 - Notification history is in-memory and does not survive restart.
