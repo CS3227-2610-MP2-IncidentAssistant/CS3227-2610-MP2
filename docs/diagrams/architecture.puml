@@ -1,0 +1,78 @@
+@startuml
+title Incident Desk UML Architecture Diagram
+
+allowmixing
+!pragma layout smetana
+
+top to bottom direction
+
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam nodesep 65
+skinparam ranksep 70
+skinparam ArrowColor #333333
+skinparam ClassBorderColor #555555
+skinparam ClassFontColor #111111
+
+hide methods
+hide stereotypes
+hide circle
+
+actor User
+
+class "Startup / composition" as Startup #F2F2F2 {
+    IncidentDeskApplication
+    ApplicationContext
+}
+
+class "Presentation (JavaFX)" as UI #E8F4E8 {
+    ApplicationNavigator
+    DefaultViewFactory
+    ReporterPage / ResponderPage
+    Administrator pages
+}
+
+class "Application use cases" as UseCases #E5F1FB {
+    SessionService
+    IncidentService
+    AttachmentService
+    Account / audit / SLO services
+}
+
+class "Domain" as Domain #FFF7DC {
+    Incident / Account
+    IncidentLifecycle
+    SloCalculator
+}
+
+class "Persistence interfaces" as Ports #EDF2FF {
+    IncidentStore
+    AccountRepository
+    AuditRepository / AttachmentStore
+}
+
+class "Local-file adapters" as Storage #F9E5EE {
+    LocalApplicationStore
+    RecoverySafeFile
+    AttachmentFiles
+}
+
+database "application data directory\nincident-desk.dat / .bak\nattachments/ + lock" as DataFile #FFFFFF
+
+User -down-> UI : interacts with\nrole views
+Startup -down-> UI : constructs navigator\nand view factory
+Startup -right-> UseCases : assembles shared\nservices
+UI -right-> UseCases : invokes use cases
+UseCases -down-> Domain : applies lifecycle\nand domain rules
+UseCases -right-> Ports : calls interfaces\nfor durable state
+Storage ..up|> Ports : implements
+Storage -right-> DataFile : reads and safely\nreplaces local data
+
+note bottom of Ports
+The application layer uses interfaces;
+ApplicationContext wires in LocalApplicationStore.
+end note
+
+@enduml

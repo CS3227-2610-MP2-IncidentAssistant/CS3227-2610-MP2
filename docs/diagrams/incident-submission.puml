@@ -1,0 +1,48 @@
+@startuml
+title Reporter incident submission with save success and failure
+
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 55
+
+actor Reporter
+participant ReporterPage as Page
+participant IncidentService as Service
+participant IncidentLifecycle as Lifecycle
+participant LocalApplicationStore as Store
+database RecoverySafeFile as File
+participant "ApplicationEventBus" as Events
+
+Reporter -> Page : select Submit incident
+Page -> Service : submit(title, description, category, false)
+Service -> Service : get session actor; authorize and validate
+Service -> Lifecycle : submit(id, actorId, title, description,\ncategory, anonymous)
+Lifecycle --> Service : submitted Incident
+Service -> Service : create INCIDENT_CREATED audit event
+Service -> Store : commit(AuditedMutation<IncidentMutation>)
+Store -> Store : build next state with incident and audit
+Store -> File : save(nextState)
+
+alt Save succeeds
+    File --> Store : return normally
+    Store -> Store : state = nextState
+    Store --> Service : return normally
+    Service -> Events : publish(IncidentChangedEvent)
+    Service --> Page : success(IncidentView)
+    Page --> Reporter : clear form and show confirmation
+else Save fails
+    File --> Store : throws RepositoryException
+    Store --> Service : exception propagates
+    Service --> Page : storage failure result
+    Page --> Reporter : retain entries and show error
+end
+
+note over Service
+Denied or invalid input returns before the store call.
+No success event is published on failure.
+end note
+
+@enduml
