@@ -1,5 +1,7 @@
 # CS3227 MP 2
 
+[Open the Incident Desk project website](https://cs3227-2610-mp2-incidentassistant.github.io/CS3227-2610-MP2/)
+
 Incident Desk is a local JavaFX desktop application for company incident
 reporting. It targets Java 25 and is built with the checked-in Gradle Wrapper.
 
