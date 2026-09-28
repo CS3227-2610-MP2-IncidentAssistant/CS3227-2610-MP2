@@ -17,7 +17,7 @@ database RecoverySafeFile as File
 participant "ApplicationEventBus" as Events
 
 Reporter -> Page : select Submit incident
-Page -> Service : submit(title, description, category, false)
+Page -> Service : submit(title, description, category, anonymous)
 Service -> Service : get session actor; authorize and validate
 Service -> Lifecycle : submit(id, actorId, title, description,\ncategory, anonymous)
 Lifecycle --> Service : submitted Incident
