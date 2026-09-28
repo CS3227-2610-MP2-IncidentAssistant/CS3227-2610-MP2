@@ -66,4 +66,16 @@ class IncidentSubmissionFormTest {
                 result.errors());
         assertEquals(List.of(), submissions);
     }
+
+    @Test
+    void forwardsAnonymousChoiceWithValidReport() {
+        List<IncidentSubmissionForm.Submission> submissions = new ArrayList<>();
+        IncidentSubmissionForm.Submission report = new IncidentSubmissionForm.Submission(
+                "Sensitive report", "Details for authorized responders", IncidentCategory.HUMAN_RELATIONS, true);
+
+        ValidationResult result = IncidentSubmissionForm.validateAndSubmit(report, submissions::add);
+
+        assertEquals(ValidationResult.valid(), result);
+        assertEquals(List.of(report), submissions);
+    }
 }

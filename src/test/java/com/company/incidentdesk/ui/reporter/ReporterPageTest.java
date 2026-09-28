@@ -1,11 +1,15 @@
 package com.company.incidentdesk.ui.reporter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,7 +24,11 @@ import java.util.function.Function;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import com.company.incidentdesk.application.audit.AuditEventFactory;
+import com.company.incidentdesk.application.authorization.IncidentAuthorizationPolicy;
+import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.incident.IncidentView;
 import com.company.incidentdesk.application.presentation.IncidentActionModel;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
@@ -28,14 +36,23 @@ import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
+import com.company.incidentdesk.application.session.InMemorySessionService;
 import com.company.incidentdesk.application.validation.ValidationError;
 import com.company.incidentdesk.application.validation.ValidationErrorCode;
 import com.company.incidentdesk.application.validation.ValidationField;
 import com.company.incidentdesk.application.validation.ValidationResult;
+import com.company.incidentdesk.domain.account.Account;
+import com.company.incidentdesk.domain.account.AccountId;
+import com.company.incidentdesk.domain.account.AccountStatus;
+import com.company.incidentdesk.domain.account.ResponderAccess;
+import com.company.incidentdesk.domain.account.Role;
+import com.company.incidentdesk.domain.audit.AuditEventId;
 import com.company.incidentdesk.domain.incident.IncidentCategory;
 import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.domain.incident.IncidentLifecycle;
 import com.company.incidentdesk.domain.incident.IncidentStatus;
 import com.company.incidentdesk.persistence.IncidentSearchCriteria;
+import com.company.incidentdesk.persistence.file.LocalApplicationStore;
 import com.company.incidentdesk.ui.shared.components.IncidentTable;
 
 import javafx.application.Platform;
@@ -43,6 +60,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -126,6 +144,70 @@ class ReporterPageTest {
             assertTrue(title(page).getStyleClass().contains("invalid"));
             return null;
         });
+    }
+
+    @Test
+    void anonymousChoiceIsSubmittedAndClearedAfterSuccess() throws Exception {
+        AtomicReference<IncidentSubmissionForm.Submission> submitted = new AtomicReference<>();
+        ReporterPage page = onFx(() -> new ReporterPage(submission -> {
+            submitted.set(submission);
+            return ApplicationResult.success(savedIncident());
+        }));
+        onFx(() -> {
+            anonymous(page).setSelected(true);
+            fillAndSubmit(page);
+            return null;
+        });
+
+        awaitFeedback(page, "Incident submitted");
+        assertTrue(submitted.get().anonymous());
+        onFx(() -> {
+            assertFalse(anonymous(page).isSelected());
+            return null;
+        });
+    }
+
+    @Test
+    void failedAnonymousSubmissionPreservesChoice() throws Exception {
+        ReporterPage page = onFx(() -> new ReporterPage(submission -> ApplicationResult.failure(
+                ApplicationError.of(ApplicationErrorCode.PERSISTENCE_FAILURE))));
+        onFx(() -> {
+            anonymous(page).setSelected(true);
+            fillAndSubmit(page);
+            return null;
+        });
+
+        awaitFeedback(page, "Submission failed");
+        onFx(() -> {
+            assertTrue(anonymous(page).isSelected());
+            return null;
+        });
+    }
+
+    @Test
+    void checkedReportPersistsAsAnonymous(@TempDir Path directory) throws Exception {
+        Clock clock = Clock.fixed(Instant.parse("2026-09-29T00:00:00Z"), ZoneOffset.UTC);
+        IncidentId incidentId = new IncidentId(new UUID(1, 2));
+        try (LocalApplicationStore store = new LocalApplicationStore(directory.resolve("store"))) {
+            store.create(new Account(new AccountId(new UUID(0, 1)), "reporter", Role.REPORTER,
+                    AccountStatus.ENABLED, ResponderAccess.NONE));
+            InMemorySessionService sessions = new InMemorySessionService(store,
+                    (id, password) -> true, clock);
+            sessions.login("reporter", new char[] {'x'});
+            IncidentService service = new IncidentService(sessions, store, store,
+                    new IncidentAuthorizationPolicy(sessions), new IncidentLifecycle(clock),
+                    new AuditEventFactory(clock, () -> new AuditEventId(new UUID(0, 2))),
+                    () -> incidentId, event -> { });
+            ReporterPage page = onFx(() -> new ReporterPage(service));
+            onFx(() -> {
+                anonymous(page).setSelected(true);
+                fillAndSubmit(page);
+                return null;
+            });
+
+            awaitFeedback(page, "Incident submitted");
+            assertTrue(store.findById(incidentId).orElseThrow().anonymous());
+        }
     }
 
     @Test
@@ -379,6 +461,10 @@ class ReporterPageTest {
 
     private static TextArea description(ReporterPage page) {
         return (TextArea) content(page).lookup("#incident-description");
+    }
+
+    private static CheckBox anonymous(ReporterPage page) {
+        return (CheckBox) content(page).lookup("#incident-anonymous");
     }
 
     @SuppressWarnings("unchecked")
