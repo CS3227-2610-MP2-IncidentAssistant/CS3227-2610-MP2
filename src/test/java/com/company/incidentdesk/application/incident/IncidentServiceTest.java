@@ -528,6 +528,35 @@ class IncidentServiceTest {
     }
 
     @Test
+    void reporterIncidentRowsContainOnlyOwnedIncidentsWithAuthorizedActions() {
+        IncidentLifecycle lifecycle = new IncidentLifecycle(clock);
+        Incident ownIncident = lifecycle.submit(INCIDENT_ID, REPORTER_ID,
+                "Printer unavailable", "Paper remains jammed", IncidentCategory.IT, false);
+        Incident otherIncident = lifecycle.submit(new IncidentId(new UUID(2, 2)), OTHER_REPORTER_ID,
+                "Other report", "Private description", IncidentCategory.FACILITIES, false);
+        incidents.create(ownIncident);
+        incidents.create(otherIncident);
+        sessions.signIn(accounts.findById(REPORTER_ID).orElseThrow());
+
+        ApplicationResult<List<IncidentRowModel>> result = service.reporterIncidents(
+                IncidentSearchCriteria.defaults(), dashboardMapper());
+
+        assertTrue(result.isSuccess());
+        List<IncidentRowModel> rows = result.value().orElseThrow();
+        assertEquals(List.of(ownIncident.id()), rows.stream().map(IncidentRowModel::id).toList());
+        IncidentRowModel row = rows.getFirst();
+        assertEquals("Printer unavailable", row.title());
+        assertEquals("IT", row.categoryLabel());
+        assertEquals("Submitted", row.statusLabel());
+        assertEquals("reporter-" + REPORTER_ID.value(), row.reporterLabel());
+        assertEquals("Unassigned", row.assigneeLabel());
+        assertTrue(row.actions().edit());
+        assertTrue(row.actions().withdraw());
+        assertFalse(row.actions().claim());
+        assertFalse(row.actions().resolve());
+    }
+
+    @Test
     void administratorIncidentListOffersOnlyIdentitiesVisibleThroughIncidentRows() {
         AccountId visibleReporter = accountId("00000000-0000-0000-0000-000000000011");
         AccountId anonymousOnlyReporter = accountId("00000000-0000-0000-0000-000000000012");
