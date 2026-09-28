@@ -121,7 +121,7 @@ public final class AdminAccountsPage extends BorderPane {
         fixWidth(role, 130);
         TableColumn<Account, Account> categories = nodeColumn("Responder categories", this::categoryBadges);
         fixWidth(categories, 280);
-        table.getColumns().addAll(login, role, categories);
+        table.getColumns().addAll(List.of(login, role, categories));
         table.getColumns().add(actionColumn());
         table.getItems().setAll(accounts);
         table.setPlaceholder(new Label("No user accounts found"));
