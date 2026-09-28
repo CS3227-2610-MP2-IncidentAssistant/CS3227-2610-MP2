@@ -85,7 +85,7 @@ Select the bell icon to open your notifications. Its badge shows the number you 
 
 ## Reporter: submit an incident
 
-Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
+Sign in as a Reporter. The **Dashboard** shows a **New incident** form and a **My incidents** list:
 
 1. Enter a **Title** and **Description**, and choose a **Category**: IT, Human Relations, or Facilities.
 2. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form clears after a successful submission.
@@ -96,9 +96,9 @@ For example, enter **Title:** `Water leak near pantry`, **Description:** `Water 
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
-The **My incidents** table below the form lists incidents submitted by the signed-in Reporter. Select **Refresh** to reload the list. To inspect an incident, select its row and choose **Open details**, or double-click the row. The details page shows its current status, comments, resolution history, and attachments.
+Use **My incidents** to track reports you submitted. Select **Refresh** to reload the list, then select a row and choose **Open details** (or double-click the row) to inspect that incident. The list shows its current status. The detail page provides the actions available for that incident's current state; see [Incident details, comments, and attachments](#incident-details-comments-and-attachments).
 
-Drafts, anonymous submission, editing, withdrawal, and reopening are not available in the current Reporter UI.
+Drafts, anonymous submission, and promotion requests are not available in the current Reporter UI. Reporter attachment support is limited to PNG/JPEG images; video and audio are not supported. Do not use the **Sample UI** preview to test or infer these workflows.
 
 ---
 
@@ -179,11 +179,15 @@ Select **Audit log** to view recorded security-sensitive and incident-changing a
 
 ## Incident details, comments, and attachments
 
-Administrators can open incidents from their dashboard; Responders can open incidents from their eligible or assigned lists. The detail page displays the latest information their account is allowed to see. Select **Back to dashboard** to return to the list. If an incident or your access changes while the page is open, it may show **Incident unavailable**; return to the dashboard and refresh.
+Reporters can open their own incidents from **My incidents**; Administrators can open incidents from their dashboard; Responders can open incidents from their eligible or assigned lists. The detail page displays the latest information their account is allowed to see. Select **Back to dashboard** to return to the list. If an incident or your access changes while the page is open, it may show **Incident unavailable**; return to the dashboard and refresh.
 
 In **Comments**, enter a non-blank message and select **Add comment**. A successful comment appears in the thread. The text remains in the box if sending fails so you can try again. The **Resolution history** shows saved resolution remarks, while the **Service-level objective** panel shows the incident's SLO indicator.
 
-The **Attachments** panel can list and display authorized PNG and JPEG images attached to an incident. Select **View attachment** on an entry to open its in-app image viewer. If you are the Reporter who submitted the incident and it is still eligible for changes, select **Add attachment** to upload another image. Videos are not supported.
+For a Reporter-owned incident that is still **Submitted** and unassigned, the detail page offers **Edit** and **Withdraw**. **Edit** opens the existing title, description, and category so you can correct them; select **Save changes** to submit the update or **Cancel** to discard it. **Withdraw** asks for confirmation before cancelling the report. These actions are unavailable after a Responder claims the incident. The application checks ownership and incident state when saving. If the incident changes while the page is open, the detail reloads; if it remains viewable but is no longer editable, your unsaved values stay visible as read-only until you select **Cancel**. If the incident or your access is no longer available, the page shows **Incident unavailable**. Return to **My incidents** and refresh to reopen the latest details.
+
+For one of your **Resolved** incidents, select **Reopen**, enter a non-blank **Follow-up explanation**, and select **Submit follow-up**. The explanation is added to the incident thread and the incident is reopened for further work. This is different from **Add comment**, which adds a comment without reopening the incident. If the explanation is blank, correct it and try again. If saving fails, the explanation is preserved so you can retry. If the incident's state or your access changed, the detail reloads; if it remains viewable but reopening is no longer available, the explanation stays read-only until you select **Cancel**. If the incident or your access is no longer available, the page shows **Incident unavailable** and clears the form.
+
+The **Attachments** panel can list and display authorized PNG and JPEG images attached to an incident. For a saved Reporter-owned incident that is still editable and unassigned, select **Add attachment** and choose a PNG or JPEG image. Select **View attachment** on an entry to open it in the in-app image viewer. The application checks the incident's ownership and state when adding or viewing a file; if the incident is no longer editable, upload is unavailable or rejected. Video and audio uploads or playback are not supported.
 
 ---
 
@@ -191,7 +195,7 @@ The **Attachments** panel can list and display authorized PNG and JPEG images at
 
 Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
 
-The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI also lacks Reporter edit or withdrawal, anonymous or draft submission, Reporter follow-up/reopening, an **In Progress** action, and Responder personal statistics. These are not end-to-end user workflows in this release.
+The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI does not support Reporter drafts, anonymous submission, or a Reporter promotion-request form. Attachments are limited to PNG/JPEG images; video and audio uploads or playback are unsupported. The UI also lacks an **In Progress** action and Responder personal statistics. Some underlying services or the separate Sample UI preview contain other ideas; they are not end-to-end user workflows in this release.
 
 To explore the complete workflow, register one account of each type. Submit the Facilities example as a Reporter, grant Facilities access to the Responder from the Administrator's **Accounts** page, and then claim and resolve the incident as the Responder. Finally, sign in as the Administrator to review the incident in **Dashboard**, **Statistics**, and **Audit log**.
 
