@@ -38,3 +38,16 @@ On macOS or Linux, you can use `INCIDENT_DESK_DATA_DIR="$HOME/incident-desk-peer
 There are no built-in production accounts. For the end-to-end test in this guide, register one account of each type. A newly registered Responder has no category access; an Administrator must grant it in **Accounts** before that Responder can see eligible incidents. Registering an Admin account is currently available from the same **Register** dialog.
 
 After signing in, use **Dashboard** to return to your role's main page. Administrators also see **Accounts**, **SLO configuration**, **Audit log**, and **Statistics** in the navigation. The account controls include **Update password** and **Log out**. The bell icon opens notifications received during the current app session; notification history is not yet saved across restarts.
+
+## Reporter: submit an incident
+
+Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
+
+1. Enter a **Title** and **Description**, and choose a **Category**: IT, Human Relations, or Facilities.
+2. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form clears after a successful submission.
+
+For a peer test, try **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry.`, and **Category:** Facilities. The Administrator and a Responder with Facilities access can then use this incident in the following sections.
+
+All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
+
+The current Reporter dashboard has only the submission form. It does not provide a Reporter incident list or a route to incident details. Drafts, anonymous submission, editing, withdrawal, reopening, promotion requests, and adding attachments from this dashboard are not available in the current UI. Do not use the **Sample UI** preview to test or infer these workflows.
