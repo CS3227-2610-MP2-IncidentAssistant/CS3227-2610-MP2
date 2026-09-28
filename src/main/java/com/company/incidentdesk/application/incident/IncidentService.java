@@ -383,6 +383,33 @@ public final class IncidentService {
         }
     }
 
+    /** Reads complete table rows for incidents owned by the current reporter. */
+    public ApplicationResult<List<IncidentRowModel>> reporterIncidents(
+            IncidentSearchCriteria criteria, IncidentPresentationMapper mapper) {
+        Objects.requireNonNull(criteria, "criteria");
+        Objects.requireNonNull(mapper, "mapper");
+        Optional<Account> actor = currentActor();
+        if (actor.isEmpty() || actor.orElseThrow().role() != Role.REPORTER) {
+            return unavailable();
+        }
+        try {
+            IncidentSearchCriteria reporterCriteria = criteria.withoutIdentityFilters();
+            List<IncidentRowModel> rows = queryFor(actor.orElseThrow(), reporterCriteria).stream()
+                    .filter(incident -> authorizationPolicy.authorizeListEntry(incident).isAllowed())
+                    .sorted(reporterCriteria.sort().comparator())
+                    .map(mapper::toRow)
+                    .toList();
+            if (!actor.equals(currentActor())) {
+                return unavailable();
+            }
+            return ApplicationResult.success(rows);
+        } catch (SecurityException exception) {
+            return unavailable();
+        } catch (RepositoryException exception) {
+            return storageFailure(exception);
+        }
+    }
+
     /** Reads both responder queues through current authorization and privacy-safe mapping. */
     public ApplicationResult<ResponderDashboardModel> responderDashboard(IncidentPresentationMapper mapper) {
         Objects.requireNonNull(mapper, "mapper");
