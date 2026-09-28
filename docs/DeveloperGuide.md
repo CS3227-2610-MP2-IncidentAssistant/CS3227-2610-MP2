@@ -443,9 +443,16 @@ explains routine controls; these checks add test data and expected outcomes.
    reporter**, including in details and audit-facing labels. Follow-up text
    should use a neutral author label for other roles.
 2. Add a small PNG or JPEG to an eligible saved report, then list and view it
-   as an authorized account. Try an unsupported or oversized file; it should
-   leave no visible attachment or successful audit entry. Log out while the
-   viewer is open; the previous image must not remain accessible.
+   as an authorized account. Copy the test video at
+   `src/test/resources/attachments/black-white-h264.mp4` to a disposable file
+   named `disguised.png` and try to add it; content validation should reject
+   it. Try a file over 10 MiB. Then add five valid images and try a sixth.
+   Each rejected upload should leave no new attachment or successful audit
+   entry. Log out while the viewer is open;
+   the previous image must not remain accessible. `AttachmentValidatorTest`
+   checks the decoded-pixel limit using a smaller injected threshold. The
+   default 100 MiB aggregate limit cannot be reached with five images capped
+   at 10 MiB each; test that branch with separately injected limits.
 3. Inspect audit entries for account access, submission, claim, resolution,
    and reopening. Configure a Facilities SLO and inspect statistics after a
    completed cycle. No view should disclose credentials or anonymous identity.
@@ -459,7 +466,10 @@ explains routine controls; these checks add test data and expected outcomes.
    `240` minutes in progress, and `10` percent reopen rate. Invalid values
    should be rejected. Filter **Statistics** by category and date; an empty
    population should not produce invented averages. Open an **Audit log** row
-   and inspect its recorded action and outcome.
+   and inspect its recorded action and outcome. Save a second Facilities target
+   version and check that configuration history retains both versions.
+   `SloConfigurationHistoryTest` checks that a later version does not replace
+   the target applicable at an earlier instant.
 
 ### Storage integrity checks
 
@@ -470,6 +480,12 @@ file integrity and corrupt-data handling. `IncidentServiceTest` covers the
 application result and lack of a new success event after persistence failure.
 Backup restoration is a storage-layer developer test, not a production UI
 workflow.
+
+For a manual corruption check, first close the app and copy a disposable test
+data directory. Replace only the copy's `incident-desk.dat` with invalid bytes,
+then launch the app against that copy using `INCIDENT_DESK_DATA_DIR`. Startup
+should refuse the corrupt file without resetting or overwriting it. Never do
+this to a directory containing real user data.
 
 ## Future enhancements and current limitations
 
