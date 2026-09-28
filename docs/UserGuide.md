@@ -1,3 +1,8 @@
+---
+layout: default
+title: User Guide
+---
+
 # Incident Desk User Guide
 
 ## Table of Contents
