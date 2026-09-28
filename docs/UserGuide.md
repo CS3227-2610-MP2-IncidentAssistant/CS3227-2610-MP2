@@ -64,6 +64,8 @@ The current Reporter dashboard has only the submission form. It does not provide
 
 Sign in as an Admin and select **Accounts** to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. Log out and sign in as the Responder; the Facilities incident should now appear in **Eligible queue**.
 
+![Administrator Accounts page with Facilities selected for the test Responder](images/user-guide/admin-responder-categories.png)
+
 Other account actions are:
 
 - **Reset password**: confirm the reset. A one-time temporary password is displayed once and expires after 24 hours. Pass it to the account holder securely; they must replace it after signing in. Do not include it in screenshots or bug reports.
