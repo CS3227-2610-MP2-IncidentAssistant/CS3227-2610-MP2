@@ -114,10 +114,10 @@ class ResponderMvpIntegrationTest {
         login("reporter");
         onFx(() -> {
             assertTrue(nodes(scene.getRoot()).anyMatch(ReporterPage.class::isInstance));
-            ((TextField) scene.lookup("#incident-title")).setText("Printer outage");
-            ((TextArea) scene.lookup("#incident-description")).setText(" Paper remains jammed ");
+            ((TextField) reporterField("incident-title")).setText("Printer outage");
+            ((TextArea) reporterField("incident-description")).setText(" Paper remains jammed ");
             selectSubmissionCategory();
-            ((Button) scene.lookup("#submit-incident")).fire();
+            ((Button) reporterField("submit-incident")).fire();
             return null;
         });
         awaitFx(() -> labels(scene.getRoot()).contains("Incident submitted"));
@@ -340,7 +340,11 @@ class ResponderMvpIntegrationTest {
 
     @SuppressWarnings("unchecked")
     private void selectSubmissionCategory() {
-        ((ComboBox<IncidentCategory>) scene.lookup("#incident-category")).setValue(IncidentCategory.IT);
+        ((ComboBox<IncidentCategory>) reporterField("incident-category")).setValue(IncidentCategory.IT);
+    }
+
+    private Node reporterField(String id) {
+        return nodes(scene.getRoot()).filter(node -> id.equals(node.getId())).findFirst().orElseThrow();
     }
 
     private void openDetail(IncidentId id) throws Exception {

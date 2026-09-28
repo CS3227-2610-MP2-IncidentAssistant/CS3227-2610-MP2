@@ -1,6 +1,7 @@
 package com.company.incidentdesk.ui.reporter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,6 +45,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -61,6 +63,19 @@ class ReporterPageTest {
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
         Platform.setImplicitExit(false);
+    }
+
+    @Test
+    void dashboardContentScrollsLikeOtherRolePages() throws Exception {
+        ReporterPage page = onFx(ReporterPage::new);
+
+        onFx(() -> {
+            ScrollPane scroll = assertInstanceOf(ScrollPane.class, page.getCenter());
+            assertTrue(scroll.isFitToWidth());
+            assertNotNull(scroll.getContent().lookup("#submit-incident"));
+            assertNotNull(scroll.getContent().lookup(".incident-table"));
+            return null;
+        });
     }
 
     @Test
@@ -196,7 +211,7 @@ class ReporterPageTest {
             title(page).setText("Printer failure");
             description(page).setText("Printer is jammed");
             category(page).setValue(IncidentCategory.IT);
-            ((Button) page.lookup("#submit-incident")).fire();
+            ((Button) content(page).lookup("#submit-incident")).fire();
             return null;
         });
 
@@ -266,7 +281,7 @@ class ReporterPageTest {
         title(page).setText("Printer failure");
         description(page).setText("Printer is jammed");
         category(page).setValue(IncidentCategory.IT);
-        ((Button) page.lookup("#submit-incident")).fire();
+        ((Button) content(page).lookup("#submit-incident")).fire();
     }
 
     private static void assertEnteredValues(ReporterPage page) throws Exception {
@@ -281,7 +296,7 @@ class ReporterPageTest {
     private static void awaitFeedback(ReporterPage page, String heading) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            if (onFx(() -> page.lookupAll(".feedback-card .section-title").stream()
+            if (onFx(() -> content(page).lookupAll(".feedback-card .section-title").stream()
                     .anyMatch(node -> heading.equals(((javafx.scene.control.Label) node).getText())))) {
                 return;
             }
@@ -346,7 +361,11 @@ class ReporterPageTest {
     }
 
     private static IncidentTable incidentTable(ReporterPage page) {
-        return (IncidentTable) page.lookup(".incident-table");
+        return (IncidentTable) content(page).lookup(".incident-table");
+    }
+
+    private static Node content(ReporterPage page) {
+        return ((ScrollPane) page.getCenter()).getContent();
     }
 
     @SuppressWarnings("unchecked")
@@ -355,16 +374,16 @@ class ReporterPageTest {
     }
 
     private static TextField title(ReporterPage page) {
-        return (TextField) page.lookup("#incident-title");
+        return (TextField) content(page).lookup("#incident-title");
     }
 
     private static TextArea description(ReporterPage page) {
-        return (TextArea) page.lookup("#incident-description");
+        return (TextArea) content(page).lookup("#incident-description");
     }
 
     @SuppressWarnings("unchecked")
     private static ComboBox<IncidentCategory> category(ReporterPage page) {
-        return (ComboBox<IncidentCategory>) page.lookup("#incident-category");
+        return (ComboBox<IncidentCategory>) content(page).lookup("#incident-category");
     }
 
     private static <T> T onFx(Callable<T> operation) throws Exception {
