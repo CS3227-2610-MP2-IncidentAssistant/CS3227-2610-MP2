@@ -113,3 +113,19 @@ Select **Statistics** to see a company summary and a Responder breakdown. You ca
 ### Review application activity
 
 Select **Audit log** to view recorded security-sensitive and incident-changing activity. Each row shows its time, event ID, actor, event description, and outcome. Double-click a row to open **Audit event details**, including the action, target, outcome, and recorded changes. This is an application-level audit log; the incident detail's **Audit timeline** placeholder does not display these entries.
+
+## Incident details and comments
+
+Administrators can open incidents from their dashboard; Responders can open incidents from their eligible or assigned lists. The detail page displays the latest information their account is allowed to see. Select **Back to dashboard** to return to the list. If an incident or your access changes while the page is open, it may show **Incident unavailable**; return to the dashboard and refresh.
+
+In **Comments**, enter a non-blank message and select **Add comment**. A successful comment appears in the thread. The text remains in the box if sending fails so you can try again. The **Resolution history** shows saved resolution remarks, while the **Service-level objective** panel shows the incident's SLO indicator.
+
+The **Attachments** panel can list and display authorized PNG and JPEG images already attached to an incident. Select **View attachment** on an entry to open its in-app image viewer. The underlying **Add attachment** control is enabled only for a Reporter who can still edit that incident, but the current Reporter dashboard has no way to open incident details. Consequently, a peer tester cannot upload a new attachment through the current UI. Videos are not supported by the image viewer.
+
+## Local data and current limitations
+
+Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
+
+The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI also lacks a Reporter incident list/details, Reporter edit or withdrawal, anonymous or draft submission, Reporter follow-up/reopening, a Reporter promotion-request form, attachment upload access from the Reporter screen, an **In Progress** action, and Responder personal statistics. Some underlying services or the separate Sample UI preview contain parts of these ideas; they are not end-to-end user workflows in this release.
+
+For a short end-to-end check: register the three account types in the same test data directory, submit the Facilities example as Reporter, grant Facilities access to the Responder under the Admin **Accounts** page, claim and resolve the incident as Responder, then review it in the Admin **Dashboard**, **Statistics**, and **Audit log**. Close and relaunch the app with the same data directory to check that the incident and accounts remain. The guide's steps describe expected behavior; report any difference you observe as a possible bug.
