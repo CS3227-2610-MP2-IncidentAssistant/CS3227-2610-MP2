@@ -37,7 +37,13 @@ On macOS or Linux, you can use `INCIDENT_DESK_DATA_DIR="$HOME/incident-desk-peer
 
 There are no built-in production accounts. For the end-to-end test in this guide, register one account of each type. A newly registered Responder has no category access; an Administrator must grant it in **Accounts** before that Responder can see eligible incidents. Registering an Admin account is currently available from the same **Register** dialog.
 
-After signing in, use **Dashboard** to return to your role's main page. Administrators also see **Accounts**, **SLO configuration**, **Audit log**, and **Statistics** in the navigation. The account controls include **Update password** and **Log out**. The bell icon opens notifications received during the current app session; notification history is not yet saved across restarts.
+After signing in, use **Dashboard** to return to your role's main page. Administrators also see **Accounts**, **SLO configuration**, **Audit log**, and **Statistics** in the navigation.
+
+### Account controls and notifications
+
+Select **Update password** under your account name to enter your current password, a new password, and the same new password again. Select **Update password** in the dialog to save it. An incorrect current password, blank new password, or mismatched confirmation shows an error. After an Administrator resets your password, sign in with the temporary password and replace it in the required dialog before continuing.
+
+Select the bell icon to open your notifications. Its badge shows the number you have not seen yet; opening the tray marks the displayed notifications as seen. These notifications are available only during the current app session, not after a restart. Select **Log out** when you want to switch accounts or finish using the app.
 
 ## Reporter: submit an incident
 
