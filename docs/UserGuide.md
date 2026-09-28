@@ -80,6 +80,8 @@ A Responder sees only incidents in categories granted by an Administrator. Compl
 
 The Responder **Dashboard** has two lists: **Eligible queue** for unassigned incidents you can claim, and **My assigned incidents** for incidents already assigned to you. Select an incident and choose **Open details**, or double-click its row. Use **Refresh** to reload the lists.
 
+![Responder dashboard with the submitted Facilities incident selected in the eligible queue](images/user-guide/responder-eligible-queue.png)
+
 ### Claim and resolve
 
 1. Open the `Water leak near pantry` incident from **Eligible queue** and select **Claim**. The app confirms the claim. Select **Back to dashboard**; the incident should now appear under **My assigned incidents**.
@@ -93,6 +95,8 @@ The current Responder lists do not offer search, filters, sorting, an **In Progr
 ## Administrator: manage incidents
 
 Sign in as an Admin. **Dashboard** shows an SLO overview and an **Incidents** table across the company. Use the search box to look for words in a title or description, or an incident ID. The filters include category, status, assignment, reporter, responder, creation dates, and SLO state. You can also choose a sort field and direction; **Reset** restores the default view. Double-click an incident row, or select it and press Enter, to open its details. **Back to dashboard** returns to the list.
+
+![Administrator incident list showing the submitted Facilities report and search filters](images/user-guide/admin-incident-list.png)
 
 The detail view shows the incident description, category and status, reporter and assignee labels, timestamps, resolution history, comments, attachments, and an SLO indicator. Available action buttons depend on the incident's current state:
 
