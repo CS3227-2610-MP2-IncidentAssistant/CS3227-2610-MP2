@@ -10,11 +10,17 @@ nav_order: 3
 
 - [Acknowledgements](#acknowledgements)
 - [Design and implementation](#design-and-implementation)
+  - [Repository layout](#repository-layout)
   - [Architecture](#architecture)
   - [Component responsibilities](#component-responsibilities)
+  - [Sessions and password handling](#sessions-and-password-handling)
   - [Incident changes and audit](#incident-changes-and-audit)
   - [Access control and anonymity](#access-control-and-anonymity)
+  - [Search and filtering](#search-and-filtering)
+  - [Comments and attachments](#comments-and-attachments)
+  - [Audit and notifications](#audit-and-notifications)
   - [Local storage and recovery](#local-storage-and-recovery)
+  - [SLOs and statistics](#slos-and-statistics)
   - [Other design decisions](#other-design-decisions)
 - [Product scope](#product-scope)
   - [Principal user stories](#principal-user-stories)
@@ -34,6 +40,32 @@ for builds, [JUnit 5](https://junit.org/junit5/) for tests,
 ideas, code, assets, or documentation here before release.
 
 ## Design and implementation
+
+This section covers the repository structure and the implementation boundaries
+for authentication, incident changes, access control, queries, comments,
+attachments, audit, notifications, storage, and SLOs.
+
+### Repository layout
+
+```text
+CS3227-2610-MP2/
+├── src/main/java/com/company/incidentdesk/
+│   ├── startup/          runtime setup and dependency assembly
+│   ├── ui/               JavaFX pages and shared components
+│   ├── application/      use cases, authorization, and notifications
+│   ├── domain/           incident rules, audit values, and SLO calculations
+│   └── persistence/      repository interfaces and local-file adapters
+├── src/main/resources/   JavaFX styles and other application resources
+├── src/test/java/        JUnit tests mirroring the application packages
+├── src/test/resources/   test fixtures
+├── docs/                 guides, diagrams, and screenshots
+├── .agents/              product and engineering contracts
+├── .github/workflows/    CI and release workflows
+├── logs/                 AI usage and development logs
+├── release/              packaged application JARs
+├── build.gradle          build configuration
+└── gradlew(.bat)         Gradle wrapper scripts
+```
 
 ### Architecture
 
@@ -59,6 +91,7 @@ and atomic audit are use-case concerns rather than UI or entity concerns.
 | Application | Authorize and coordinate use cases, audit, events, and presentation mapping | `IncidentService`, `AttachmentService`, `SessionService` |
 | Domain | Enforce lifecycle rules and calculate SLOs from persisted times | `IncidentLifecycle`, `SloCalculator` |
 | Persistence | Commit aggregate state and store authorized attachment bytes | `LocalApplicationStore`, `RecoverySafeFile` |
+| Notifications | Convert committed events into recipient-specific in-memory inbox entries | `NotificationService`, `NotificationInbox`, `NotificationCenter` |
 
 `ApplicationContext` owns the process-wide services and store.
 `ApplicationNavigator` switches between authentication and the role-specific
@@ -66,12 +99,41 @@ shell. Shared UI components consume presentation models rather than unrestricted
 domain entities. Hiding a control improves usability but never replaces a
 service-side authorization check.
 
+### Sessions and password handling
+
+`InMemorySessionService` holds one process-local session. A successful login
+replaces the active session; a rejected login leaves it unchanged, and logout
+or account invalidation clears it. Use cases obtain the enabled actor from the
+session service when each operation runs rather than trusting an actor ID from
+the UI.
+
+`AccountRegistrationService` stores salted PBKDF2-HMAC-SHA256 credentials, not
+plaintext passwords. Password changes recheck the current password and save the
+new credential with its audit event. Administrator resets create a temporary
+credential that expires after 24 hours, display it once, and require a password
+change after login. Resetting also invalidates the target's active session.
+
 ### Incident changes and audit
 
 `IncidentLifecycle` owns the legal transitions among `DRAFT`, `SUBMITTED`,
 `ASSIGNED`, `RESOLVED`, and `WITHDRAWN`. An incident has at most one assignee.
-Handoff returns it to its original position in the current queue cycle;
-reopening starts a new cycle and retains prior resolution history.
+
+| From | Action | To | Actor and condition |
+| --- | --- | --- | --- |
+| none | Save draft | `DRAFT` | Reporter; incomplete content is allowed |
+| none or `DRAFT` | Submit | `SUBMITTED` | Owning Reporter; required content is valid |
+| `DRAFT` or unassigned `SUBMITTED` | Edit | unchanged | Owning Reporter |
+| unassigned `SUBMITTED` | Withdraw | `WITHDRAWN` | Owning Reporter |
+| unassigned `SUBMITTED` | Claim | `ASSIGNED` | Responder with access to the incident category |
+| `SUBMITTED` or `ASSIGNED` | Assign or reassign | `ASSIGNED` | Administrator; target Responder is eligible |
+| `ASSIGNED` | Resolve | `RESOLVED` | Assigned Responder or Administrator; remarks are non-blank |
+| `ASSIGNED` | Hand off | `SUBMITTED` | Assigned Responder or Administrator |
+| `RESOLVED` | Reopen with follow-up | `SUBMITTED` | Owning Reporter; explanation is non-blank |
+
+The domain also supports saving a `DRAFT`; the table describes domain and
+service behavior, while the UG identifies which workflows are exposed in the
+current UI. Handoff preserves the queue position in the current cycle.
+Reopening starts a new cycle and retains earlier resolution history.
 
 The submission path illustrates the mutation boundary:
 
@@ -103,6 +165,12 @@ submitted. Responders see unassigned work only in permitted categories and
 their own assigned work. Administrators have broader operational access, but
 normal views still redact an anonymous Reporter's identity.
 
+Category access is checked again when a Responder lists or claims unassigned
+work. Removing a category immediately removes that queue access, but does not
+remove the Responder's visibility or ability to resolve or hand off incidents
+already assigned to them. Those assignments remain until resolution, handoff,
+or reassignment.
+
 List filters are not access checks. Detail reads, attachment reads, and
 mutations re-evaluate the current session and incident state. Missing and
 inaccessible incidents receive the same presentation-safe result.
@@ -111,6 +179,56 @@ audit actor labels, notifications, and statistics apply their own privacy-safe
 presentation rules. Anonymous submissions retain an internal owner reference
 so the author can track them; they do not conceal identity from the local data
 owner.
+
+### Search and filtering
+
+`IncidentSearchCriteria` carries user-selected filters separately from the
+role-specific `IncidentQuery` scope. Text is trimmed and matched
+case-insensitively against incident ID, title, or description. Multiple values
+within a category, status, or SLO filter are alternatives; different filter
+groups combine together. Empty selections mean no restriction. Assignment can
+be any, assigned, or unassigned; creation-date bounds are inclusive.
+
+Reporter and Responder identity filters apply only where that identity is
+visible; Reporter identity filtering excludes anonymous reports. Sorting uses
+the selected field and direction, then incident ID as a stable tie-breaker.
+The default sort is creation time descending. Query scope and current
+authorization determine which records can be returned; filters never grant
+access.
+
+### Comments and attachments
+
+`IncidentCommentService` checks current incident visibility before listing or
+adding comments. An ordinary comment records the authenticated author and does
+not change lifecycle state. Reopening is a separate operation: the owning
+Reporter must provide a non-blank explanation, which is committed with the new
+queue cycle and audit event. For anonymous incidents, the Reporter's comment
+author label is shown as `Anonymous reporter` to other roles.
+
+`AttachmentService` applies the same current incident-visibility check before
+listing or opening an attachment. Only the owning Reporter can add an image
+while the draft or submitted report is editable and unassigned. Access is
+checked again before bytes are returned, so a stale view or changed session
+does not preserve access. Attachments are PNG/JPEG images, limited to 10 MiB
+each, five files and 100 MiB per incident, and 40 million decoded pixels.
+Generated storage names prevent local paths from reaching presentation models.
+Pending-upload markers support cleanup after interrupted attachment operations.
+An upload does not change an incident's lifecycle or SLO timestamps, and failed
+upload does not leave committed metadata or success audit evidence.
+
+### Audit and notifications
+
+An `AuditEvent` records a generated ID, application UTC timestamp, actor ID and
+role, actor-visibility setting, action, typed target, outcome, structured
+changes, and an optional evidence reference. Audit data omits passwords,
+session identifiers, and unnecessary incident text. Normal application
+operations append audit events as part of the same durable mutation as the
+change they record.
+
+After a successful commit, the event bus publishes application events.
+`NotificationService` uses those events to create notifications only for
+currently authorized recipients; `NotificationInbox` is in-memory and is not
+the audit trail. A failed save publishes no success event or notification.
 
 ### Local storage and recovery
 
@@ -141,17 +259,20 @@ user's actual data directory.
 | SLOs | Use persisted UTC lifecycle times and versioned targets | More history is retained, but later targets do not rewrite past results |
 | Notifications | Publish events after commit to an in-memory inbox | Inbox history does not survive restart; audit remains durable |
 
-Attachment limits are 10 MiB per image, five images and 100 MiB per incident,
-and 40 million decoded pixels. Generated storage names prevent path disclosure.
-Pending-upload markers support cleanup after interrupted operations. An upload
-does not change an incident's lifecycle or SLO timestamps, and failed upload
-does not leave committed metadata or success audit evidence.
+### SLOs and statistics
 
-`SloCalculator` measures time to claim from queue entry to first assignment,
-time in progress from first assignment to resolution, and reopen rate over the
-selected resolved population. Handoff retains the current queue timing;
-reopening starts a new cycle. Calculations use persisted UTC instants, not the
-UI clock.
+`SloCalculator` uses persisted lifecycle timestamps. For each cycle, time to
+claim is first assignment minus queue entry; time in progress is resolution
+minus first assignment. Reopen rate is the number of distinct resolved
+incidents reopened in the selected scope and period divided by the number of
+incidents resolved there. Period bounds are inclusive; unresolved incidents
+do not contribute to resolution-based measures.
+
+Handoff retains the current cycle's queue-entry and first-assignment times;
+reopening creates a new cycle. Per-category target versions apply from their
+effective time, so later target changes do not rewrite earlier evaluations.
+Calculations use application UTC instants and return no average or rate when
+there is no applicable population.
 
 ## Product scope
 
@@ -228,11 +349,9 @@ interactive JavaFX check. `PackagedApplicationTest` launches a matching JAR
 with temporary storage and requests a normal shutdown through a test-only
 observer.
 
-The main source areas are `domain/`, `application/`, `persistence/`, `ui/`, and
-`startup/` under `src/main/java/com/company/incidentdesk/`; tests mirror them
-under `src/test/java/`. `docs/diagrams/` contains both editable `.puml` sources
-and rendered images. Production dependencies require approval, a narrow
-purpose, a pinned version, and a license check.
+`docs/diagrams/` contains editable `.puml` sources and rendered images.
+Production dependencies require approval, a narrow purpose, a pinned version,
+and a license check.
 
 ## Non-functional requirements
 
