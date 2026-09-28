@@ -21,7 +21,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.company.incidentdesk.application.incident.IncidentView;
+import com.company.incidentdesk.application.presentation.IncidentActionModel;
 import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
@@ -114,13 +116,14 @@ class ReporterPageTest {
     @Test
     void loadsOwnIncidentsAndEnterOpensTheSelectedIncident() throws Exception {
         IncidentView saved = savedIncident();
+        IncidentRowModel savedRow = row(saved, "Information Technology", "Submitted");
         AtomicReference<IncidentId> openedIncident = new AtomicReference<>();
         AtomicReference<IncidentSearchCriteria> requestedCriteria = new AtomicReference<>();
         ReporterPage page = onFx(() -> reporterPage(
                 submission -> ApplicationResult.success(saved),
                 criteria -> {
                     requestedCriteria.set(criteria);
-                    return ApplicationResult.success(List.of(saved));
+                    return ApplicationResult.success(List.of(savedRow));
                 }, openedIncident::set));
         onFx(() -> { new Scene(page); return null; });
 
@@ -128,8 +131,8 @@ class ReporterPageTest {
         onFx(() -> {
             IncidentTable incidents = incidentTable(page);
             TableView<IncidentRowModel> table = tableView(incidents);
-            assertEquals(saved.id(), table.getItems().getFirst().id());
-            assertEquals(saved.title(), table.getItems().getFirst().title());
+            assertEquals(savedRow.id(), table.getItems().getFirst().id());
+            assertEquals(savedRow.title(), table.getItems().getFirst().title());
             table.getSelectionModel().select(0);
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ENTER,
                     false, false, false, false));
@@ -153,12 +156,13 @@ class ReporterPageTest {
     @Test
     void failedIncidentLoadCanBeRetried() throws Exception {
         IncidentView saved = savedIncident();
+        IncidentRowModel savedRow = row(saved, "Information Technology", "Submitted");
         AtomicInteger searchCount = new AtomicInteger();
         ReporterPage page = onFx(() -> reporterPage(
                 submission -> ApplicationResult.success(saved),
                 criteria -> searchCount.incrementAndGet() == 1
                         ? ApplicationResult.failure(ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE))
-                        : ApplicationResult.success(List.of(saved)),
+                        : ApplicationResult.success(List.of(savedRow)),
                 ignored -> { }));
         onFx(() -> { new Scene(page); return null; });
 
@@ -177,12 +181,13 @@ class ReporterPageTest {
     @Test
     void successfulSubmissionRefreshesTheIncidentList() throws Exception {
         IncidentView saved = savedIncident();
+        IncidentRowModel savedRow = row(saved, "Information Technology", "Submitted");
         AtomicInteger searchCount = new AtomicInteger();
         ReporterPage page = onFx(() -> reporterPage(
                 submission -> ApplicationResult.success(saved),
                 criteria -> searchCount.incrementAndGet() == 1
                         ? ApplicationResult.success(List.of())
-                        : ApplicationResult.success(List.of(saved)),
+                        : ApplicationResult.success(List.of(savedRow)),
                 ignored -> { }));
         onFx(() -> { new Scene(page); return null; });
         awaitPlaceholderText(page, "No incidents found");
@@ -201,13 +206,20 @@ class ReporterPageTest {
 
     @Test
     void reattachingReporterPageReloadsItsIncidentList() throws Exception {
-        IncidentView saved = savedIncident();
+        IncidentView original = savedIncident();
+        IncidentView refreshed = new IncidentView(
+                new IncidentId(UUID.fromString("1462b7a9-c1c0-4c65-8bca-a8cdf36b0f02")),
+                "Leaking pipe", "Water is leaking near the server room",
+                IncidentCategory.FACILITIES, IncidentStatus.RESOLVED, false, Instant.EPOCH,
+                Optional.of(Instant.EPOCH), Optional.empty(), Optional.empty(), 0);
+        IncidentRowModel originalRow = row(original, "Information Technology", "Submitted");
+        IncidentRowModel refreshedRow = row(refreshed, "Facilities", "Resolved");
         AtomicInteger searchCount = new AtomicInteger();
         ReporterPage page = onFx(() -> reporterPage(
-                submission -> ApplicationResult.success(saved),
+                submission -> ApplicationResult.success(original),
                 criteria -> {
-                    searchCount.incrementAndGet();
-                    return ApplicationResult.success(List.of(saved));
+                    return ApplicationResult.success(searchCount.incrementAndGet() == 1
+                            ? List.of(originalRow) : List.of(refreshedRow));
                 }, ignored -> { }));
         Scene scene = onFx(() -> new Scene(page));
         awaitRows(page, 1);
@@ -218,7 +230,21 @@ class ReporterPageTest {
             return null;
         });
 
-        awaitSearchCount(searchCount, 2);
+        awaitRowTitle(page, refreshed.title());
+        onFx(() -> {
+            IncidentRowModel row = tableView(incidentTable(page)).getItems().getFirst();
+            assertEquals(refreshedRow.id(), row.id());
+            assertEquals(refreshedRow.title(), row.title());
+            return null;
+        });
+    }
+
+    private static IncidentRowModel row(IncidentView incident, String category, String status) {
+        return new IncidentRowModel(
+                incident.id(), incident.title(), category, status,
+                "You", "Unassigned", "1 Jan 1970, 08:00", "",
+                SloSummaryModel.unavailable(), incident.anonymous(), incident.reopenCount(),
+                new IncidentActionModel(false, false, false, false, false, false, false, false, false));
     }
 
     private static IncidentView savedIncident() {
@@ -230,7 +256,7 @@ class ReporterPageTest {
 
     private static ReporterPage reporterPage(
             Function<IncidentSubmissionForm.Submission, ApplicationResult<IncidentView>> submit,
-            Function<IncidentSearchCriteria, ApplicationResult<List<IncidentView>>> search,
+            Function<IncidentSearchCriteria, ApplicationResult<List<IncidentRowModel>>> search,
             Consumer<IncidentId> onOpenDetail) {
         return new ReporterPage(submit, search, onOpenDetail);
     }
@@ -275,15 +301,16 @@ class ReporterPageTest {
         throw new AssertionError("Incident list did not load " + expectedCount + " row(s)");
     }
 
-    private static void awaitSearchCount(AtomicInteger searchCount, int expectedCount) throws Exception {
+    private static void awaitRowTitle(ReporterPage page, String expectedTitle) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            if (searchCount.get() >= expectedCount) {
+            if (onFx(() -> tableView(incidentTable(page)).getItems().stream()
+                    .anyMatch(row -> expectedTitle.equals(row.title())))) {
                 return;
             }
             Thread.sleep(20);
         }
-        throw new AssertionError("Expected " + expectedCount + " incident searches, got " + searchCount.get());
+        throw new AssertionError("Incident list did not show refreshed row: " + expectedTitle);
     }
 
     private static void awaitPlaceholderText(ReporterPage page, String text) throws Exception {
