@@ -52,7 +52,9 @@ Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
 1. Enter a **Title** and **Description**, and choose a **Category**: IT, Human Relations, or Facilities.
 2. Select **Submit incident**. Wait for **Incident submitted** and **Your report has been saved.** The form clears after a successful submission.
 
-For a peer test, try **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry.`, and **Category:** Facilities. The Administrator and a Responder with Facilities access can then use this incident in the following sections.
+For a peer test, try **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. The Administrator and a Responder with Facilities access can then use this incident in the following sections.
+
+![Reporter dashboard with a completed Facilities incident form before submission](images/user-guide/reporter-submission.png)
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
