@@ -5,7 +5,9 @@ import java.util.function.Consumer;
 
 import javafx.collections.FXCollections;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
@@ -30,11 +32,12 @@ public final class IncidentSubmissionForm extends VBox {
     private final TextArea description = new TextArea();
     private final ComboBox<IncidentCategory> category = new ComboBox<>(
             FXCollections.observableArrayList(IncidentCategory.values()));
+    private final CheckBox anonymous = new CheckBox("Submit anonymously");
     private final ValidatedField titleField;
     private final ValidatedField descriptionField;
     private final ValidatedField categoryField;
 
-    /** Creates the MVP reporter submission form. */
+    /** Creates the reporter submission form. */
     public IncidentSubmissionForm(Consumer<Submission> onSubmit) {
         super(14);
         Consumer<Submission> requiredOnSubmit = Objects.requireNonNull(onSubmit, "onSubmit");
@@ -53,6 +56,12 @@ public final class IncidentSubmissionForm extends VBox {
         category.setAccessibleText("Incident category");
         category.setConverter(categoryConverter());
 
+        anonymous.setId("incident-anonymous");
+        anonymous.setAccessibleText("Submit incident anonymously");
+        Label privacy = new Label("Your identity is hidden in normal incident views, "
+                + "but the local data owner may inspect stored files.");
+        privacy.setWrapText(true);
+
         titleField = UiComponents.field("Title", title);
         descriptionField = UiComponents.field("Description", description);
         categoryField = UiComponents.field("Category", category);
@@ -61,7 +70,8 @@ public final class IncidentSubmissionForm extends VBox {
         submit.setId("submit-incident");
         submit.setOnAction(event -> {
             ValidationResult validation = validateAndSubmit(
-                    new Submission(title.getText(), description.getText(), category.getValue()),
+                    new Submission(title.getText(), description.getText(), category.getValue(),
+                            anonymous.isSelected()),
                     requiredOnSubmit);
             showValidation(titleField, validation, TITLE, "Title is required.");
             showValidation(descriptionField, validation, DESCRIPTION, "Description is required.");
@@ -72,6 +82,8 @@ public final class IncidentSubmissionForm extends VBox {
                 titleField,
                 descriptionField,
                 categoryField,
+                anonymous,
+                privacy,
                 submit);
     }
 
@@ -79,6 +91,7 @@ public final class IncidentSubmissionForm extends VBox {
         title.clear();
         description.clear();
         category.setValue(null);
+        anonymous.setSelected(false);
         showServiceValidation(ValidationResult.valid());
     }
 
@@ -103,11 +116,15 @@ public final class IncidentSubmissionForm extends VBox {
         return validation;
     }
 
-    /** Values entered into the MVP incident submission form. */
-    public record Submission(String title, String description, IncidentCategory category) {
+    /** Values entered into the incident submission form. */
+    public record Submission(String title, String description, IncidentCategory category, boolean anonymous) {
         public Submission {
             Objects.requireNonNull(title, "title");
             Objects.requireNonNull(description, "description");
+        }
+
+        public Submission(String title, String description, IncidentCategory category) {
+            this(title, description, category, false);
         }
     }
 

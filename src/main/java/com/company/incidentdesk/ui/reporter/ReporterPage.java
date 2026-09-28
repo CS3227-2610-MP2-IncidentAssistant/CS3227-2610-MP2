@@ -165,7 +165,7 @@ public final class ReporterPage extends RolePageLayout {
             IncidentService incidents) {
         IncidentService requiredIncidents = Objects.requireNonNull(incidents, "incidents");
         return submission -> requiredIncidents.submit(
-                submission.title(), submission.description(), submission.category(), false);
+                submission.title(), submission.description(), submission.category(), submission.anonymous());
     }
 
     private static ApplicationResult<List<IncidentRowModel>> unavailableRows(IncidentSearchCriteria criteria) {
