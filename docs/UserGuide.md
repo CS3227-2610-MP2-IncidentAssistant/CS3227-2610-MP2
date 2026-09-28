@@ -68,7 +68,7 @@ Sign in as a Reporter. The **Dashboard** shows a **New incident** form:
 
 For a peer test, try **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. The Administrator and a Responder with Facilities access can then use this incident in the following sections.
 
-![Reporter dashboard with a completed Facilities incident form before submission](images/user-guide/reporter-submission.png)
+![Reporter dashboard with a completed Facilities incident form before submission](images/reporter-submission.png)
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
@@ -78,7 +78,7 @@ The current Reporter dashboard has only the submission form. It does not provide
 
 Sign in as an Admin and select **Accounts** to see login names, roles, responder categories, and available actions. To enable the example Responder to handle a Facilities incident, find that account, select **Configure categories**, tick **Facilities**, then confirm with **OK**. Log out and sign in as the Responder; the Facilities incident should now appear in **Eligible queue**.
 
-![Administrator Accounts page with Facilities selected for the test Responder](images/user-guide/admin-responder-categories.png)
+![Administrator Accounts page with Facilities selected for the test Responder](images/admin-responder-categories.png)
 
 Other account actions are:
 
@@ -94,7 +94,7 @@ A Responder sees only incidents in categories granted by an Administrator. Compl
 
 The Responder **Dashboard** has two lists: **Eligible queue** for unassigned incidents you can claim, and **My assigned incidents** for incidents already assigned to you. Select an incident and choose **Open details**, or double-click its row. Use **Refresh** to reload the lists.
 
-![Responder dashboard with the submitted Facilities incident selected in the eligible queue](images/user-guide/responder-eligible-queue.png)
+![Responder dashboard with the submitted Facilities incident selected in the eligible queue](images/responder-eligible-queue.png)
 
 ### Claim and resolve
 
@@ -110,7 +110,7 @@ The current Responder lists do not offer search, filters, sorting, an **In Progr
 
 Sign in as an Admin. **Dashboard** shows an SLO overview and an **Incidents** table across the company. Use the search box to look for words in a title or description, or an incident ID. The filters include category, status, assignment, reporter, responder, creation dates, and SLO state. You can also choose a sort field and direction; **Reset** restores the default view. Double-click an incident row, or select it and press Enter, to open its details. **Back to dashboard** returns to the list.
 
-![Administrator incident list showing the submitted Facilities report and search filters](images/user-guide/admin-incident-list.png)
+![Administrator incident list showing the submitted Facilities report and search filters](images/admin-incident-list.png)
 
 The detail view shows the incident description, category and status, reporter and assignee labels, timestamps, resolution history, comments, attachments, and an SLO indicator. Available action buttons depend on the incident's current state:
 
