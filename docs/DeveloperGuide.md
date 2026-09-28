@@ -1,3 +1,8 @@
+---
+layout: default
+title: Developer Guide
+---
+
 # Incident Desk Developer Guide
 
 ## Table of Contents
