@@ -17,6 +17,7 @@ nav_order: 3
   - [Local storage and recovery](#local-storage-and-recovery)
   - [Other design decisions](#other-design-decisions)
 - [Product scope](#product-scope)
+  - [Principal user stories](#principal-user-stories)
 - [Development process and testing](#development-process-and-testing)
 - [Non-functional requirements](#non-functional-requirements)
 - [Glossary](#glossary)
@@ -162,6 +163,18 @@ Incident Desk supports local incident reporting and handling by three roles:
   claim, resolve with remarks, or hand off an assigned incident.
 - **Administrator:** review incidents and audit evidence, manage accounts and
   category access, configure SLOs, and inspect statistics.
+
+### Principal user stories
+
+| Role | Need |
+| --- | --- |
+| Reporter | Register, sign in, submit, and track only incidents they submitted |
+| Reporter | Add permitted images before assignment and understand privacy risks |
+| Reporter | Withdraw an unassigned incident or reopen an inadequate resolution |
+| Responder | See and claim unassigned incidents only in permitted categories |
+| Responder | Resolve or hand off incidents assigned to them |
+| Administrator | Review incidents, accounts, audit evidence, SLOs, and statistics |
+| Administrator | Approve promotion and control Responder category access |
 
 The [User Guide](UserGuide.md) describes the currently available controls. The
 [product requirements](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/blob/main/.agents/requirements.md)
