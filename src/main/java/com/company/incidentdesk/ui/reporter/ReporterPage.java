@@ -1,39 +1,80 @@
 package com.company.incidentdesk.ui.reporter;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 import com.company.incidentdesk.application.incident.IncidentService;
 import com.company.incidentdesk.application.incident.IncidentView;
+import com.company.incidentdesk.application.presentation.IncidentActionModel;
+import com.company.incidentdesk.application.presentation.IncidentDisplayLabels;
+import com.company.incidentdesk.application.presentation.IncidentRowModel;
+import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.application.result.ApplicationError;
 import com.company.incidentdesk.application.result.ApplicationErrorCode;
 import com.company.incidentdesk.application.result.ApplicationResult;
+import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.persistence.IncidentSearchCriteria;
+import com.company.incidentdesk.ui.shared.components.ActionStyle;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
+import com.company.incidentdesk.ui.shared.components.IncidentTable;
+import com.company.incidentdesk.ui.shared.components.IncidentTableConfiguration;
+import com.company.incidentdesk.ui.shared.components.IncidentTableState;
 import com.company.incidentdesk.ui.shared.components.RolePageLayout;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
-/** Initial workspace for incident reporters. */
+/** Reporter workspace for submitting and tracking the current account's incidents. */
 public final class ReporterPage extends RolePageLayout {
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm")
+            .withZone(ZoneId.systemDefault());
     private final IncidentSubmissionForm form;
+    private final Function<IncidentSearchCriteria, ApplicationResult<List<IncidentView>>> searchIncidents;
+    private final Consumer<IncidentId> onOpenDetail;
+    private final IncidentTable incidents = new IncidentTable(IncidentTableConfiguration.reporter());
+    private final Button refresh = UiComponents.action("Refresh", ActionStyle.SECONDARY);
+    private final Button open = UiComponents.action("Open details", ActionStyle.PRIMARY);
+    private Task<ApplicationResult<List<IncidentView>>> activeLoad;
+    private long loadVersion;
 
     /** Creates the dashboard hosted by the authenticated shell. */
     public ReporterPage() {
         this(submission -> ApplicationResult.failure(
-                ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE)));
+                ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE)),
+                criteria -> ApplicationResult.failure(
+                        ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE)), ignored -> { });
     }
 
     /** Creates the authenticated reporter dashboard. */
     public ReporterPage(IncidentService incidents) {
-        this(submissionOperation(incidents));
+        this(incidents, ignored -> { });
+    }
+
+    /** Creates a reporter dashboard with authorized list and detail navigation. */
+    public ReporterPage(IncidentService incidents, Consumer<IncidentId> onOpenDetail) {
+        this(submissionOperation(incidents), Objects.requireNonNull(incidents, "incidents")::search, onOpenDetail);
     }
 
     ReporterPage(Function<IncidentSubmissionForm.Submission, ApplicationResult<IncidentView>> submitIncident) {
+        this(submitIncident, criteria -> ApplicationResult.failure(
+                ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE)), ignored -> { });
+    }
+
+    ReporterPage(Function<IncidentSubmissionForm.Submission, ApplicationResult<IncidentView>> submitIncident,
+            Function<IncidentSearchCriteria, ApplicationResult<List<IncidentView>>> searchIncidents,
+            Consumer<IncidentId> onOpenDetail) {
         super("Reporter", "Create incident reports and track the incidents you submitted.");
         Objects.requireNonNull(submitIncident, "submitIncident");
+        this.searchIncidents = Objects.requireNonNull(searchIncidents, "searchIncidents");
+        this.onOpenDetail = Objects.requireNonNull(onOpenDetail, "onOpenDetail");
         VBox feedback = new VBox();
         form = new IncidentSubmissionForm(submission -> formSubmission(submission, submitIncident, feedback));
 
@@ -41,6 +82,83 @@ public final class ReporterPage extends RolePageLayout {
         content.setAlignment(Pos.TOP_LEFT);
         content.getChildren().add(2, UiComponents.panel("New incident", form));
         content.getChildren().add(3, feedback);
+        refresh.setOnAction(event -> refreshIncidents());
+        open.setDisable(true);
+        open.setOnAction(event -> openSelected());
+        incidents.setTableAccessibleText("My incidents");
+        incidents.setPrefHeight(320);
+        incidents.setOnRefresh(criteria -> refreshIncidents());
+        incidents.setOnOpenDetail(row -> this.onOpenDetail.accept(row.id()));
+        incidents.selectedRowProperty().addListener((observable, previous, selected) ->
+                open.setDisable(selected == null));
+        content.getChildren().add(4, UiComponents.panel("My incidents",
+                new VBox(12, new HBox(12, refresh, open), incidents)));
+        sceneProperty().addListener((observable, previous, current) -> {
+            if (current == null) {
+                cancelLoad();
+                incidents.clearSelection();
+                incidents.setState(IncidentTableState.loading());
+            } else {
+                refreshIncidents();
+            }
+        });
+    }
+
+    private void openSelected() {
+        IncidentRowModel selected = incidents.selectedRowProperty().get();
+        if (selected != null) {
+            onOpenDetail.accept(selected.id());
+        }
+    }
+
+    /** Reloads only the incidents authorized for the active reporter session. */
+    public void refreshIncidents() {
+        cancelLoad();
+        long request = ++loadVersion;
+        incidents.setState(IncidentTableState.loading());
+        refresh.setDisable(true);
+        IncidentSearchCriteria criteria = incidents.criteria();
+        Task<ApplicationResult<List<IncidentView>>> task = new Task<>() {
+            @Override protected ApplicationResult<List<IncidentView>> call() {
+                return searchIncidents.apply(criteria);
+            }
+        };
+        activeLoad = task;
+        task.setOnSucceeded(event -> finishLoad(request, task.getValue()));
+        task.setOnFailed(event -> finishLoad(request, ApplicationResult.failure(
+                ApplicationError.of(ApplicationErrorCode.RESOURCE_UNAVAILABLE))));
+        Thread.startVirtualThread(task);
+    }
+
+    private void finishLoad(long request, ApplicationResult<List<IncidentView>> result) {
+        if (request != loadVersion || getScene() == null) {
+            return;
+        }
+        activeLoad = null;
+        refresh.setDisable(false);
+        if (result.isSuccess()) {
+            incidents.setState(IncidentTableState.loaded(result.value().orElseThrow().stream()
+                    .map(ReporterPage::toRow).toList()));
+        } else {
+            incidents.setState(IncidentTableState.error("Try again. If the problem persists, sign in again."));
+        }
+    }
+
+    private void cancelLoad() {
+        loadVersion++;
+        if (activeLoad != null) {
+            activeLoad.cancel();
+            activeLoad = null;
+        }
+    }
+
+    private static IncidentRowModel toRow(IncidentView incident) {
+        return new IncidentRowModel(incident.id(), incident.title(),
+                IncidentDisplayLabels.category(incident.category()),
+                IncidentDisplayLabels.status(incident.status()), "", "",
+                DATE_FORMAT.format(incident.submittedAt().orElse(incident.createdAt())), "",
+                SloSummaryModel.unavailable(), incident.anonymous(), incident.reopenCount(),
+                new IncidentActionModel(false, false, false, false, false, false, false, false, false));
     }
 
     private static Function<IncidentSubmissionForm.Submission, ApplicationResult<IncidentView>> submissionOperation(
@@ -68,6 +186,9 @@ public final class ReporterPage extends RolePageLayout {
                 form.clearAfterSuccess();
                 feedback.getChildren().setAll(UiComponents.feedback(
                         "Incident submitted", "Your report has been saved.", FeedbackType.SUCCESS));
+                if (getScene() != null) {
+                    refreshIncidents();
+                }
             } else {
                 showFailure(form, feedback, result.error().orElseThrow());
             }

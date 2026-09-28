@@ -101,7 +101,7 @@ public final class DefaultViewFactory implements ViewFactory {
             };
         }
         return switch (account.role()) {
-        case REPORTER -> new ReporterPage(incidents);
+        case REPORTER -> new ReporterPage(incidents, onOpenIncident);
         case RESPONDER -> new ResponderPage(incidents, mapper, sessions, onOpenIncident);
         case ADMINISTRATOR -> new AdminIncidentPage(
                 incidents, mapper, sessions, sloConfigurations, onOpenIncident);
