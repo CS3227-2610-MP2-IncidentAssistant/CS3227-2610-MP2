@@ -67,7 +67,7 @@ Startup -right-> UseCases : assembles shared\nservices
 UI -right-> UseCases : invokes use cases
 UseCases -down-> Domain : applies lifecycle\nand domain rules
 UseCases -right-> Ports : calls interfaces\nfor durable state
-Ports -down-> Storage : implemented by\nlocal adapters
+Storage ..up|> Ports : implements
 Storage -right-> DataFile : reads and safely\nreplaces local data
 
 note bottom of Ports

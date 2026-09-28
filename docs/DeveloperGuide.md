@@ -106,8 +106,12 @@ jobs. Generated artifacts go under `build/` and are not source files.
 The diagram shows runtime collaboration. `ApplicationContext` assembles the
 shared services and storage once; the JavaFX shell and views call those
 services. Application services apply domain rules and use persistence
-interfaces. `LocalApplicationStore` implements those interfaces and writes one
-local aggregate file. Arrows indicate calls or wiring, not permission grants.
+interfaces. `LocalApplicationStore` implements the incident, account, and audit
+interfaces; its inner facets implement attachment and SLO interfaces. The
+local-file adapters persist application state in one aggregate file and
+attachment content in separate files. Solid arrows show
+runtime interactions or wiring; the dashed hollow arrow points toward the
+interfaces implemented by the adapters. Arrows do not grant permissions.
 
 - `com.company.incidentdesk.domain`: domain types, incident lifecycle, and SLO
   calculations.

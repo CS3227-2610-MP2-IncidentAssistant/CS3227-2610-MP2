@@ -19,7 +19,7 @@ participant "ApplicationEventBus" as Events
 Reporter -> Page : select Submit incident
 Page -> Service : submit(title, description, category, false)
 Service -> Service : get session actor; authorize and validate
-Service -> Lifecycle : submit(incident details)
+Service -> Lifecycle : submit(id, actorId, title, description,\ncategory, anonymous)
 Lifecycle --> Service : submitted Incident
 Service -> Service : create INCIDENT_CREATED audit event
 Service -> Store : commit(AuditedMutation<IncidentMutation>)
@@ -34,8 +34,8 @@ alt Save succeeds
     Service --> Page : success(IncidentView)
     Page --> Reporter : clear form and show confirmation
 else Save fails
-    File --> Store : RepositoryException
-    Store --> Service : RepositoryException
+    File --> Store : throws RepositoryException
+    Store --> Service : exception propagates
     Service --> Page : storage failure result
     Page --> Reporter : retain entries and show error
 end
