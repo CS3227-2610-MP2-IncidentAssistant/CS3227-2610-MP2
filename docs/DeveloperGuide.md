@@ -158,6 +158,9 @@ collaborators rather than opening files or constructing alternate repositories.
 `ApplicationNavigator` owns the authentication boundary and switches between
 `AuthenticationPage` and `AuthenticatedShell`. `DefaultViewFactory` creates
 role dashboards and incident-detail views from `ApplicationContext` services.
+The Reporter dashboard opens owned incidents through `ReporterIncidentPage`,
+which wraps the shared `IncidentDetailView` and supplies Reporter-specific edit,
+withdrawal, and reopen callbacks.
 
 Shared components under `ui.shared.components` consume presentation models
 rather than unrestricted domain objects. They include `IncidentTable`,
@@ -284,6 +287,19 @@ and only then replaces in-memory state. `IncidentChangedEvent` is published
 after commit. Validation, authorization, or storage failure retains the form
 input and produces no success event.
 
+### Reporter incident actions (#90)
+
+`ReporterPage` reads the authenticated user's incident rows; opening a row routes
+through `DefaultViewFactory` to `ReporterIncidentPage`. That page composes the
+shared detail and attachment components, and supplies callbacks for editing,
+withdrawing, and reopening. The forms perform required-field feedback, then
+delegate mutations to `IncidentService`; the service remains responsible for
+authorization, lifecycle validation, audit evidence, and persistence. A stale
+action rejected after an incident changes triggers a detail refresh. When the
+Reporter can still view the incident but can no longer perform that action, the
+form retains its text as read-only until dismissed. Attachments use the shared
+`AttachmentPane` and existing PNG/JPEG rules; video and audio are unsupported.
+
 ### Queue reads, claim, resolution, and handoff
 
 `ResponderPage` reads eligible and assigned queues in deterministic order.
@@ -324,6 +340,8 @@ success notification or event.
 Use `ApplicationContext.attachments()` and compose
 `AttachmentPane(service, savedIncidentId)` into a page. File reads run off the
 JavaFX thread. The viewer clears content when session or permission changes.
+The pane is composed into Administrator, Reporter, and Responder incident-detail
+pages and must receive an already persisted incident.
 
 `AttachmentService.list/add/open` enforce current authorization. Only the
 owning Reporter may add files to a draft or unassigned submitted incident.
@@ -538,8 +556,6 @@ Use disposable copies only.
 
 - Reporter submission currently passes `anonymous=false`; anonymous safeguards
   exist, but submission is not an end-to-end anonymous UI workflow.
-- Reporter has no incident-detail route, so attachment upload is not a complete
-  Reporter workflow. Administrator and Responder details use the shared pane.
 - Responder dashboard lacks the full filters, interactive sorting, and SLO
   column.
 - Notification history is in-memory and does not survive restart.
