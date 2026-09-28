@@ -95,7 +95,7 @@ Anonymous reports remain visible in **My incidents**. Responders and Administrat
 
 For example, enter **Title:** `Water leak near pantry`, **Description:** `Water is dripping from the ceiling beside the third-floor pantry. The floor is wet and may be slippery.`, and **Category:** Facilities. An Administrator and a Responder with Facilities access can then manage this incident.
 
-![Example of the title, description, and category fields; the current form also has a Submit anonymously checkbox](images/reporter-submission.png)
+![Reporter dashboard with a completed Facilities report form, the optional Submit anonymously checkbox, and the My incidents section](images/reporter-submission.png)
 
 All three fields are required. If one is empty, the form highlights it and does not submit the incident. If saving fails, the app reports that the incident was not saved; your entries remain in the form so you can try again.
 
