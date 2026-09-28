@@ -6,12 +6,6 @@ nav_order: 3
 
 # Incident Desk Developer Guide
 
-This guide explains the design and development process of Incident Desk. For
-screen-by-screen instructions, see the [User Guide](UserGuide.md). The
-[`.agents/` contracts](https://github.com/CS3227-2610-MP2-IncidentAssistant/CS3227-2610-MP2/tree/main/.agents)
-define the product's detailed rules; read the relevant contract before changing
-behavior.
-
 ## Table of Contents
 
 - [Acknowledgements](#acknowledgements)
@@ -30,22 +24,6 @@ behavior.
 - [Future enhancements and current limitations](#future-enhancements-and-current-limitations)
 
 ## Acknowledgements
-
-The organization and diagram style were informed by the
-[Possession Manager Developer Guide](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/DeveloperGuide.md),
-including its [architecture source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/architecture.puml)
-and [sequence source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/persistent-change-sequence.puml).
-Incident Desk's diagrams describe this project's own code and workflows.
-
-The [KeyContacts Developer Guide](https://ay2425s1-cs2103t-t08-2.github.io/tp/DeveloperGuide.html)
-informed the use of component summaries, design alternatives, requirements,
-glossary, and manual-testing sections. No KeyContacts product text or code was
-reused.
-
-The section order was also compared with the
-[LongAh Developer Guide](https://github.com/haowern98/tp/blob/master/docs/DeveloperGuide.md).
-Only its broad navigation idea was used; Incident Desk's component descriptions
-and testing instructions are original to this project.
 
 The project uses [JavaFX](https://openjfx.io/) for its UI,
 [Gradle](https://gradle.org/) and the [Shadow plugin](https://gradleup.com/shadow/)
