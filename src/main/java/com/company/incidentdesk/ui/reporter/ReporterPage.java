@@ -8,6 +8,7 @@ import java.util.function.Function;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
@@ -84,6 +85,9 @@ public final class ReporterPage extends RolePageLayout {
         content.getChildren().add(3, feedback);
         content.getChildren().add(4, UiComponents.panel("My incidents",
                 new VBox(12, new HBox(12, refresh, open), incidents)));
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        setCenter(scroll);
     }
 
     private void configureIncidentActions() {
