@@ -15,25 +15,7 @@ nav_order: 3
   - [Repository layout](#repository-layout)
 - [Architecture](#architecture)
 - [Component design](#component-design)
-  - [Startup and composition](#startup-and-composition)
-  - [UI and navigation](#ui-and-navigation)
-  - [Application services](#application-services)
-  - [Domain model](#domain-model)
-  - [Persistence](#persistence)
-  - [Events and notifications](#events-and-notifications)
 - [Implementation](#implementation)
-  - [Authentication, accounts, and sessions](#authentication-accounts-and-sessions)
-  - [Authorization and privacy-safe reads](#authorization-and-privacy-safe-reads)
-  - [Incident lifecycle](#incident-lifecycle)
-  - [Incident submission and atomic audit](#incident-submission-and-atomic-audit)
-  - [Reporter incident actions](#reporter-incident-actions)
-  - [Queue reads, claim, resolution, and handoff](#queue-reads-claim-resolution-and-handoff)
-  - [Search, filtering, and presentation](#search-filtering-and-presentation)
-  - [Comments, reopening, and notifications](#comments-reopening-and-notifications)
-  - [Attachments](#attachments)
-  - [Audit log](#audit-log)
-  - [SLOs and statistics](#slos-and-statistics)
-  - [Local-file persistence and recovery](#local-file-persistence-and-recovery)
 - [Design considerations](#design-considerations)
 - [Development process and testing](#development-process-and-testing)
   - [Automated testing strategy](#automated-testing-strategy)
@@ -189,45 +171,49 @@ actors are use-case concerns rather than UI or entity concerns.
 
 ### Startup and composition
 
-`IncidentDeskLauncher` is the executable entry point.
-`IncidentDeskApplication` owns JavaFX startup and shutdown, while
-`ApplicationContext` constructs process-wide repositories, services, event bus,
-and session state. The file store acquires the process lock during assembly.
+| Component | Responsibility |
+| --- | --- |
+| `IncidentDeskLauncher` | Executable entry point. |
+| `IncidentDeskApplication` | Owns JavaFX startup and shutdown. |
+| `ApplicationContext` | Constructs process-wide repositories, services, event bus, and session state. |
+| File store | Acquires the process lock during assembly. |
 
-Keep dependency construction here. Views and services should receive their
-collaborators rather than opening files or constructing alternate repositories.
+Keep dependency construction in `ApplicationContext`. Views and services
+receive their collaborators; they do not open files or construct alternate
+repositories.
 
 ### UI and navigation
 
-`ApplicationNavigator` owns the authentication boundary and switches between
-`AuthenticationPage` and `AuthenticatedShell`. `DefaultViewFactory` creates
-role dashboards and incident-detail views from `ApplicationContext` services.
-The Reporter dashboard opens owned incidents through `ReporterIncidentPage`,
-which wraps the shared `IncidentDetailView` and supplies Reporter-specific edit,
-withdrawal, and reopen callbacks.
+| Component | Responsibility |
+| --- | --- |
+| `ApplicationNavigator` | Owns the authentication boundary and switches between `AuthenticationPage` and `AuthenticatedShell`. |
+| `DefaultViewFactory` | Creates role dashboards and incident-detail views from `ApplicationContext` services. |
+| Reporter dashboard | Opens owned incidents through `ReporterIncidentPage`. |
+| `ReporterIncidentPage` | Wraps the shared `IncidentDetailView` and supplies Reporter-specific edit, withdrawal, and reopen callbacks. |
+| Shared components under `ui.shared.components` | Consume presentation models rather than unrestricted domain objects. |
 
-Shared components under `ui.shared.components` consume presentation models
-rather than unrestricted domain objects. They include `IncidentTable`,
-`IncidentDetailView`, `IncidentFilterBar`, `AttachmentPane`,
-`IncidentCommentThread`, `NotificationCenter`, and `SloProgressBar`. Storage
-and image-decoding work runs away from the JavaFX thread. Views discard stale
-results when detached, logged out, or superseded by newer requests.
+Shared components include `IncidentTable`, `IncidentDetailView`,
+`IncidentFilterBar`, `AttachmentPane`, `IncidentCommentThread`,
+`NotificationCenter`, and `SloProgressBar`.
 
-Hiding a control is usability behavior, not authorization. Application services
-recheck every operation when it executes.
+- Storage and image-decoding work runs away from the JavaFX thread.
+- Views discard stale results when detached, logged out, or superseded by newer requests.
+- Hiding a control is usability behavior, not authorization. Application services recheck every operation when it executes.
 
 ### Application services
 
 The application layer coordinates use cases and returns stable success/error
-results to the UI. It:
+results to the UI:
 
-- obtains the actor from `SessionProvider`, never from form input;
-- applies ownership, role, assignee, and category policies;
-- validates input and invokes legal domain transitions;
-- creates redacted audit evidence;
-- commits related state and audit changes atomically;
-- publishes in-process events only after durable commit; and
-- maps domain data to privacy-safe presentation models.
+| Responsibility | Rule |
+| --- | --- |
+| Actor | Obtain it from `SessionProvider`, never from form input. |
+| Access | Apply ownership, role, assignee, and category policies. |
+| Validation | Validate input and invoke legal domain transitions. |
+| Audit | Create redacted audit evidence. |
+| Commit | Commit related state and audit changes atomically. |
+| Events | Publish in-process events only after durable commit. |
+| Presentation | Map domain data to privacy-safe presentation models. |
 
 Principal services include `IncidentService`, `IncidentDetailService`,
 `IncidentCommentService`, `AttachmentService`, account and responder-access
@@ -236,65 +222,64 @@ services, `AuditLogService`, `SloConfigurationService`, and
 
 ### Domain model
 
-`IncidentLifecycle` owns transitions among `DRAFT`, `SUBMITTED`, `ASSIGNED`,
-`RESOLVED`, and `WITHDRAWN`. `Incident` retains lifecycle timestamps,
-assignment history, resolution cycles, and the queue key required for stable
-ordering. Value types validate identifiers, remarks, reopen explanations,
-comments, accounts, and audit evidence.
-
-`SloCalculator` and statistics calculators are deterministic domain services.
-They consume persisted UTC timestamps and versioned targets; they do not read a
-UI clock or JavaFX state.
+| Domain element | Responsibility |
+| --- | --- |
+| `IncidentLifecycle` | Owns transitions among `DRAFT`, `SUBMITTED`, `ASSIGNED`, `RESOLVED`, and `WITHDRAWN`. |
+| `Incident` | Retains lifecycle timestamps, assignment history, resolution cycles, and the queue key required for stable ordering. |
+| Value types | Validate identifiers, remarks, reopen explanations, comments, accounts, and audit evidence. |
+| `SloCalculator` and statistics calculators | Provide deterministic domain calculations from persisted UTC timestamps and versioned targets; they do not read a UI clock or JavaFX state. |
 
 ### Persistence
 
-Application services depend on interfaces such as `IncidentStore`,
-`AccountRepository`, `AuditRepository`, `AttachmentStore`, and
-`SloConfigurationStore`. In-memory implementations support focused tests.
-`LocalApplicationStore` and its facets provide production local-file storage.
+| Element | Responsibility |
+| --- | --- |
+| Persistence interfaces | Application services depend on `IncidentStore`, `AccountRepository`, `AuditRepository`, `AttachmentStore`, and `SloConfigurationStore`. |
+| In-memory implementations | Support focused tests. |
+| `LocalApplicationStore` and its facets | Provide production local-file storage. |
+| `LocalApplicationStateCodec` | Encodes accounts, credentials, incidents, comments, audit records, promotion requests, SLO history, and attachment metadata in `incident-desk.dat`. |
 
-`LocalApplicationStateCodec` encodes accounts, credentials, incidents,
-comments, audit records, promotion requests, SLO history, and attachment
-metadata in `incident-desk.dat`. Attachment bytes live separately under the
-same data directory. The persisted schema version is 1.
+Attachment bytes live separately under the same data directory. The persisted
+schema version is 1.
 
 ### Events and notifications
 
-Application events are published only after a successful durable mutation.
-`NotificationService` updates the in-memory `NotificationInbox`, which
-`NotificationCenter` presents. Notifications are convenience state, not the
-audit trail or source of truth. Persistent notification history is out of scope.
+1. Application events are published only after a successful durable mutation.
+2. `NotificationService` updates the in-memory `NotificationInbox`.
+3. `NotificationCenter` presents the inbox.
+
+Notifications are convenience state, not the audit trail or source of truth.
+Persistent notification history is out of scope.
 
 ## Implementation
 
 ### Authentication, accounts, and sessions
 
-Login names are case-sensitive. Password code stores salted hashes and never
-exposes plaintext passwords, hashes, reset credentials, or session identifiers
-through presentation models, audit changes, or logs.
-
-`SessionService` holds the one active account. Login replaces the session,
-logout clears it, and every privileged use case reads the actor when it executes.
-Self-service password replacement requires the current password and commits the
-new credential with its audit event. Administrator account, promotion, reset,
-and category-access operations enforce separate policies and preserve audit
-references when an account is disabled.
-
-The UI exposes only a subset of account services. Service availability is not
-proof of a complete end-to-end workflow.
+- **Credentials:** Login names are case-sensitive. Password code stores salted
+  hashes and never exposes plaintext passwords, hashes, reset credentials, or
+  session identifiers through presentation models, audit changes, or logs.
+- **Session:** `SessionService` holds the one active account. Login replaces the
+  session, logout clears it, and every privileged use case reads the actor when
+  it executes.
+- **Account changes:** Self-service password replacement requires the current
+  password and commits the new credential with its audit event. Administrator
+  account, promotion, reset, and category-access operations enforce separate
+  policies and preserve audit references when an account is disabled.
+- **UI boundary:** The UI exposes only a subset of account services. Service
+  availability is not proof of a complete end-to-end workflow.
 
 ### Authorization and privacy-safe reads
 
-Authorization is deny-by-default. Reporters access only incidents they
-submitted. Responders access unassigned incidents in permitted categories and
-incidents assigned to them. Administrators may inspect all incidents, subject
-to anonymous-identity redaction. Mutations add state and eligibility conditions.
-
-List filtering is never reused as authorization. Detail reads and mutations
-re-evaluate current permissions. Missing and inaccessible incidents map to the
-same presentation-safe result. `IncidentPresentationMapper` removes anonymous
-identity before data reaches tables, details, filters, statistics, audit labels,
-notifications, or attachment display names.
+- **Role scope:** Authorization is deny-by-default. Reporters access only
+  incidents they submitted. Responders access unassigned incidents in permitted
+  categories and incidents assigned to them. Administrators may inspect all
+  incidents, subject to anonymous-identity redaction. Mutations add state and
+  eligibility conditions.
+- **Current access:** List filtering is never reused as authorization. Detail
+  reads and mutations re-evaluate current permissions. Missing and inaccessible
+  incidents map to the same presentation-safe result.
+- **Privacy:** `IncidentPresentationMapper` removes anonymous identity before
+  data reaches tables, details, filters, statistics, audit labels,
+  notifications, or attachment display names.
 
 ### Incident lifecycle
 
@@ -311,109 +296,116 @@ notifications, or attachment display names.
 | `ASSIGNED` | Reassign | `ASSIGNED` | Administrator; replacement is eligible |
 | `RESOLVED` | Reopen with follow-up | `SUBMITTED` | Owning reporter; non-blank explanation |
 
-Every successful transition produces one incident audit event. Reopening
-commits its explanatory comment, transition, and audit event together and starts
-a new queue cycle. Handoff retains the current cycle's original queue position.
-Resolution history remains append-only across reopen cycles.
+Every successful transition produces one incident audit event:
+
+- Reopening commits its explanatory comment, transition, and audit event
+  together and starts a new queue cycle.
+- Handoff retains the current cycle's original queue position.
+- Resolution history remains append-only across reopen cycles.
 
 ### Incident submission and atomic audit
 
 ![Reporter incident submission sequence](diagrams/incident-submission.png)
 
-`ReporterPage` submits asynchronously through `IncidentService.submit(...)`,
-passing the form's anonymous selection. The service derives the actor,
-authorizes and validates the request, and asks `IncidentLifecycle` to create a
-submitted incident. It creates `INCIDENT_CREATED` evidence and calls
-`IncidentStore.commit(new AuditedMutation<>(...))`.
-
-The store builds the next state with the incident and audit event, saves it,
-and only then replaces in-memory state. `IncidentChangedEvent` is published
-after commit. Validation, authorization, or storage failure retains the form
-input and produces no success event.
+- **Submit:** `ReporterPage` submits asynchronously through
+  `IncidentService.submit(...)`, passing the form's anonymous selection. The
+  service derives the actor, authorizes and validates the request, and asks
+  `IncidentLifecycle` to create a submitted incident.
+- **Commit:** The service creates `INCIDENT_CREATED` evidence and calls
+  `IncidentStore.commit(new AuditedMutation<>(...))`. The store builds the next
+  state with the incident and audit event, saves it, and only then replaces
+  in-memory state.
+- **Outcome:** `IncidentChangedEvent` is published after commit. Validation,
+  authorization, or storage failure retains the form input and produces no
+  success event.
 
 ### Reporter incident actions
 
-`ReporterPage` reads the authenticated user's incident rows; opening a row routes
-through `DefaultViewFactory` to `ReporterIncidentPage`. That page composes the
-shared detail and attachment components, and supplies callbacks for editing,
-withdrawing, and reopening. The forms perform required-field feedback, then
-delegate mutations to `IncidentService`; the service remains responsible for
-authorization, lifecycle validation, audit evidence, and persistence. A stale
-action rejected after an incident changes triggers a detail refresh. When the
-Reporter can still view the incident but can no longer perform that action, the
-form retains its text as read-only until dismissed. Attachments use the shared
-`AttachmentPane` and existing PNG/JPEG rules; video and audio are unsupported.
+- **Route:** `ReporterPage` reads the authenticated user's incident rows;
+  opening a row routes through `DefaultViewFactory` to
+  `ReporterIncidentPage`. That page composes the shared detail and attachment
+  components and supplies callbacks for editing, withdrawing, and reopening.
+- **Action boundary:** The forms perform required-field feedback, then
+  delegate mutations to `IncidentService`. The service remains responsible for
+  authorization, lifecycle validation, audit evidence, and persistence.
+- **Stale state:** A stale action rejected after an incident changes triggers a
+  detail refresh. If the Reporter can still view the incident but can no longer
+  perform the action, the form retains its text as read-only until dismissed.
+- **Attachments:** The page uses the shared `AttachmentPane` and existing
+  PNG/JPEG rules; video and audio are unsupported.
 
 ### Queue reads, claim, resolution, and handoff
 
-`ResponderPage` reads eligible and assigned queues in deterministic order.
-Refresh and navigation recheck the session and category access; detaching the
-page clears content and invalidates outstanding reads. `ResponderIncidentPage`
-invokes claim, resolution, and handoff and refreshes from committed state.
-
-A responder who loses category access immediately loses unassigned incidents
-in that category but retains incidents already assigned to them until resolution,
-handoff, or reassignment. Claim and reassignment check eligibility at mutation
-time, so a stale list cannot grant access. An incident has at most one assignee.
+- **Queues:** `ResponderPage` reads eligible and assigned queues in
+  deterministic order. Refresh and navigation recheck the session and category
+  access; detaching the page clears content and invalidates outstanding reads.
+- **Actions:** `ResponderIncidentPage` invokes claim, resolution, and handoff
+  and refreshes from committed state.
+- **Changed access:** A responder who loses category access immediately loses
+  unassigned incidents in that category but retains incidents already assigned
+  to them until resolution, handoff, or reassignment. Claim and reassignment
+  check eligibility at mutation time, so a stale list cannot grant access.
+  An incident has at most one assignee.
 
 ### Search, filtering, and presentation
 
-`IncidentSearchCriteria`, `IncidentQuery`, and `IncidentSort` describe queries.
-Text search trims input and matches identifier, title, or description
-case-insensitively. Values within one category/status group use OR; groups
-combine with AND. Empty selections mean all values. Date bounds are inclusive
-and default ordering is deterministic.
-
-Identity filters operate only on identities the actor may see. Anonymous
-reporters are excluded rather than recoverable through counts or labels. Shared
-tables receive already authorized `IncidentRowModel` values.
+- **Query types:** `IncidentSearchCriteria`, `IncidentQuery`, and
+  `IncidentSort` describe queries.
+- **Matching:** Text search trims input and matches identifier, title, or
+  description case-insensitively. Values within one category/status group use
+  OR; groups combine with AND. Empty selections mean all values. Date bounds
+  are inclusive and default ordering is deterministic.
+- **Privacy boundary:** Identity filters operate only on identities the actor
+  may see. Anonymous reporters are excluded rather than recoverable through
+  counts or labels. Shared tables receive already authorized
+  `IncidentRowModel` values.
 
 ### Comments, reopening, and notifications
 
-`IncidentCommentService` authorizes incident access before returning or adding
-comments. Reopening is not a separate comment followed by a transition: its
-explanation, new queue cycle, and audit event commit together. Anonymous
-Reporter comments use a neutral author label for other roles.
-
-After successful changes, the event bus lets UI and notification components
-refresh without treating events as durable state. A failed save produces no
-success notification or event.
+- **Comments:** `IncidentCommentService` authorizes incident access before
+  returning or adding comments. Anonymous Reporter comments use a neutral
+  author label for other roles.
+- **Reopening:** Reopening is not a separate comment followed by a transition:
+  its explanation, new queue cycle, and audit event commit together.
+- **Events:** After successful changes, the event bus lets UI and notification
+  components refresh without treating events as durable state. A failed save
+  produces no success notification or event.
 
 ### Attachments
 
-Use `ApplicationContext.attachments()` and compose
-`AttachmentPane(service, savedIncidentId)` into a page. File reads run off the
-JavaFX thread. The viewer clears content when session or permission changes.
-The pane is composed into Administrator, Reporter, and Responder incident-detail
-pages and must receive an already persisted incident.
-
-`AttachmentService.list/add/open` enforce current authorization. Only the
-owning Reporter may add files to a draft or unassigned submitted incident.
-Upload does not change lifecycle or SLO timestamps. Metadata and
-`ATTACHMENT_ADDED` evidence commit together. `AttachmentRead` rechecks access
-before exposing bytes and never exposes a storage URI.
-
-Attachments are PNG/JPEG only: at most 10 MiB each, five files and 100 MiB per
-incident, and 40 million decoded pixels. Content is verified rather than names
-or extensions. Generated UUID filenames are stored under the data directory.
-Anonymous display models use generic names and no local paths. Original bytes
-and metadata are preserved, so uploaders are warned about possible identity
-leakage through image content or metadata.
-
-Pending-upload markers enable targeted restart cleanup. Failed validation or
-persistence leaves no committed metadata, success audit, or valid orphan.
+- **Composition:** Use `ApplicationContext.attachments()` and compose
+  `AttachmentPane(service, savedIncidentId)` into a page. The pane is used by
+  Administrator, Reporter, and Responder incident-detail pages and must receive
+  an already persisted incident.
+- **Reading:** File reads run off the JavaFX thread. The viewer clears content
+  when session or permission changes. `AttachmentService.list/add/open` enforce
+  current authorization; `AttachmentRead` rechecks access before exposing bytes
+  and never exposes a storage URI.
+- **Adding:** Only the owning Reporter may add files to a draft or unassigned
+  submitted incident. Upload does not change lifecycle or SLO timestamps.
+  Metadata and `ATTACHMENT_ADDED` evidence commit together.
+- **Validation:** Attachments are PNG/JPEG only: at most 10 MiB each, five files
+  and 100 MiB per incident, and 40 million decoded pixels. Content is verified
+  rather than names or extensions. Generated UUID filenames are stored under
+  the data directory.
+- **Privacy and recovery:** Anonymous display models use generic names and no
+  local paths. Original bytes and metadata are preserved, so uploaders are
+  warned about possible identity leakage through image content or metadata.
+  Pending-upload markers enable targeted restart cleanup. Failed validation or
+  persistence leaves no committed metadata, success audit, or valid orphan.
 
 ### Audit log
 
-Audit events contain a generated ID, application UTC timestamp, actor ID and
-role, action, target, outcome where applicable, and structured change summary.
-They exclude credentials, sessions, unnecessary incident text, and anonymous
-Reporter identity.
-
-`AuditLogService` is Administrator-only and supports deterministic filtering
-and ordering. Account deletion preserves a tombstoned actor reference. Normal
-operations cannot update or delete audit records. Recovery-safe local storage
-is not claimed to be tamper-proof against the machine owner.
+- **Record:** Audit events contain a generated ID, application UTC timestamp,
+  actor ID and role, action, target, outcome where applicable, and structured
+  change summary. They exclude credentials, sessions, unnecessary incident
+  text, and anonymous Reporter identity.
+- **Access and history:** `AuditLogService` is Administrator-only and supports
+  deterministic filtering and ordering. Account deletion preserves a
+  tombstoned actor reference. Normal operations cannot update or delete audit
+  records.
+- **Trust limit:** Recovery-safe local storage is not claimed to be
+  tamper-proof against the machine owner.
 
 ### SLOs and statistics
 
@@ -426,27 +418,30 @@ targets so later changes do not rewrite historical evaluation.
 - Reopen rate: incidents reopened at least once divided by incidents resolved
   for the selected population and period.
 
-Handoff retains queue-entry and first-assignment timing; reopening starts a new
-cycle. Calculators use persisted UTC instants and handle empty populations and
-zero durations deterministically. Statistics services authorize scope and apply
-anonymity rules before returning results.
+- **Cycle handling:** Handoff retains queue-entry and first-assignment timing;
+  reopening starts a new cycle.
+- **Calculation and access:** Calculators use persisted UTC instants and handle
+  empty populations and zero durations deterministically. Statistics services
+  authorize scope and apply anonymity rules before returning results.
 
 ### Local-file persistence and recovery
 
-The packaged JAR and classpath are read-only. Runtime data is resolved through
-one configurable directory. `ApplicationDataDirectory` checks the
-`incidentdesk.dataDir` system property, then `INCIDENT_DESK_DATA_DIR`, then
-`.incident-desk` under the user's home directory.
-
-`LocalApplicationStore` holds `incident-desk.lock` while open.
-`RecoverySafeFile` writes and validates a temporary file, retains one bounded
-`.bak`, and atomically replaces the canonical file where supported. In-memory
-state changes only after durable save. Corruption or an unsupported newer
-schema stops startup; the app does not silently reset or overwrite user data.
-The store exposes explicit backup restoration for controlled recovery, but it
-is not yet an authenticated, audited application workflow. Do not expose it to
-users until the required authorization, confirmation, and audit operation are
-implemented. Persistence tests always use fresh temporary directories.
+- **Location:** The packaged JAR and classpath are read-only. Runtime data is
+  resolved through one configurable directory. `ApplicationDataDirectory`
+  checks the `incidentdesk.dataDir` system property, then
+  `INCIDENT_DESK_DATA_DIR`, then `.incident-desk` under the user's home
+  directory.
+- **Write safety:** `LocalApplicationStore` holds `incident-desk.lock` while
+  open. `RecoverySafeFile` writes and validates a temporary file, retains one
+  bounded `.bak`, and atomically replaces the canonical file where supported.
+  In-memory state changes only after durable save. Corruption or an unsupported
+  newer schema stops startup; the app does not silently reset or overwrite user
+  data.
+- **Recovery boundary:** The store exposes explicit backup restoration for
+  controlled recovery, but it is not yet an authenticated, audited application
+  workflow. Do not expose it to users until the required authorization,
+  confirmation, and audit operation are implemented. Persistence tests always
+  use fresh temporary directories.
 
 ## Design considerations
 
@@ -685,17 +680,6 @@ new permissions immediately.
 | UTC instant | Time-zone-independent persisted time, converted only for display |
 
 ## Acknowledgements
-
-The diagram style follows the Possession Manager
-[architecture source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/architecture.puml)
-and [sequence source](https://github.com/haowern98/CS3227-2610-MP1/blob/master/docs/diagrams/persistent-change-sequence.puml).
-Incident Desk's participants and relationships match this project's code.
-
-The supplied
-[KeyContacts Developer Guide](https://ay2425s1-cs2103t-t08-2.github.io/tp/DeveloperGuide.html)
-was a reference for component documentation, design alternatives, requirements
-summaries, glossary, and manual-test structure; no KeyContacts implementation or
-product text was reused.
 
 Diagrams use [PlantUML](https://plantuml.com/). The project uses
 [JavaFX](https://openjfx.io/), [Gradle](https://gradle.org/), the
