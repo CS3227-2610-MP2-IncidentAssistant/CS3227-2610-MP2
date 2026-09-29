@@ -12,7 +12,37 @@ Throughout the development of Incident Desk, our team used AI coding agents to s
 
 ## Isaac Ng Jun Jie
 
-_Reflection to be added._
+Codex and AI agents in general are powerful tools to use when creating software, but it is important to review every step of the output to ensure that they generate maintainable and correct code. I will share a few scenarios where Codex's output was less than ideal.
+
+### 1. Generated code may look correct, but it is important to still perform manual testing
+
+**What happened**
+
+When creating the audit log, Codex did not consider the fact that an admin is able to trigger a change in the audit log by updating the SLO within the same session. Thus, the audit log was not updated when updating the SLO, since we cached the page. I caught this through manual testing.
+
+**What is the takeaway**
+
+Agents can generate test cases that verify all the behaviour that they intend for the feature, but some behaviours, especially those that depend on other parts of the application, are not as simple for the agent to generate test cases for, and it is hence important to perform manual workflow testing and visual inspection.
+
+### 2. Architectural changes may seem reasonable but are not scalable
+
+**What happened**
+
+When fixing the stale audit log, the agent initially added a special case ADMIN_AUDIT_LOG check to the generic navigator so the page alone was recreated on each visit. It fixed the staleness and passed tests, but it was adding code to the navigator for a specific page. While realistically it is reasonable at this scale to perform this check, for a production-grade application that needs to be ready to scale, it made more sense for the refresh code to live within the page itself. Therefore, I got the agent to implement NavigableView.onShown() instead, a function that is called when the page is shown and implemented by the specific page class to perform the refetching.
+
+**What is the takeaway**
+
+AI agents can create correct code, but it is up to the prompter to review and identify whether the code they output is scalable and maintainable.
+
+### 3. Agent uses fully qualified class names instead of importing
+
+**What happened**
+
+When reviewing the code outputted by Codex, I found that it was for some reason using the full class name (i.e. java.util.List) instead of performing an import at the top of the file. If left alone, it would cause readability and hence maintainability issues. Therefore, I added a check to the code-quality skill for this full class name usage so that it is caught whenever we run a code quality check. In hindsight I probably could've just added it to the AGENTS.md.
+
+**What is the takeaway**
+
+Code outputted by the AI agent should be reviewed not only for correctness and architectural scalability, but also for readability and conformity with project conventions.
 
 ---
 
