@@ -27,6 +27,7 @@ import com.company.incidentdesk.domain.account.AccountStatus;
 import com.company.incidentdesk.domain.account.ResponderAccess;
 import com.company.incidentdesk.domain.account.Role;
 import com.company.incidentdesk.domain.incident.IncidentId;
+import com.company.incidentdesk.ui.shared.components.ComponentShowcasePage;
 
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -262,6 +263,25 @@ class ApplicationNavigatorTest {
 
             navigator.openIncident(new IncidentId(UUID.randomUUID()));
 
+            assertInstanceOf(AuthenticationPage.class, scene.getRoot());
+            navigator.close();
+            return null;
+        });
+    }
+
+    @Test
+    void sampleUiCanBeOpenedFromAuthenticationAndReturnedFrom() throws Exception {
+        onFx(() -> {
+            Scene scene = new Scene(new VBox());
+            ApplicationNavigator navigator = new ApplicationNavigator(
+                    scene, new MutableSessions(null), new NotificationInbox(),
+                    new RecordingViews(), (name, password, role) -> null);
+            navigator.start();
+
+            ((Button) scene.lookup("#sample-ui")).fire();
+            assertInstanceOf(ComponentShowcasePage.class, scene.getRoot());
+
+            ((Button) scene.lookup("#showcase-back")).fire();
             assertInstanceOf(AuthenticationPage.class, scene.getRoot());
             navigator.close();
             return null;

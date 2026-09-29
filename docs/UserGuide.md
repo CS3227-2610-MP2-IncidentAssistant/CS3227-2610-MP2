@@ -101,7 +101,7 @@ All three fields are required. If one is empty, the form highlights it and does 
 
 Use **My incidents** to track reports you submitted. Select **Refresh** to reload the list, then select a row and choose **Open details** (or double-click the row) to inspect that incident. The list shows its current status. The detail page provides the actions available for that incident's current state; see [Incident details, comments, and attachments](#incident-details-comments-and-attachments).
 
-Drafts and promotion requests are not available in the current Reporter UI. Reporter attachment support is limited to PNG/JPEG images; video and audio are not supported.
+Drafts and promotion requests are not available in the current Reporter UI. Reporter attachment support is limited to PNG/JPEG images; video and audio are not supported. Do not use the **Sample UI** preview to test or infer these workflows.
 
 ---
 
@@ -198,7 +198,7 @@ The **Attachments** panel can list and display authorized PNG and JPEG images at
 
 Accounts, incidents, comments, audit entries, SLO targets, and supported attachments are saved in the selected local data directory and remain available after a normal restart. Keep that directory if you want to retain your test records. Do not manually edit its files. Only one Incident Desk process can use a data directory at a time; close the first window before launching another against the same directory. The app is local and does not synchronize data between computers.
 
-The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI does not support Reporter drafts or a Reporter promotion-request form. Attachments are limited to PNG/JPEG images; video and audio uploads or playback are unsupported. The UI also lacks an **In Progress** action and Responder personal statistics. Some underlying services contain other ideas; they are not end-to-end user workflows in this release.
+The notification bell shows in-session notifications, but its inbox does not persist across restarts. The current authenticated UI does not support Reporter drafts or a Reporter promotion-request form. Attachments are limited to PNG/JPEG images; video and audio uploads or playback are unsupported. The UI also lacks an **In Progress** action and Responder personal statistics. Some underlying services or the separate Sample UI preview contain other ideas; they are not end-to-end user workflows in this release.
 
 To explore the complete workflow, register one account of each type. Submit the Facilities example as a Reporter, grant Facilities access to the Responder from the Administrator's **Accounts** page, and then claim and resolve the incident as the Responder. Finally, sign in as the Administrator to review the incident in **Dashboard**, **Statistics**, and **Audit log**.
 
