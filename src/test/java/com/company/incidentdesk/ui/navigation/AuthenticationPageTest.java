@@ -47,7 +47,7 @@ class AuthenticationPageTest {
             AtomicInteger authenticated = new AtomicInteger();
             AuthenticationPage page = new AuthenticationPage(
                     sessions, (name, supplied, role) -> RegistrationResult.REGISTERED,
-                    authenticated::incrementAndGet, () -> { });
+                    authenticated::incrementAndGet);
             new Scene(page);
             ((TextField) page.lookup("#login-name")).setText("CaseSensitiveUser");
             PasswordField password = (PasswordField) page.lookup("#password");
@@ -70,7 +70,7 @@ class AuthenticationPageTest {
             AuthenticationPage page = new AuthenticationPage(
                     new RecordingSessions(), (name, supplied, role) -> {
                         registrations.incrementAndGet(); return RegistrationResult.REGISTERED;
-                    }, () -> { }, () -> { });
+                    }, () -> { });
             new Scene(page);
             ((Button) page.lookup("#register")).fire();
             javafx.stage.Window.getWindows().stream()
@@ -96,7 +96,7 @@ class AuthenticationPageTest {
         onFx(() -> {
             AuthenticationPage page = new AuthenticationPage(
                     new RecordingSessions(), (name, supplied, role) -> RegistrationResult.REGISTERED,
-                    () -> { }, () -> { });
+                    () -> { });
             new Scene(page, 900, 700);
             page.applyCss();
             page.layout();
@@ -117,22 +117,6 @@ class AuthenticationPageTest {
             assertEquals(320, passwordField.getMaxWidth());
             assertEquals(Pos.CENTER_LEFT, loginName.getAlignment());
             assertEquals(Pos.CENTER_LEFT, password.getAlignment());
-            return null;
-        });
-    }
-
-    @Test
-    void sampleUiButtonUsesDedicatedNavigationCallback() throws Exception {
-        onFx(() -> {
-            AtomicInteger sampleUiRequests = new AtomicInteger();
-            AuthenticationPage page = new AuthenticationPage(
-                    new RecordingSessions(), (name, supplied, role) -> RegistrationResult.REGISTERED,
-                    () -> { }, sampleUiRequests::incrementAndGet);
-            new Scene(page);
-
-            ((Button) page.lookup("#sample-ui")).fire();
-
-            assertEquals(1, sampleUiRequests.get());
             return null;
         });
     }
