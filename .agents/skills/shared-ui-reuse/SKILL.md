@@ -10,8 +10,8 @@ Before implementing a new UI component or renderer in this repository:
 1. Read `.agents/ui-component-checklist.md` and the shared API section of
    `.agents/STYLE_GUIDE.md`.
 2. Search `src/main/java/com/company/incidentdesk/ui/shared/components/` for
-   the needed behavior. Inspect matching implementations and callers,
-   including `ComponentShowcasePage`, rather than relying on class names alone.
+   the needed behavior. Inspect matching implementations and callers rather
+   than relying on class names alone.
 3. Reuse an existing factory or component when it already provides the behavior.
    Compose primitives for larger workflows: a comment thread should use the
    shared single-comment renderer instead of recreating its layout.

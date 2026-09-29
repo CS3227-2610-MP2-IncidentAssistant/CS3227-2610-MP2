@@ -11,7 +11,6 @@ import com.company.incidentdesk.application.session.SessionService;
 import com.company.incidentdesk.application.session.AuthenticatedSession;
 import com.company.incidentdesk.domain.account.Account;
 import com.company.incidentdesk.domain.incident.IncidentId;
-import com.company.incidentdesk.ui.shared.components.ComponentShowcasePage;
 import com.company.incidentdesk.ui.shared.components.FeedbackType;
 import com.company.incidentdesk.ui.shared.components.UiComponents;
 
@@ -127,12 +126,7 @@ public final class ApplicationNavigator implements AutoCloseable {
 
     private void showAuthentication() {
         clearShell();
-        scene.setRoot(new AuthenticationPage(sessions, registrations, this::start, this::showSampleUi));
-    }
-
-    private void showSampleUi() {
-        clearShell();
-        scene.setRoot(new ComponentShowcasePage(this::showAuthentication));
+        scene.setRoot(new AuthenticationPage(sessions, registrations, this::start));
     }
 
     private void ensureShell(Account account, AuthenticatedSession session) {

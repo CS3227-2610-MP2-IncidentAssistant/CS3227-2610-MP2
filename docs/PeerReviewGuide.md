@@ -34,8 +34,7 @@ them as unavailable or incomplete:
 - an **In Progress** action;
 - Responder personal statistics, search, filtering, or sorting;
 - notifications surviving an application restart;
-- the **Audit timeline** placeholder on an incident detail page;
-- the separate **Sample UI** preview.
+- the **Audit timeline** placeholder on an incident detail page.
 
 ## Test setup
 

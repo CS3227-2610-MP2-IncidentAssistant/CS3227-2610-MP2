@@ -36,13 +36,11 @@ public final class AuthenticationPage extends VBox {
     public AuthenticationPage(
             SessionService sessions,
             AccountRegistrar registrations,
-            Runnable onAuthenticated,
-            Runnable onShowSampleUi) {
+            Runnable onAuthenticated) {
         super(16);
         SessionService sessionService = Objects.requireNonNull(sessions, "sessions");
         Objects.requireNonNull(onAuthenticated, "onAuthenticated");
         Objects.requireNonNull(registrations, "registrations");
-        Objects.requireNonNull(onShowSampleUi, "onShowSampleUi");
 
         Label title = new Label("Incident Desk");
         title.getStyleClass().add("page-title");
@@ -64,10 +62,7 @@ public final class AuthenticationPage extends VBox {
         Button register = UiComponents.action("Register", ActionStyle.SECONDARY);
         register.setId("register");
         register.setOnAction(event -> showRegistration(registrations));
-        Button sampleUi = UiComponents.action("Sample UI", ActionStyle.SECONDARY);
-        sampleUi.setId("sample-ui");
-        sampleUi.setOnAction(event -> onShowSampleUi.run());
-        FlowPane actions = new FlowPane(10, 10, login, register, sampleUi);
+        FlowPane actions = new FlowPane(10, 10, login, register);
         actions.setAlignment(Pos.CENTER);
         ValidatedField loginField = UiComponents.field("Login name", loginName);
         loginField.setAlignment(Pos.TOP_LEFT);
