@@ -6,114 +6,52 @@ nav_order: 4
 
 # Reflections
 
-Throughout the development of Incident Desk, our team used AI coding agents to support activities such as planning, implementation, testing, documentation, and code review. The following reflections describe each member's experience working with these tools, including where they were helpful, where human judgement remained essential, and what we learned about using AI responsibly in a collaborative software-engineering project.
+Throughout the development of Incident Desk, our team used AI coding agents to support planning, implementation, testing, documentation, and code review. We found that these tools were most useful when we gave them a narrow scope, clear product constraints, and an outcome that we could verify. They accelerated repetitive work and helped us explore solutions, but human judgement remained essential at the boundaries between components, in the running user experience, and when deciding whether a technically correct solution was maintainable.
 
----
+## Working from product requirements rather than plausible output
 
-## Isaac Ng Jun Jie
+One recurring lesson was that convincing output is not the same as a working product. For example, a web mockup helped us agree on a visual direction, but it did not prove that the JavaFX application could submit or track incidents. When the Reporter form was first connected, the actual authenticated route still constructed the page without an `IncidentService`, leaving users with a **Submission unavailable** message. Tracing the route through `DefaultViewFactory` revealed the missing dependency and ensured that submission used the existing validation, authorization, persistence, and audit path.
 
-Codex and AI agents in general are powerful tools to use when creating software, but it is important to review every step of the output to ensure that they generate maintainable and correct code. I will share a few scenarios where Codex's output was less than ideal.
+The same issue appeared in smaller forms. The anonymous-submission checkbox existed visually, but the form continued to pass `false` to `IncidentService.submit(...)`. Connecting the control to the service argument and checking the stored result showed why verification has to follow data beyond the visible interface. We also verified the privacy presentation from more than one role: the author could still find the incident under **My incidents**, while the Responder saw **Anonymous reporter**. This supported the intended privacy boundary without implying that the owner of the local data files could not inspect them.
 
-### 1. Generated code may look correct, but it is important to still perform manual testing
+These experiences taught us to state the required domain outcome in prompts and then trace the generated implementation through the real application path. For important workflows, we should confirm construction, authorization, persistence, audit effects, and the final screen rather than accepting a plausible UI or an isolated passing test.
 
-**What happened**
+## Combining automated checks with manual workflow testing
 
-When creating the audit log, Codex did not consider the fact that an admin is able to trigger a change in the audit log by updating the SLO within the same session. Thus, the audit log was not updated when updating the SLO, since we cached the page. I caught this through manual testing.
+Agents were effective at generating focused tests for the behaviour they implemented, but those tests did not always expose interactions with other parts of the application. The audit log, for example, cached its page contents and did not refresh after an Administrator changed an SLO during the same session. The feature's tests passed because they covered the intended audit behaviour in isolation; manual use exposed that the displayed data had become stale.
 
-**What is the takeaway**
+Manual testing also caught layout and navigation problems. The combined Reporter form and incident list extended below the application window without a page scrollbar, so part of the workflow was unreachable despite the underlying services working correctly. Similarly, placeholders in the first **My incidents** table conversion concealed the fact that the shared row mapping was not being used. Running the application, following the complete Reporter route, and inspecting the rendered result identified issues that service-level tests alone could not show.
 
-Agents can generate test cases that verify all the behaviour that they intend for the feature, but some behaviours, especially those that depend on other parts of the application, are not as simple for the agent to generate test cases for, and it is hence important to perform manual workflow testing and visual inspection.
+Our approach therefore became layered: deterministic tests checked domain rules and denied paths, UI-flow tests checked that controls reached the correct services, and manual workflow testing covered navigation, refresh behaviour, scrolling, and visual clarity. None of these forms of verification was sufficient by itself.
 
-### 2. Architectural changes may seem reasonable but are not scalable
+## Keeping lifecycle and authorization rules out of the UI
 
-**What happened**
+Incident actions showed why prompts need to distinguish visible controls from real domain behaviour. The initial Reporter detail view used `IncidentDetailActions.none()`, while its comment box called `IncidentCommentService.add(...)`. On a resolved incident, that added text but did not reopen the incident. A Reporter-specific detail action was needed to call `IncidentService.reopen(...)`, which records the transition back to `SUBMITTED`, stores a `REOPEN_EXPLANATION` comment, and creates the audit event as one operation.
 
-When fixing the stale audit log, the agent initially added a special case ADMIN_AUDIT_LOG check to the generic navigator so the page alone was recreated on each visit. It fixed the staleness and passed tests, but it was adding code to the navigator for a specific page. While realistically it is reasonable at this scale to perform this check, for a production-grade application that needs to be ready to scale, it made more sense for the refresh code to live within the page itself. Therefore, I got the agent to implement NavigableView.onShown() instead, a function that is called when the page is shown and implemented by the specific page class to perform the refetching.
+We applied the same reasoning to editing and withdrawal. Hiding a button was not enough: the service still had to reject attempts after assignment, including stale actions from an already-open screen. Tests therefore covered both permitted and denied operations and checked stored state, not merely control visibility. This reinforced a broader lesson: agents can wire an interface quickly, but we must ensure that role, ownership, assignment, category access, and lifecycle rules remain enforced in application or domain logic.
 
-**What is the takeaway**
+## Reviewing architecture and maintainability
 
-AI agents can create correct code, but it is up to the prompter to review and identify whether the code they output is scalable and maintainable.
+An agent's first correct fix was not always the best long-term design. To address the stale audit log, the initial solution added a special `ADMIN_AUDIT_LOG` condition to the generic navigator so that one page would be recreated on every visit. Although this fixed the immediate bug, it coupled shared navigation code to a specific page and would not scale as other views gained refresh requirements. We instead introduced `NavigableView.onShown()`, allowing each page to refresh itself when displayed.
 
-### 3. Agent uses fully qualified class names instead of importing
+Code review also caught smaller maintainability problems, such as generated Java code using fully qualified class names like `java.util.List` inline instead of normal imports. The code compiled, but repeated fully qualified names reduced readability and did not match the project's conventions. We added this concern to our code-quality checks so future reviews would catch it consistently.
 
-**What happened**
+These examples changed how we assess generated code. Passing tests establish useful evidence, but we also review whether responsibilities live in the right layer, whether a solution introduces special cases into shared infrastructure, and whether the result remains readable and consistent with the existing codebase.
 
-When reviewing the code outputted by Codex, I found that it was for some reason using the full class name (i.e. java.util.List) instead of performing an import at the top of the file. If left alone, it would cause readability and hence maintainability issues. Therefore, I added a check to the code-quality skill for this full class name usage so that it is caught whenever we run a code quality check. In hindsight I probably could've just added it to the AGENTS.md.
+## Keeping documentation tied to evidence
 
-**What is the takeaway**
+AI helped draft and organize the User Guide and Developer Guide, but polished documentation could still be wrong. The first User Guide sequence introduced the Responder queue before explaining that an Administrator must grant category access, so a peer tester following it saw an empty queue. Reordering account and access setup before the workflow made the guide usable. Screenshots also had to be replaced when the Reporter page gained anonymous submission and **My incidents**.
 
-Code outputted by the AI agent should be reviewed not only for correctness and architectural scalability, but also for readability and conformity with project conventions.
+Architecture diagrams required the same scrutiny. One persistence relationship initially pointed from repository interfaces toward `LocalApplicationStore`, even though the store implements those interfaces. Comparing the diagram with the source corrected the UML realization direction. The incident-submission sequence also needed updating when the form stopped hard-coding the anonymity value.
 
----
+We learned to treat documentation claims as outputs that require evidence. For each guide change, we should check the implemented feature, the route a user actually follows, the current interface, and the source or automated check supporting the description.
 
-## Hao Wern
+## Using cross-platform evidence to control scope
 
-I used Codex to explore the UI, implement Reporter workflows, add tests, and help write the guides. I set the scope of each task, reviewed the generated work against the running application and our shared services, and corrected mistakes before merging. My [interaction summaries](../logs/haowern98/reporter-submission-and-tracking.md) record the decisions and checks behind these examples.
+The attachment work showed us that success on one development machine does not establish that a desktop feature is portable. Initial image and video support passed local tests, but CI exposed missing Linux codecs and a temporary-video file-lock problem on Windows. Instead of treating the local result as sufficient or adding increasingly fragile platform-specific workarounds, we used those failures to reassess the requirement. We narrowed attachment support to PNG and JPEG, removed the JavaFX media dependency, rejected disguised video files, and preserved existing video data without attempting to open it. This experience taught us to ask agents for verification on every supported platform and to treat unresolved environmental failures as product evidence. Reducing scope can be the more responsible engineering decision when it produces a feature whose security, packaging, and behaviour the team can genuinely support. The sequence of implementation, CI diagnosis, and scope correction is recorded in [Qing Rui's interaction log](../logs/lqr1019_prompt_log.md).
 
-### 1. Turning a mockup into a working Reporter page
+## Overall reflection
 
-#### Prompt: a working Reporter interface
+AI agents made the team faster at drafting code, tests, interfaces, diagrams, and prose, especially when a task was repetitive or well bounded. The most expensive mistakes occurred at boundaries: a page created without its service, a comment that did not perform the required lifecycle transition, a checkbox whose value never reached storage, a cached view that did not react to another feature, and documentation that lagged behind the product.
 
-> Create a mockup that the group can review, but use visual patterns that can also be built in JavaFX. For the actual application, focus on the Reporter role. Inspect the existing incident-submission service and shared table before connecting the form and incident list. Keep changes to teammates' code small, and add focused tests for the user workflow.
-
-#### Why this prompt required a clear boundary
-
-The web mockup helped the group agree on a visual direction, but it was not the JavaFX product. I asked the agent to inspect the existing services and table so it would connect the Reporter screen to shared application rules instead of recreating them in the UI. A convincing preview was not proof that a report could be saved or tracked.
-
-#### Reporter assumptions, corrections, and verification
-
-The agent produced the mockup and later drafted the Reporter form. The first working page still showed **Submission unavailable** because it had no `IncidentService`. Even after a service-aware constructor was added, `DefaultViewFactory` continued to call the no-argument constructor. I asked for the actual authenticated route to be checked; injecting the service there made submission use the existing validation, authorization, persistence, and audit path. I checked the saved-report confirmation in the running app, not only a form-level test.
-
-When **My incidents** was added, the first table conversion filled some fields with placeholders instead of using the shared row mapping. The agent moved authorized row creation into `IncidentService.reporterIncidents(...)`. The combined form and list also extended below the window without a page scrollbar. I noticed that in the live UI; the page gained a `ScrollPane`, and a UI-flow test checked access to both sections. These changes are described in the [Reporter submission and tracking log](../logs/haowern98/reporter-submission-and-tracking.md). The earlier [mockup log](../logs/haowern98/mockup-and-ui-handoff.md) records separate preview defects, including an editing ID that survived navigation and smoke tests that mistook `data-href` for a real link.
-
-#### Reporter judgement and next time
-
-I learned to test the route a user actually takes through the application. A passing form test would not have found the missing service injection, and service tests would not have shown that the lower half of the page was unreachable. Next time I would check construction, submission, navigation, and scrolling as one short end-to-end path before calling a screen complete.
-
-### 2. Connecting Reporter actions to the correct state changes
-
-#### Prompt: correct Reporter actions and anonymous submission
-
-> Connect the Reporter detail screen to the existing edit, withdraw, and reopen operations without moving authorization rules into JavaFX. Allow editing and withdrawal only before assignment. Require an explanation when a Reporter follows up on a resolved incident, and make that action reopen the incident rather than add an ordinary comment. Add an anonymous option to the submission form using the service's existing flag, and explain its privacy limit accurately. Test both allowed and rejected actions.
-
-#### Why this prompt specified the state changes
-
-The backend already contained these operations, but the Reporter UI did not expose them correctly. A comment on a resolved incident was not equivalent to reopening it, and hiding an edit button was not enough to enforce the assignment rule. I specified the required state changes and denied paths so the agent would use the existing service boundary rather than implement a UI-only imitation. The anonymous option also needed wording that did not promise privacy from someone inspecting local data files.
-
-#### Reporter action assumptions, corrections, and verification
-
-The most important error was a missing mutation path. `DefaultViewFactory` gave Reporters a generic detail view with `IncidentDetailActions.none()`. Its comment box called `IncidentCommentService.add(...)`, which added text but did not change the incident's status. The agent added a Reporter-specific detail page whose follow-up action calls `IncidentService.reopen(...)`. That operation records the transition back to `SUBMITTED`, the `REOPEN_EXPLANATION` comment, and the audit event together. The focused test checked the stored status and comment type while confirming that earlier resolution remarks remained in the history. Other tests checked that assignment blocks a stale edit and that withdrawal requires confirmation.
-
-Anonymous submission exposed a simpler wiring error: the form always passed `false` to `IncidentService.submit(...)`. The agent connected a checkbox to that argument and tested that its value reaches storage, clears after success, and remains selected after a failed submission. I also checked the running app from two roles: the incident remained in the author's **My incidents**, while the Responder queue showed **Anonymous reporter**. These checks are recorded in the [Reporter actions and anonymity log](../logs/haowern98/reporter-actions-and-anonymity.md). They do not mean the local data owner cannot inspect stored files, and the separate promotion-request feature was not part of this work.
-
-#### Reporter action judgement and next time
-
-The existence of a service method did not mean a user could reach it. I had to trace each UI action through the service to the stored state and test both permitted and denied cases. Next time I would sketch that path before implementation, especially for actions that change an incident's lifecycle or privacy presentation.
-
-### 3. Keeping group documentation tied to the product
-
-#### Prompt: documentation that matches the group project
-
-> Write the User Guide around the steps a peer tester needs to follow, using screenshots from the current JavaFX application. Preserve the Developer Guide material already written by teammates and explain the architecture using this project's actual classes and relationships. Use my MP1 diagrams only as a visual style reference. Check instructions, screenshots, and diagrams against the implemented product before presenting them as complete.
-
-#### Why this prompt required product evidence
-
-Peer testers need an accurate setup order, not just a list of features. I also wanted the agent to respect my teammates' existing guide content and to avoid carrying MP1 design details into a different application. Source code and current screenshots were necessary evidence because a polished diagram or guide could still describe the wrong behaviour.
-
-#### Documentation assumptions, corrections, and verification
-
-The first User Guide order described the Responder queue before explaining how an Administrator grants category access. When I tried the flow, the queue was empty; the guide was reordered to put account setup first. Later, the Reporter screenshot became outdated when the anonymous checkbox and **My incidents** appeared, so I replaced it. In the Developer Guide, I challenged a persistence arrow that pointed from interfaces toward their adapter. `LocalApplicationStore` implements those interfaces, so the UML realization needed to point toward them. I also had the submission sequence updated after the form stopped hard-coding `false` for anonymity. The [documentation log](../logs/haowern98/documentation-and-delivery.md) records these corrections and the source and UI checks behind them.
-
-#### Documentation judgement and next time
-
-Good-looking documentation can still give a tester the wrong order or show a dependency backwards. AI helped draft and organise the guides, but I needed to compare them with source code and the current screen, and to respect teammates' existing work. Next time I would keep a small evidence checklist for every guide change: the implemented feature, its actual route, a current screenshot if needed, and the check that supports the claim.
-
-### Overall lessons
-
-The agent was most useful when I gave it a narrow boundary and a result I could verify. The costly mistakes were mostly at boundaries: a page constructed without its service, a comment that did not reopen an incident, a checkbox value not passed to the backend, and diagrams or screenshots that lagged behind the code. Tests, source inspection, the running JavaFX app, and review of small PRs helped me separate a plausible draft from work I could defend as part of a team.
-
----
-
-## Qing Rui
-
-_Reflection to be added._
+The strongest results came from combining precise prompts with small changes, source inspection, automated tests, manual use of the JavaFX application, and careful review before merging. In future work, we would define the end-to-end evidence for a task before implementation and verify each boundary explicitly. Our interaction summaries record further examples and checks from the [Reporter submission and tracking](../logs/haowern98/reporter-submission-and-tracking.md), [Reporter actions and anonymity](../logs/haowern98/reporter-actions-and-anonymity.md), [mockup and UI handoff](../logs/haowern98/mockup-and-ui-handoff.md), and [documentation and delivery](../logs/haowern98/documentation-and-delivery.md) work.
