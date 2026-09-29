@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
@@ -20,6 +23,7 @@ import com.company.incidentdesk.application.presentation.SloSummaryModel;
 import com.company.incidentdesk.domain.incident.IncidentId;
 import com.company.incidentdesk.persistence.AssignmentState;
 import com.company.incidentdesk.persistence.IncidentSearchCriteria;
+import com.company.incidentdesk.persistence.IncidentSloState;
 
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -131,6 +135,32 @@ class IncidentTableTest {
 
             assertEquals(null, table.tableView().getSelectionModel().getSelectedItem());
         });
+    }
+
+    @Test
+    void showcaseStoreAppliesRoleVisibilityAndEveryAdvancedFilterGroup() {
+        ComponentShowcasePage.DemoIncidentStore store = new ComponentShowcasePage.DemoIncidentStore();
+        assertEquals(2, store.query(ComponentShowcasePage.DemoRole.REPORTER, IncidentSearchCriteria.defaults()).size());
+        assertEquals(4, store.query(ComponentShowcasePage.DemoRole.RESPONDER, IncidentSearchCriteria.defaults()).size());
+        assertEquals(6, store.query(ComponentShowcasePage.DemoRole.ADMINISTRATOR, IncidentSearchCriteria.defaults()).size());
+
+        IncidentFilterBar.AccountOption taylor = store.reporters().get(2);
+        IncidentSearchCriteria criteria = new IncidentSearchCriteria(
+                "drive", Set.of(), Set.of(), AssignmentState.UNASSIGNED,
+                Optional.of(taylor.id()), Optional.empty(),
+                Optional.of(Instant.parse("2026-09-19T00:00:00Z")),
+                Optional.of(Instant.parse("2026-09-20T00:00:00Z")),
+                Set.of(IncidentSloState.OVERDUE), IncidentSearchCriteria.defaults().sort());
+
+        assertTrue(store.query(ComponentShowcasePage.DemoRole.ADMINISTRATOR, criteria).isEmpty(),
+                "Anonymous incidents must not match reporter identity filters");
+        IncidentSearchCriteria withoutIdentity = new IncidentSearchCriteria(
+                criteria.text(), criteria.categories(), criteria.statuses(), criteria.assignmentState(),
+                Optional.empty(), Optional.empty(), criteria.createdFrom(), criteria.createdThrough(),
+                criteria.sloStates(), criteria.sort());
+        assertEquals(List.of("Shared drive unavailable"),
+                store.query(ComponentShowcasePage.DemoRole.ADMINISTRATOR, withoutIdentity)
+                        .stream().map(IncidentRowModel::title).toList());
     }
 
     private static List<String> headings(IncidentTable table) {

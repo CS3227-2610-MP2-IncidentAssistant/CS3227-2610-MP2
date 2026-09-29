@@ -1,6 +1,6 @@
 # UI component checklist
 
-This inventory is derived from `.agents/requirements.md`, `.agents/mvp-scope.md`, issue #5, and `.agents/STYLE_GUIDE.md`. Production workflows compose these primitives as needed.
+This inventory is derived from `.agents/requirements.md`, `.agents/mvp-scope.md`, issue #5, and `.agents/STYLE_GUIDE.md`. The showcase page provides a visual sample for every checked item; production workflows may compose these primitives differently.
 
 ## Navigation and structure
 
